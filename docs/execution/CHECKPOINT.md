@@ -1,7 +1,7 @@
 # Checkpoint de ejecución — Alomancia Horizon
 schema_version: 9
 fecha: 2026-11-13 America/Mexico_City
-estado: P0 integrated / C0 aprobado; P1 technically_verified / review_pending
+estado: P0 integrated / C0 aprobado; P1 reviewed / integration_pending
 rama: codex/alomancia-p1-resume
 base: 54469d64852499e671faff2da710b8fea5de442b
 repo: https://github.com/MasamuneL/MISTBRN
@@ -45,3 +45,9 @@ Commit de código probado: ec27064a8acc00b0e22a2ff03ffba59d089ee8c0. Push de cod
 Draft PR #1: https://github.com/MasamuneL/MISTBRN/pull/1 — consulta del conector confirmó open/draft=true/merged=false, head ec27064 y base main54469d6. Sin auto-merge ni mensajes/comentarios adicionales a terceros.
 Todos los gates técnicos P1 pasaron. C1 y P2 siguen pendientes porque falta revisión independiente. Los dos encargos nuevos (Terra/Sol) devolvieron límite de uso; principal no declara esa revisión aprobada. Ningún build ni smoke activo; fuentes originales y diferencias P0 preexistentes preservadas.
 SIGUIENTE ACCIÓN EXACTA: cuando haya capacidad de agentes, despachar revisor Sol independiente sobre PR1 (core, contratos, adaptador, helpers y p1-integration.md/json). No repetir builds/pruebas válidos salvo cambios o hallazgos. Resolver revisión antes de merge main/C1/P2. Este registro se guardará en commit documental separado y push a la misma rama, sin cambiar código verificado.
+## Reanudación solicitada — 2026-11-13
+HEAD76af126 en codex/alomancia-p1-resume confirmado; solo dos diferencias P0 de terminaciones preexistentes. No pruebas/build pendientes ni cambios P1 nuevos. Intención: un intento de revisión independiente Sol del corte completo actual y evidencia; si cuota sigue bloqueando, registrar causa sin repetir builds válidos ni declarar C1. Root conserva CHECKPOINT/manifiestos; revisor solo informes P1-review.md. P2 depende de cierre C1.
+
+Revisor Sol inspeccionó corte completo y hashes sin bloqueantes; dictamen escrito en cierre, aún esperar archivo final. Intención premerge: suite núcleo completa y formatos contraHEAD actual, logs p1-premerge-tests.log, sin repetir nativebuild/smoke inmutados. Tras approved escrito, actualizar estado/README/plan y commit solo docs+review, push rama; PRready y merge con expected_head_sha exacto si main sigue base verificada. Usuario ya autorizó integración tras pruebas/revisión; no nueva aprobación necesaria. Después fetch y rama codex/alomancia-p2 desde merge.
+
+Dictamen final escrito verificado: P1-review.md y p1-review.md, spec approved/calidad approved sin hallazgos. Suite premerge13+1 y formatos0 (p1-premerge-tests.log). Se actualizó README/plan al estado revisado, aún sin merge. Intención inmediata: commit documentación+review, push rama y comprobar SHA/head/base; ready y mergePR1 esperado consha exacto. Luego fetch origin/main y nueva rama P2 desde merge confirmado, sin alterar original ni diferenciasP0.

@@ -122,7 +122,7 @@ Depende P0. Archivos: manifiestos, core/{lib,types,commands,state}.rs, docs/cont
 
 Salida C1: harness del núcleo y esquema de datos estable.
 
-Verificación técnica P1: 13 contratos, un doctest, formato, build nativo y smoke reales aprobados; evidencia `docs/execution/evidence/p1-integration.md`. **C1 sigue pendiente de revisión independiente** (agentes bloqueados por límite de uso). No integrar a main ni comenzar P2 hasta cerrar esa revisión.
+Verificación técnica P1: 13 contratos, un doctest, formato, build nativo y smoke reales aprobados; evidencia `docs/execution/evidence/p1-integration.md`. Revisión independiente de cumplimiento y calidad **approved**, sin bloqueantes (`p1-review.md`); suite y formato premerge aprobados. C1 apto para integrar; registrar el merge verificado antes de comenzar P2.
 
 ### P2 — Reservas y guardado (Sol; revisión independiente)
 
