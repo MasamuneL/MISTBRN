@@ -1,0 +1,10 @@
+# Local runtime, third-party resources and inspection snapshots: never distribute.
+/experiments/horizon-probe/runtime/
+/experiments/horizon-probe/reference/
+/experiments/horizon-probe/installed-reference/
+/experiments/horizon-probe/candidate/
+# Local execution logs and recovery copies; publish curated evidence instead.
+/docs/execution/evidence/*.log
+*.tmp
+*.bak
+/target/

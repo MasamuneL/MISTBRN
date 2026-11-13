@@ -1,0 +1,1 @@
+Nota: hashes de representación UTF-8 guardada por apply_patch; pueden normalizar finales de línea, no equivalen a blob SHA Git.

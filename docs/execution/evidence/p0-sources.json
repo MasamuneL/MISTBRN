@@ -1,0 +1,184 @@
+[
+  {
+    "path": "experiments/horizon-probe/reference/AGENTS.md",
+    "upstream_path": "AGENTS.md",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/AGENTS.md",
+    "sha256_local": "6EA6CE6E3ACE9957FE95C08485E3189FEBC2EC566E368859FD3073724ADAFE81"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/Cargo.toml",
+    "upstream_path": "Cargo.toml",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/Cargo.toml",
+    "sha256_local": "5983F93637A0009D6EC47654FECFFC71B165B765A22946BA6059BCF11DB6BD85"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/CONTRIBUTING.md",
+    "upstream_path": "CONTRIBUTING.md",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/CONTRIBUTING.md",
+    "sha256_local": "6832C5A5E098C133DB50107CB83466468A8D25501E6C8E708A6A75C0BEB014A5"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/LICENSE",
+    "upstream_path": "LICENSE",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/LICENSE",
+    "sha256_local": "8A259F311ED40C6A9823E5558E5C1DA352785BCB68D8BF4628C48FF06ED41264"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/native-hooks.json",
+    "upstream_path": "native-hooks.json",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/native-hooks.json",
+    "sha256_local": "A7C565081C57AFDE93EFD2BFC095A3C7000F62AC529C24ADC727A5F8C589A730"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/cargo-horizon-mod/template/native/api.toml",
+    "upstream_path": "crates/cargo-horizon-mod/template/native/api.toml",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/cargo-horizon-mod/template/native/api.toml",
+    "sha256_local": "F60585F80D9A5D75F2008983F32A912D8AF70C2CB4DA3865257FD72F51034495"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/cargo-horizon-mod/template/native/horizon-mixin.toml",
+    "upstream_path": "crates/cargo-horizon-mod/template/native/horizon-mixin.toml",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/cargo-horizon-mod/template/native/horizon-mixin.toml",
+    "sha256_local": "4420784E555ECC95C1831B9F7605E59620E7F28296F474E91E336FB5AB566958"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/cargo-horizon-mod/template/native/lib.rs",
+    "upstream_path": "crates/cargo-horizon-mod/template/native/lib.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/cargo-horizon-mod/template/native/lib.rs",
+    "sha256_local": "48F1B9C979605EE4AC5519FCFB7E9E24CA532B8CCC2F1EA7ADB6789180F54CA4"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/mod_api.rs",
+    "upstream_path": "crates/horizon-client/src/mod_api.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/mod_api.rs",
+    "sha256_local": "7375FAA5913FE8FD7DAB04F0FBD5C9B086579621D617315CB88B8C0A4CEF5866"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_client_services.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_client_services.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_client_services.rs",
+    "sha256_local": "ABD19DF0469184D2605EF186DC780C2B65136B17B8CB2B2FE89D83E5C607F3A6"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_entity_motion.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_entity_motion.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_entity_motion.rs",
+    "sha256_local": "A02D56368D86F0C824BFAE928F30BC886EEEA6DCA773169F08586E2AE9D73E12"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_entity_refs.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_entity_refs.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_entity_refs.rs",
+    "sha256_local": "E21B67644FD6827E50579501F1BA60AE72407EB26D052E95E05D7055D006FB46"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_hooks.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_hooks.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_hooks.rs",
+    "sha256_local": "71EEFD036435EA2A782FA3BE988BBD6081114873B8377937940F175252D03541"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_menus.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_menus.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_menus.rs",
+    "sha256_local": "9B8B7EF1059DD56FE9329ACA2C39942677EC047259BBDAAD6063E9B5815F077D"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_motion.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_motion.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_motion.rs",
+    "sha256_local": "48645742F57EB28C51E61A19C78C840E70F69B4C2A88D534D1BAADCD3C5EAC6F"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_net.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_net.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_net.rs",
+    "sha256_local": "E1728274965508F1E243F86FA22EAC88B0F8E9FCABA152DF2D1B28DCE1099844"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_player_state.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_player_state.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_player_state.rs",
+    "sha256_local": "02F93F8724F77594EF1913BD1CBAF9C234E99C5CF6AFE7055284FB94922B07E6"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client/src/game/native_server.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_server.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client/src/game/native_server.rs",
+    "sha256_local": "9BEB19F040E70AA67FA21FE56D72C17B6AE57220DEDB786A841963E3AD4EBD0E"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/crates/horizon-client-input/src/keymapping.rs",
+    "upstream_path": "crates/horizon-client-input/src/keymapping.rs",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/crates/horizon-client-input/src/keymapping.rs",
+    "sha256_local": "A61CA8FAA94B0331A0BDCE876698008AC645BAF3C622D5E74E61867089DB37E4"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/docs/agent-control.md",
+    "upstream_path": "docs/agent-control.md",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/docs/agent-control.md",
+    "sha256_local": "BC29E1B480D35DF004ADAB6A017F493706922F49B5F6CC4C14485BB394507FF0"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/docs/mods.md",
+    "upstream_path": "docs/mods.md",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/docs/mods.md",
+    "sha256_local": "1D8D5A77DC1A16257CA1306F716002095A0D1EE70382CFAC67BC2E9A96D00393"
+  },
+  {
+    "path": "experiments/horizon-probe/reference/docs/native-mods.md",
+    "upstream_path": "docs/native-mods.md",
+    "revision": "36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f/docs/native-mods.md",
+    "sha256_local": "F94DE4BCD14F2E4A4ED95DAC7BD64F013962838E009BADBC35C715F7A622778F"
+  },
+  {
+    "path": "experiments/horizon-probe/installed-reference/Cargo.toml",
+    "upstream_path": "Cargo.toml",
+    "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca/Cargo.toml",
+    "sha256_local": "DAF9CDB31269AAAB7F05B97A50A61E3209ECA4F4F7C911187843F5E2DBA98C74"
+  },
+  {
+    "path": "experiments/horizon-probe/installed-reference/native-hooks.json",
+    "upstream_path": "native-hooks.json",
+    "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca/native-hooks.json",
+    "sha256_local": "DFB74AF1FECAC94C96E09EED3FC4DABA2FA7C10783BE31DDA9FBC78C8FF9630A"
+  },
+  {
+    "path": "experiments/horizon-probe/installed-reference/crates/horizon-client/src/mod_api.rs",
+    "upstream_path": "crates/horizon-client/src/mod_api.rs",
+    "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca/crates/horizon-client/src/mod_api.rs",
+    "sha256_local": "C9E63F35EE56B3565393526C5C8D0AF46F0E538A61F3C3BB988AC4388365D161"
+  },
+  {
+    "path": "experiments/horizon-probe/installed-reference/crates/horizon-client/src/game/native_motion.rs",
+    "upstream_path": "crates/horizon-client/src/game/native_motion.rs",
+    "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+    "url": "https://raw.githubusercontent.com/horizon-rust/horizon/fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca/crates/horizon-client/src/game/native_motion.rs",
+    "sha256_local": "48645742F57EB28C51E61A19C78C840E70F69B4C2A88D534D1BAADCD3C5EAC6F"
+  }
+]
