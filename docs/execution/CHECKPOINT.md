@@ -1,9 +1,9 @@
 # Checkpoint de ejecución — Alomancia Horizon
 schema_version: 9
 fecha: 2026-11-13 America/Mexico_City
-estado: P0 integrated / C0 aprobado; P1 reviewed / integration_pending
-rama: codex/alomancia-p1-resume
-base: 54469d64852499e671faff2da710b8fea5de442b
+estado: P0/P1 integrated / C0/C1 aprobados; P2 in_progress
+rama: codex/alomancia-p2
+base: 24b4b2c5759d746caab21b67f68f6766d688548e
 repo: https://github.com/MasamuneL/MISTBRN
 orquestador: principal; modelo exacto no expuesto
 
@@ -51,3 +51,18 @@ HEAD76af126 en codex/alomancia-p1-resume confirmado; solo dos diferencias P0 de 
 Revisor Sol inspeccionó corte completo y hashes sin bloqueantes; dictamen escrito en cierre, aún esperar archivo final. Intención premerge: suite núcleo completa y formatos contraHEAD actual, logs p1-premerge-tests.log, sin repetir nativebuild/smoke inmutados. Tras approved escrito, actualizar estado/README/plan y commit solo docs+review, push rama; PRready y merge con expected_head_sha exacto si main sigue base verificada. Usuario ya autorizó integración tras pruebas/revisión; no nueva aprobación necesaria. Después fetch y rama codex/alomancia-p2 desde merge.
 
 Dictamen final escrito verificado: P1-review.md y p1-review.md, spec approved/calidad approved sin hallazgos. Suite premerge13+1 y formatos0 (p1-premerge-tests.log). Se actualizó README/plan al estado revisado, aún sin merge. Intención inmediata: commit documentación+review, push rama y comprobar SHA/head/base; ready y mergePR1 esperado consha exacto. Luego fetch origin/main y nueva rama P2 desde merge confirmado, sin alterar original ni diferenciasP0.
+
+## C1 INTEGRADO / P2 iniciado — estado vigente
+PR1 merge confirmado por GitHub merged=true, SHA24b4b2c5759d746caab21b67f68f6766d688548e. Fetch origin/main coincide y git diff d547fdd origin/main exit0: contenido exacto revisado/probado. Rama nueva codex/alomancia-p2 creada desde ese merge; original WIP preservado y dos diferenciasP0 sin stage. Intención: gate núcleo sobre árbol integrado, luego P2A reservas en archivos exclusivos Sol; núcleo/guardado adaptador serial según contratos congelados, nada de P2 main hasta verificar fase completa.
+
+Gate sobre merge24b4b2c:13contratos+1doctest exit0; log p1-merged-tests.log. P2.md creado con propiedad exclusiva, criterios/gates. Intención: despachar P2A Sol high sobre reservas puras con TDD, sin modificar comandos/estado/SDK; root investigaciónreadonly hasta Cargo liberado. No marcar faseP2 completa por pruebas de reservas.
+
+Paralelismo autorizado por plan: P3 datos puede avanzar tras C1 mientras P2A implementa reservas. Intención: Luna medium catálogo interno de metales/recetas/obtención en content/*.json y docs de schema propios, sin SDK/assets/bridge ni consumo de viales. P3 no se acreditará integrado/jugable hasta validación Terra y P2/bridge real. No solapamiento con reservas/lib ni manifiestos.
+
+P2A API congelada por Sol en docs/reserves.md: ReserveRules por8metales, reducciónmilli<=200/bonus<=500, accounting.remainder[8] denominador1000 persistible. Reservashelper aún TDDenprogreso, Cargo reservado. Intención independiente: Sol P2B prepara contrato codec/ledger en docs/persistence.md y ficha propia, sin Rust/lib/Cargo hasta relevo. Persistirá PlayerState+ReserveAccounting con identidad estable, retención segura y rechazo antes de mutar; adaptador no iniciado.
+
+P2A libera lib.rs a root tras añadir reserves module/reexport; no volverá a editarlo. 16 pruebas listas y RED Cargo en curso (un único Cargo). P2B Sol prepara solo docs codec/ledger; Luna P3catálogos, ambos sinCargo/SDK. Root investigó world_dir API411 real y editará solo notasP2Horizon, no implementaciónadaptador hasta contrato codec. Próximo recibir RED/GREENreservas y APIpersistence.
+
+P2A resultado informado/cotejado en ficha: RED16/16 conductual101; GREEN16/16 exit0; workspace13P1+16reservas+1doctest exit0 yfmt0, sinadvertencias. Informe/hashes en cierre, código no cambia. Esperar liberación antes de codecs. P2Bpropuso SavedPlayer per-player(state/accounting/rules/revision/ledger), camposprivados y prepare→Host→commit con preimage/revision; schemaestricto requiereserdeattrs puntuales coordinados. No SDK/nativepersistencia implementados aún; P2noverified.
+
+P2A entregada: hashes de reserves.rs/tests/doc cotejados con informe, workspace13+16+1 yfmt0, Cargo/source liberados. Intención: commit parcial de reservas probado en rama P2 con revisión pendiente (sin contenidoP3, sin main). Desde ese corte revisar P2A de forma independiente; permitir después codec serial conserdejsonprod y pruebas estrictas antes de attrs. P2A por sí sola no cierraP2.
