@@ -10,4 +10,4 @@
 /docs/execution/evidence/*.png
 *.tmp
 *.bak
-/target/
+target/

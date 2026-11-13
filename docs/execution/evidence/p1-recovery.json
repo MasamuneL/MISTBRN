@@ -1,0 +1,94 @@
+[
+  {
+    "path": ".gitignore",
+    "sha256": "E193C34F8FA7BFB26D5A56F026CC9DB52A1713CC9BD02647CB74CFCA135481D6"
+  },
+  {
+    "path": "Cargo.toml",
+    "sha256": "468EAA9478992A343844146712D981623F7B7A90FE1888D1AB6DD2A17BAF0A50"
+  },
+  {
+    "path": "Cargo.lock",
+    "sha256": "4515B7AA2D1A0C667A9D98B78C6E0B524A5025A5DF09B0AAAB90FC138CEFA36B"
+  },
+  {
+    "path": "rust-toolchain.toml",
+    "sha256": "B551575EADA2E061B8989682CDED730B3827AFDB64A4327D790BEE8A1D9D9A44"
+  },
+  {
+    "path": "crates\\allomancy-core\\Cargo.toml",
+    "sha256": "524C5E0E4EBA8DB8CA83B03E0BDEE03C2FF471EF0C152668871C142C0DB33AE0"
+  },
+  {
+    "path": "crates\\allomancy-core\\src\\commands.rs",
+    "sha256": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95"
+  },
+  {
+    "path": "crates\\allomancy-core\\src\\lib.rs",
+    "sha256": "F5E9CAB3856E9663E41887EEEF8E0F129485D3D0AAF952BD96B9C82F53D0DAB5"
+  },
+  {
+    "path": "crates\\allomancy-core\\src\\state.rs",
+    "sha256": "E765BD0B0DAF449305F493D9BB322F2EEAC52222C27E3FFEB66703C474EE5F6A"
+  },
+  {
+    "path": "crates\\allomancy-core\\src\\types.rs",
+    "sha256": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E"
+  },
+  {
+    "path": "crates\\allomancy-core\\tests\\contracts.rs",
+    "sha256": "E086A8A098F3DF407A39DA882BD22E8DD7139B43E917720C997CFECDEE5E3E58"
+  },
+  {
+    "path": "crates\\allomancy-horizon\\Cargo.toml",
+    "sha256": "E2BAC8D9F9873A81DF7700F5CFA4249D01146E49450952C3811208642AC0D6E2"
+  },
+  {
+    "path": "crates\\allomancy-horizon\\src\\lib.rs",
+    "sha256": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1"
+  },
+  {
+    "path": "integration\\horizon\\horizon-mixin.toml",
+    "sha256": "578A6CC02F3C63FB302C934793514E1224BE689BE76BED93374C1DEF365D73B1"
+  },
+  {
+    "path": "tools\\build-native.ps1",
+    "sha256": "E0EAF3F07DBC650BD9C8835EFA628373C1BB7A1112BEE5454AF90C62F2D7FF28"
+  },
+  {
+    "path": "tools\\smoke-native.ps1",
+    "sha256": "EC2FD600DF19FE28DEAE752DC53D1720820D2F6DAC90ADBC2E656431EFFB86F9"
+  },
+  {
+    "path": "tools\\verify-native-bridge.ps1",
+    "sha256": "585494C7BDC2C94DD87FC36E49784966A86295AB91E8036DE274DCC457947529"
+  },
+  {
+    "path": "docs\\contracts.md",
+    "sha256": "BDB0305A83B92E0DE018A53A20504CADB4B4243407FD16DDF9D5FA62ED3BEB7D"
+  },
+  {
+    "path": "docs\\execution\\tasks\\P1.md",
+    "sha256": "1AEB85CFC90F24F6EA09DC833C0063BA35E0A6BBF4BE8799B2E7649E282AE05F"
+  },
+  {
+    "path": "docs\\execution\\tasks\\P1-core.md",
+    "sha256": "1CC2FD47B9B0421BBB6D89E19B7D7EFF4DACE9C1C4BD1527A5E6E9CB4AD3E056"
+  },
+  {
+    "path": "docs\\execution\\tasks\\P1-stage.md",
+    "sha256": "59CA161E0AA51746234094958E73F0CE4B3C83C0727C718BCBC1CB7FD55C43C3"
+  },
+  {
+    "path": "docs\\execution\\tasks\\P1-tooling.md",
+    "sha256": "6C5956A865A238F295B3D01B7D32C15B8AFB6D4F8F5D2B029F59849AD962EFEA"
+  },
+  {
+    "path": "docs\\execution\\evidence\\p1-core.md",
+    "sha256": "8FDE16F6696F8F9BE0C187E91EF9E41E67BDDA1C3B6534644224674D2675AE03"
+  },
+  {
+    "path": "docs\\execution\\evidence\\p1-stage.md",
+    "sha256": "CFA1E2918ACF3FE313AD9BE05A22F10B90EFECBD2E84880EA8A7694343C2D3EC"
+  }
+]

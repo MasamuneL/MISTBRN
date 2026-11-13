@@ -1,0 +1,4 @@
+[workspace]
+members = ["crates/allomancy-core"]
+exclude = ["crates/allomancy-horizon"]
+resolver = "2"
