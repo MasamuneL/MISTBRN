@@ -39,3 +39,9 @@ Informes/evidencias: p1-integration.md/json, p1-core.md, p1-stage.md, p1-recover
 ## Recuperación
 Antes de repetir operaciones inspeccionar HEAD, git status, receipt/logs, export y procesos. Temporales .tmp comprobar; escritura atómica y .bak preservado. No reset/clean ni borrar/mover runtime. BuildName y RunId existentes se rechazan deliberadamente.
 Precommit cached diffcheck detectó tres blanklines EOF en descriptor/build/smoke, no commit realizado. Se eliminaron solo líneas vacías finales; ningún Rust ni semántica manifest cambiada. Hashes post-normalización declarados en p1-integration.json; evidencia runtime conserva hashes reales usados en build. Intención: AST/diffcheckcached y commit de rama, sin repetir build por whitespace.
+
+## Publicación P1 confirmada — estado final de recuperación
+Commit de código probado: ec27064a8acc00b0e22a2ff03ffba59d089ee8c0. Push de codex/alomancia-p1-resume exit0 y ls-remote coincide. Main remoto verificado intacto en54469d64852499e671faff2da710b8fea5de442b.
+Draft PR #1: https://github.com/MasamuneL/MISTBRN/pull/1 — consulta del conector confirmó open/draft=true/merged=false, head ec27064 y base main54469d6. Sin auto-merge ni mensajes/comentarios adicionales a terceros.
+Todos los gates técnicos P1 pasaron. C1 y P2 siguen pendientes porque falta revisión independiente. Los dos encargos nuevos (Terra/Sol) devolvieron límite de uso; principal no declara esa revisión aprobada. Ningún build ni smoke activo; fuentes originales y diferencias P0 preexistentes preservadas.
+SIGUIENTE ACCIÓN EXACTA: cuando haya capacidad de agentes, despachar revisor Sol independiente sobre PR1 (core, contratos, adaptador, helpers y p1-integration.md/json). No repetir builds/pruebas válidos salvo cambios o hallazgos. Resolver revisión antes de merge main/C1/P2. Este registro se guardará en commit documental separado y push a la misma rama, sin cambiar código verificado.
