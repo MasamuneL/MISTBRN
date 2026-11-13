@@ -115,12 +115,14 @@ Salida: checkpoint C0 con revisión fijada y decisión de integración. No estim
 
 Depende P0. Archivos: manifiestos, core/{lib,types,commands,state}.rs, docs/contracts.md.
 
-- [ ] Definir los tipos anteriores, orden determinista del tick, errores y responsabilidad cliente/servidor.
-- [ ] Probar que comandos inválidos dejan estado intacto y entradas iguales producen efectos iguales.
-- [ ] Crear workspace y adaptador mínimo usando únicamente firmas verificadas.
-- [ ] Ejecutar cargo test --workspace y cargo fmt --all -- --check; congelar contratos para hijos.
+- [x] Definir los tipos anteriores, orden determinista del tick, errores y responsabilidad cliente/servidor.
+- [x] Probar que comandos inválidos dejan estado intacto y entradas iguales producen efectos iguales.
+- [x] Crear workspace y adaptador mínimo usando únicamente firmas verificadas.
+- [x] Ejecutar cargo test --workspace y cargo fmt --all -- --check; congelar contratos para hijos.
 
 Salida C1: harness del núcleo y esquema de datos estable.
+
+Verificación técnica P1: 13 contratos, un doctest, formato, build nativo y smoke reales aprobados; evidencia `docs/execution/evidence/p1-integration.md`. Revisión independiente de cumplimiento y calidad **approved**, sin bloqueantes (`p1-review.md`); suite y formato premerge aprobados. C1 apto para integrar; registrar el merge verificado antes de comenzar P2.
 
 ### P2 — Reservas y guardado (Sol; revisión independiente)
 

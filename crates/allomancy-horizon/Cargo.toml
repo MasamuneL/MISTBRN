@@ -1,0 +1,9 @@
+[package]
+name = "allomancy-horizon"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+allomancy-core = { path = "../allomancy-core" }
+horizon-client = { git = "https://github.com/horizon-rust/horizon", rev = "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca" }

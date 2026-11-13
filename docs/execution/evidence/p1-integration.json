@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-13",
+  "branch": "codex/alomancia-p1-resume",
+  "base": "54469d64852499e671faff2da710b8fea5de442b",
+  "status": "technically_verified_review_pending",
+  "build": {
+    "status": "succeeded",
+    "mods": {
+      "base": "nightly-2026-11-08-fdc87ae",
+      "horizon": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+      "base_horizon": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+      "pinned_by": [],
+      "on_base": false,
+      "horizon_mixins": "5a64af938ec86b00d53d16a408aabc0038fb3e57",
+      "hooks": null,
+      "rust": "1.99.1",
+      "profile": "dev",
+      "target": "server",
+      "rust_target": "x86_64-pc-windows-gnu",
+      "mods": [
+        {
+          "id": "allomancy",
+          "version": "0.1.0",
+          "sha256": "e66284fbae170acc7809e5310c0ad6af921a89e9cea1d231d33d9aa42fc7120e"
+        }
+      ],
+      "left_out": []
+    },
+    "staged_manifest_sha256": "CF57B74978262A1816F5320A9EFBE10216B7B06B79B20DD0EA2678DBB1DDD587",
+    "exit_code": 0,
+    "engine_sha256": "BC6BC370004F9F3CE00548099B3A5F0B9909ECABCCE72EEE886CE542CC4832BD",
+    "name": "p1-bridge2"
+  },
+  "smoke": {
+    "successful_bridge_markers": 3,
+    "run": "bridge2",
+    "report": {
+      "chunks": 9,
+      "elapsed_seconds": 3.6695738,
+      "error": null,
+      "frames": 1119,
+      "generated": 9,
+      "meshed_sections": 24,
+      "player": [
+        -3.5,
+        68.0,
+        2.5
+      ]
+    },
+    "timed_out": false,
+    "stderr_sha256": "8285BAF2CC84BFA84E6B832A88A6DCB4B212248226CDBC7576D97728C15534FE",
+    "exit_code": 0
+  },
+  "core": {
+    "test_exit": 0,
+    "fmt_exit": 0,
+    "adapter_fmt_exit": 0,
+    "rustdoc_sha256": "69CF788C36D4646A531BAB89024F11E8FC0130C7243F903672CC0D1BAC0E9163"
+  },
+  "inputs": [
+    {
+      "path": "integration\\horizon\\horizon-mixin.toml",
+      "sha256": "91B2D72BC7D45815BE28CFC3A4783316F684D4B4019BFDA18E08BE2044481995"
+    },
+    {
+      "path": "crates\\allomancy-core\\Cargo.toml",
+      "sha256": "524C5E0E4EBA8DB8CA83B03E0BDEE03C2FF471EF0C152668871C142C0DB33AE0"
+    },
+    {
+      "path": "crates\\allomancy-core\\src\\commands.rs",
+      "sha256": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95"
+    },
+    {
+      "path": "crates\\allomancy-core\\src\\lib.rs",
+      "sha256": "F5E9CAB3856E9663E41887EEEF8E0F129485D3D0AAF952BD96B9C82F53D0DAB5"
+    },
+    {
+      "path": "crates\\allomancy-core\\src\\state.rs",
+      "sha256": "E765BD0B0DAF449305F493D9BB322F2EEAC52222C27E3FFEB66703C474EE5F6A"
+    },
+    {
+      "path": "crates\\allomancy-core\\src\\types.rs",
+      "sha256": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E"
+    },
+    {
+      "path": "crates\\allomancy-horizon\\Cargo.toml",
+      "sha256": "E2BAC8D9F9873A81DF7700F5CFA4249D01146E49450952C3811208642AC0D6E2"
+    },
+    {
+      "path": "crates\\allomancy-horizon\\src\\lib.rs",
+      "sha256": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1"
+    }
+  ],
+  "limitations": [
+    "P1 memory-only; no powers, inventory or persistence",
+    "Independent review pending: delegated models returned usage limit",
+    "No merge to main"
+  ],
+  "post_verification_normalization": {
+    "reason": "Precommit whitespace check found extra blank lines at EOF; removed only trailing blank lines after the recorded source comparison. No Rust or manifest semantics changed.",
+    "files": [
+      {
+        "sha256": "5328F0F46E370FCB6F257EEBAC67D2FBD4609ABB7A0F17C196A0CFBFF5992CD8",
+        "path": "integration/horizon/horizon-mixin.toml"
+      },
+      {
+        "sha256": "768261EE9D531F9F5C4B923C0565E0C6AB35783808401ACC94E8A88D63F0940C",
+        "path": "tools/build-native.ps1"
+      },
+      {
+        "sha256": "5BD06FE5D48F7CDBDC21966A768096671621FF3A6D29ABEE6B40010D38199DB5",
+        "path": "tools/smoke-native.ps1"
+      }
+    ]
+  }
+}
