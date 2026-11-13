@@ -1,7 +1,7 @@
 # Checkpoint de ejecución — Alomancia Horizon
 schema_version:7
 fecha:2026-11-13 America/Mexico_City
-estado:P0 reviewed; C0 aprobado; commit/publicación en curso
+estado:P0 integrated; C0 aprobado; publicación en curso
 base:6e5f001da17a3bf58b12ad69badeccbc3f0a815c / codex/alomancia-p0 / checkout normal
 repo:https://github.com/MasamuneL/MISTBRN (público); origin local verificado
 aprobación: diseño/plan y ejecución autónoma; publicación GitHub autorizada
@@ -45,3 +45,5 @@ Astra re-review1/5: R1/R2 ADDRESSED,calidad/cumplimiento P0aprobados para P1 sin
 Herramientas independientes P1: rustfmt1.10.0 yclippy0.1.99 del Rust1.99.1 añadidos SOLO a binportable delruntime;SHA oficialesverificados,versionesexit0. Primer guard de archivo falló por raízexacta sin slash;corregido con inspección, ningúnpayload noverificado ejecutado.
 Intención inmediata: normalizar referencias locales privadas en evidencia pública,gitdiffcheck/JSONvalidación,stage solo fuente/documentos explícitos,commitP0 verificado,verificarHEAD/pushsinforce. No publicar runtimes/logs/crudos/screenshots/backups. Después worktreegestionadoP1 desdecommitnuevo;P1código no empezado aún.
 CommitC0 no ejecutado: precheckcached exit2,HEADsigue6e5f001d y stagingfuente/documentospreservado. Causa real: .diff de revisión contiene líneasdecontexto vacías con espacio obligatorio. El checkconcoreautocrlffalse además interpretóCRcomo whitespace;usarconfigvigente. Intención: atributo whitespace limitadoa*.diff pararespetarformatounified,yLFparaRustconservandobytes/hashsource;revalidar/stage/commit,sin omitirchecksdelcódigo.
+## Recuperación C0 consolidada
+CommitcódigoC0:f1169076fe5d474b2f3d93e5f6fc78396cc3f241 (verificado,diffcheckcached0,41archivos). Próximo: commitesteregistrodocumental ypushfastforwardHEAD:main,sinforce;verificarrama remota antesdecrearworktreeP1. P1noiniciadoaún;toolchaincomponenteslistos.
