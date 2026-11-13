@@ -103,11 +103,11 @@ Para cada tarea de código: (a) registrar intención/checkpoint; (b) escribir pr
 
 Dependencias: ninguna. Archivos: docs/compatibility.md, docs/execution/evidence/p0.md; prototipo desechable bajo experiments/horizon-probe/.
 
-- [ ] Leer instrucciones del repositorio upstream, guía de mods y ejemplos oficiales; fijar commit/release, toolchain y comandos de compilación.
-- [ ] Inventariar instalación local y recursos legítimos disponibles. Documentar faltantes sin confundirlos con carencias de API.
-- [ ] Compilar/cargar un mod mínimo y probar entrada, tick, item, impulso con colisión, UI, eventos de combate/loot, guardado, sonido y servidor.
-- [ ] Tabla por capacidad: firma/ruta upstream, prueba ejecutada, soportada/no soportada/no probada y alternativa.
-- [ ] Registrar comandos exactos y logs. Si faltan capacidades esenciales, diseñar extensión mínima o presentar fork; no avanzar afirmando compatibilidad.
+- [x] Leer instrucciones del repositorio upstream, guía de mods y ejemplos oficiales; fijar commit/release, toolchain y comandos de compilación.
+- [x] Inventariar instalación local y recursos legítimos disponibles. Documentar faltantes sin confundirlos con carencias de API.
+- [x] Compilar/cargar un mod mínimo y probar entrada, tick, item, impulso con colisión, UI, eventos de combate/loot, guardado, sonido y servidor.
+- [x] Tabla por capacidad: firma/ruta upstream, prueba ejecutada, soportada/no soportada/no probada y alternativa.
+- [x] Registrar comandos exactos y logs. Si faltan capacidades esenciales, diseñar extensión mínima o presentar fork; no avanzar afirmando compatibilidad.
 
 Salida: checkpoint C0 con revisión fijada y decisión de integración. No estimar fechas de entrega antes de C0.
 

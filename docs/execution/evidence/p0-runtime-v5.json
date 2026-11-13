@@ -1,0 +1,20 @@
+{
+  "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+  "hooks_api": 411,
+  "probe": "v5",
+  "source_sha256": "86FC8EBE1B46CB772130FFEF07BE4A82B53BB96BDFF357631EDC063BF0E8EE06",
+  "build_exit": 0,
+  "process_exits": [
+    0,
+    0
+  ],
+  "player_present_both_runs": true,
+  "inline_previous_counts": [
+    0,
+    1
+  ],
+  "inline_setter_accepted_both": true,
+  "canonical_storage": "NeoForgeData/allomancy_probe",
+  "power_loss_tested": false,
+  "crash_atomic_inventory_tested": false
+}

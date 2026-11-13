@@ -1,0 +1,6 @@
+id = "allomancy_probe_content"
+name = "Allomancy Probe Content"
+version = "0.0.1"
+api = "0.2"
+side = "both"
+capabilities = ["registries"]

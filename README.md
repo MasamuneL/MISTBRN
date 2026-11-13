@@ -1,21 +1,21 @@
 # MISTBRN — Alomancia para Horizon
 
-Mod en desarrollo para Horizon, inspirado en la alomancia. Plataforma inicial: Windows x64 e individual. Diseño y plan aprobados; todavía no existe una versión jugable del mod.
+Mod en desarrollo para Horizon, inspirado en la alomancia. Windows x64 e individual primero. Diseño y plan aprobados; todavía no hay una versión jugable del mod completo.
 
 ## Estado comprobado
 
-P0 en curso. Se compiló un probe nativo mínimo sobre Horizon `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca` con la toolchain portable Rust1.99.1 del launcher. La compilación terminó con código0 y el ejecutable cargó el objeto Hooks. El arranque gráfico inicializó recursos y Vulkan, pero no produjo informe de smoke completo. Ticks, física, entrada, persistencia, UI y cooperativo siguen sin validar.
+P0 ejecutó un probe nativo sobre Horizon `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca` con Rust portable1.99.1. Se verificaron compilación/carga, ticks, controles con chat/inventario, impulso básico, item propio, HUD, eventos de muerte/loot, mensajes servidor/cliente y sonido encolado. Un contador versionado inline en el NBT del jugador persistió entre procesos. C0 quedó aprobado tras revisión independiente; P1 inicia a continuación. P2–P10 siguen pendientes.
 
-El bundle actual amplía la observabilidad de ticks, teclado y attachments; **esta ampliación todavía no está compilada ni revisada**. El probe mínimo que sí compiló se conserva en `docs/execution/evidence/p0-initial-probe.rs`.
+No se acreditó todavía consumo resistente a cortes, árboles, poderes completos ni cooperativo. La matriz y sus límites están en `docs/compatibility.md`; los resultados curados en `docs/execution/evidence/p0-runtime-v2.json`, `p0-runtime-v4.json` y `p0-runtime-v5.json`.
 
-## Continuar el desarrollo
+## Continuar
 
 1. Leer `docs/execution/CHECKPOINT.md` y contrastar archivos/logs/procesos antes de repetir acciones.
-2. Consultar `docs/superpowers/specs/2026-11-12-alomancia-design.md` y `docs/superpowers/plans/2026-11-12-alomancia.md`.
-3. Resolver las pruebas pendientes de P0 y cerrar C0 antes de empezar P1.
+2. Consultar el diseño y plan en `docs/superpowers/`.
+3. Continuar P1 con sus contratos; las pruebas de cortes y transacciones son obligatorias en P2.
 
-La matriz provisional y las limitaciones de autoridad y transacciones están en `docs/compatibility.md`. El código del probe está en `experiments/horizon-probe/bundle/`.
+El probe es desechable y está en `experiments/horizon-probe/`. No es el mod final. Sus pruebas usan carpetas y mundos dedicados respaldados.
 
-## Recursos y distribución
+## Distribución
 
-No incluye Minecraft, recursos preparados, binarios del juego, ilustraciones ni textos de las novelas. Las pruebas usan carpetas y mundos desechables. Runtime, fuentes de referencia, logs locales y copias de recuperación quedan fuera de Git. Este repositorio conserva resúmenes de evidencia; no equivale a un SDK ni a un mod instalado.
+No incluye Minecraft, recursos preparados, binarios del juego ni material de las novelas. La fixture original solo referencia recursos que ya posee el jugador. Runtime, fuentes upstream descargadas, screenshots, logs crudos y copias de recuperación quedan fuera de Git.

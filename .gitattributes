@@ -1,0 +1,4 @@
+# Keep Rust source hashes stable across Windows checkouts.
+*.rs text eol=lf
+# A unified diff's blank context line contains one required space.
+*.diff whitespace=-blank-at-eol

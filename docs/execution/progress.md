@@ -40,3 +40,5 @@ Ruling: aprobación de diseño/plan recibida; no reabrir brainstorming.
 - Próximo: análisis estático de hooks y cotejo instalación. Sin pruebas reales aprobadas.
 
 P0 parcial: build mínimo exit0 y factory cargada. Smoke incompleto. Candidate integrado sin compilar; revisión automática y revisor bloqueados por cuota. GitHub público autorizado MasamuneL/MISTBRN; publicación curada en curso. No declarar C0.
+P0-capabilities: fix round1/5 (sound category corregida por Terra;re-review y smokeGREEN pendientes). V3baseline ping/ack válidos y soundfalse demostrados; Contentfixture timeout aislado antes tablas;Luna investiga sin cambios.
+P0: fix round1/5 (R1/R2 ADDRESSED;re-reviewAstra limpio). C0aprobado,commit/publicaciónpendientes. P2debevalidarraízNBToriginal fuera de turno,rollback,replay,cortes;ninguna promesa durableporACK.

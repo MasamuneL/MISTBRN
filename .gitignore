@@ -5,6 +5,9 @@
 /experiments/horizon-probe/candidate/
 # Local execution logs and recovery copies; publish curated evidence instead.
 /docs/execution/evidence/*.log
+/docs/execution/evidence/*-controls.json
+/docs/execution/evidence/p0-smoke-*.json
+/docs/execution/evidence/*.png
 *.tmp
 *.bak
 /target/

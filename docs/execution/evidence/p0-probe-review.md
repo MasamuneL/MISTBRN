@@ -1,0 +1,27 @@
+# P0 probe — revisión independiente estática
+
+Alcance: brief `docs/execution/tasks/P0-probe.md`, informe `p0-probe.md`, diff `p0-probe-review.diff` y candidato `experiments/horizon-probe/candidate/`. Revisión del probe desechable, no del mod final. No ejecuté Cargo, rustc, launcher, juego ni pruebas; no modifiqué implementación ni hice commits.
+
+**Veredicto de especificación: conforme por inspección para pasar a compilación real.** Están los hooks de carga, tick cliente y servidor, tecla con impulso pequeño y gates de foco/sesión/pantalla, contador del jugador con codec y registro del valor previo. El pin coincide en Cargo.toml, horizon-mixin.toml y `.horizon-revision`. No hay llamadas de inventario o salud, ni escritura de datos persistentes ajenos al attachment propio; el impulso cambia el movimiento como se solicita. La compilabilidad y el guardado efectivo siguen pendientes; este veredicto no acredita C0/P1.
+
+**Veredicto de calidad: adecuado al alcance, sin hallazgos bloqueantes estáticos.** Un archivo de 65 líneas, sin dependencias nuevas adicionales al SDK ya requerido, sin arquitectura anticipada y con errores de attachment visibles. El informe distingue correctamente límites del experimento y garantías todavía ausentes.
+
+## Evidencia inspeccionada
+
+Las rutas `runtime/...` del informe se resuelven bajo `experiments/horizon-probe/`. Fuentes locales reales del pin `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca`:
+
+- `runtime/launcher/native/target/fast/build/horizon-native-game-4e31fe35dc1758a4/out/mod_api_generated.rs`: firmas de `tick`, `server_tick`, `key`, `player_logged_in` (líneas 10, 47, 103 y 579); campos `KeyEvent.key/pressed` y `PlayerLoggedInEvent.player` (4239 y 4708). El login es servidor y se dispara una vez por entrada; `key` omite repeticiones y puede llegar desde pantallas.
+- `out/mod_api_generated_host.rs`: `mod_key`, `push_player`, `client_state`, `window` (418, 491, 803 y 831). `push_player` suma velocidad y limita cada componente del impulso, no la velocidad resultante.
+- `runtime/launcher/native/source/<pin>/crates/horizon-client/src/mod_api.rs`: reexports públicos (29–32 y 89–96), adaptador `AttachmentHost for dyn Host` (985–988).
+- `source/<pin>/crates/horizon-world/src/attachments.rs`: campos del codec y tipo (59–72), `Holder::Player(u128)` (47), `get/set` (97 y 122). `nbt.rs:35` define `Compound`; `game/persist.rs:2199–2208` usa el mismo patrón NBT de contador y decodificación.
+- `source/<pin>/crates/horizon-client/src/game/native_client_services.rs`: `focused`, `logged_in`, `screen`, clasificación de chat/otras pantallas (33–80, 244–263). `game/native_motion.rs:17–38` confirma suma del impulso local.
+
+## Observaciones y límites relevantes
+
+1. `candidate/api/src/lib.rs:43–50`: solo la tecla configurada puede actuar; liberar limpia `HELD`; cada pulsación nueva se evalúa con `focused && logged_in && screen == Playing`. Chat, menús y falta de foco quedan excluidos según el estado expuesto. Si se pierde la liberación, se inhiben impulsos hasta recibir otra; es un límite conservador documentado, no activación diferida. La reasignación y los cambios de foco requieren validación real.
+2. `lib.rs:47–51`: tres llamadas de 0.05 acotan el aporte vertical del probe a aproximadamente +0.15 por proceso. No acotan velocidad total, caídas ni colisiones. Existe `Host::entity_velocity(EntityRef)` (`_host.rs:674`); `game/native_entity_motion.rs:45–49` puede leer la velocidad del jugador local mediante su handle. No confirmé un getter público directo del ID local en los snapshots utilizados (`NativePlayer` y `NativeClientState` no lo incluyen). Por tanto no trato la falta de límite total como bloqueo de este probe con techo diminuto y limitación explícita, ni concluyo que toda la API carezca de acceso a velocidad local. Resolverlo será necesario para movimiento final.
+3. `lib.rs:14–24,54–63`: el contador tiene namespace propio, codec simétrico de `Tag::Int`, incremento saturado y escritura del lado servidor usando el UUID recibido sin registrarlo. Una decodificación inválida devuelve error y no se reemplaza deliberadamente por cero. `copy_on_death=false` y `sync=false` son políticas válidas para este experimento; no prueban conservación tras muerte ni sincronización.
+4. Los logs usan `ALLOMANCY_PROBE`, sin nombre, UUID, dirección, ruta o inventario. Ticks se registran tres veces por lado, impulsos como máximo tres, login/error diez; el contador sigue operando después del techo de logs. `event=impulse` demuestra una llamada al helper, no movimiento consumado: el helper retorna `()` y puede ignorar espectadores. El arranque anterior con `--help` solo acredita el probe mínimo archivado, no este candidato.
+5. El informe del implementador es evidencia histórica de preparación aislada; la copia posterior al bundle está descrita por el principal en P0.md/CHECKPOINT.md. Durante esta revisión, candidato y bundle contienen el mismo lib.rs. Esta revisión no transfiere resultados del binario mínimo a esa copia ampliada.
+
+Pendiente para el principal: compilar serialmente contra el runtime real; confirmar carga y ticks cliente/servidor en ejecución; probar una pulsación sostenida, liberación, nuevas pulsaciones y gates de chat/menús/foco; observar impulso en mundo desechable; guardar, cerrar completamente, abrir y reconectar comprobando `previous_count`. Reconectar sin reiniciar solo demostraría conservación en memoria. No se exigen sistemas del mod final ni pruebas con SDK simulado para aceptar este candidato como probe.

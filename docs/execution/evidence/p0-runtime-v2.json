@@ -1,0 +1,23 @@
+{
+  "revision": "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca",
+  "probe": "v2",
+  "code_reference": "6e5f001da17a3bf58b12ad69badeccbc3f0a815c:experiments/horizon-probe/bundle/api/src/lib.rs",
+  "build_exit": 0,
+  "smoke_reopen_exit": 0,
+  "smoke_player_present": true,
+  "server_and_client_ticks_observed": true,
+  "persisted_login_count_on_first_reopen": 1,
+  "controls_exit": 0,
+  "control_commands": 14,
+  "all_control_commands_exit_zero": true,
+  "impulses_observed": 1,
+  "chat_screen_confirmed": true,
+  "inventory_activation_blocked": true,
+  "repeated_key_activation_blocked": true,
+  "limitations": [
+    "No speed/force/collision guarantee",
+    "No crash-atomic inventory transaction test",
+    "No audible sound test",
+    "No multiplayer test"
+  ]
+}

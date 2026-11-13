@@ -1,38 +1,47 @@
 # Checkpoint de ejecución — Alomancia Horizon
-schema_version: 4
-fecha: 2026-11-12 America/Mexico_City
-estado: P0 bloqueado por límite externo de aprobación/uso; C0 no alcanzado
-aprobación: usuario aprobó diseño/plan, ejecución autónoma y subida a GitHub
-orquestador: principal de la sesión; modelo exacto no expuesto
-base_local: sin HEAD / master / checkout normal; comprobar antes de enlazar remoto
-repositorio_destino: https://github.com/MasamuneL/MISTBRN (público, proporcionado por usuario)
+schema_version:7
+fecha:2026-11-13 America/Mexico_City
+estado:P0 reviewed; C0 aprobado; commit/publicación en curso
+base:6e5f001da17a3bf58b12ad69badeccbc3f0a815c / codex/alomancia-p0 / checkout normal
+repo:https://github.com/MasamuneL/MISTBRN (público); origin local verificado
+aprobación: diseño/plan y ejecución autónoma; publicación GitHub autorizada
+orquestador:principal; modelo exacto no expuesto
 
-## Verificado
-- Inicio: solo tres documentos de planificación, sin commits. Sin AGENTS.md encontrados en proyecto/ancestros inspeccionados.
-- Inventario Terra gpt-6.1-terra medium y análisis API Sol gpt-6.1-sol high entregados; informes en evidence/.
-- Candidato integración: nightly-2026-11-08-fdc87ae / fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca. Comparación main36eb98b6f6ec4f22649cbe65bbfd32bc0dc2083f, no confundir revisiones.
-- Rust1.99.1 portable instalado únicamente en runtime aislado, exit0.
-- Recursos locales existentes copiados a scratch: robocopy exit1=éxito,30051 archivos,0 fallidos. No distribuir.
-- Build mínimo intento2 exit0; runtime/server-engine/horizon-engine.exe creado; fuente .horizon-revision coincide pin. Marcador ALLOMANCY_PROBE_LOADED observado con --help exit0.
-- Código mínimo compilado archivado en docs/execution/evidence/p0-initial-probe.rs.
-- Smoke inició recursos/Vulkan. Sin smoke JSON ni código de salida final capturado; no aprobado. No inferir mundo jugable de inicialización gráfica.
+## Estado real
+- P0: compilación/carga y ensayos mínimos realizados. No C0 integrado todavía; falta revisión final independiente.
+- P1–P10: pending. No núcleo ni poderes del mod completo implementados.
+- Target fijado Horizon fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca / nightly-2026-11-08-fdc87ae / API411. Comparación main36eb/API415 no es target.
+- Rust portable1.99.1 en experiments/horizon-probe/runtime/launcher/rust; sin cambios de toolchain del sistema.
+- Source actual del bundle v5 compiló exit0 y sus dos procesos storage1/storage2 finalizaron0 con contador inline previo0→1. JSONcurado p0-runtime-v5.json incluye hashsource.
+- v4 ensayó HUD/item propio/uso/death/loot/net/soundqueue/impulso; resultado p0-runtime-v4.json. v2 verificó gates de chat/inventario/repeat y Attachment roundtrip; p0-runtime-v2.json.
+- Todas las operaciones de juego conocidas terminaron; confirmar procesos si se reanuda, no confiar en PIDs históricos.
+- GitHub main aún es6e5f001d(23archivos iniciales). Cambios posteriores locales sin commit incluyen código v5,fixture,harness,revisiones y evidencia curada. No se han perdido ni reescrito cambios de usuario.
 
-## Cambios parciales y bloqueo
-- Terra preparó ampliación de probe y principal la copió al bundle tras terminar build anterior. Bundle actual NO es el código mínimo verificado: ticks/input/attachment pendientes de compilación.
-- Segunda compilación a runtime/probe-engine-v2 NO se lanzó: revisión automática de aprobación falló por límite de uso, sin dictamen de inseguridad. No reintentar por otro canal para eludirla.
-- Revisor independiente p0_probe_review también falló por límite de uso; no hay revisión aprobada ni informe de revisión.
-- P0 sin cerrar. P1–P10 pending por dependencia de C0; no hay núcleo del mod aún.
-- Sin mundos personales, cuentas ni configuración personal modificados. Runtime/refs/logs/backups excluidos de Git.
+## Decisión propuesta C0
+Individual con servidor integrado, núcleo independiente y adaptador nativo sobre pin exacto; sin fork. Estado canónico en NeoForgeData namespaced/versión mediante helpers inline con el inventario. Attachments no son economía canónica debido ventana de autosave stale. Pruebas de corte/rollback/replay/errores obligatorias en P2; no se acredita fsync por acción ni audición ni cooperativo.
+Ver docs/compatibility.md y p0-persistence-api.md para límites y rutas.
 
-## GitHub — intención antes de mutación
-El usuario proporcionó repositorio público MasamuneL/MISTBRN. Metadatos con conector: tamaño0, main por defecto, push autorizado. Publicar README y árbol fuente/documentos curados; no subir runtime, recursos, binarios, logs crudos o backups. Conservar cualquier archivo remoto existente usando árbol base y actualización sin force. Registrar SHA remoto tras verificar. Aún no se afirma subida completada.
+## Agentes y archivos
+Todos los encargos de implementación entregados. Terra: probe/fichas; Luna:fixture; Sol:API/persistencia/reviews. Fuente lib.rs v5 no volver a delegar antes de revisar estado. Revisión incremental de sonido cerró P2; revisión de nueva vía inline y cierre de P0 aún pendientes.
+CHECKPOINT.md y manifiestos compartidos los escribe solo principal. Revisores solo informes exclusivos.
+
+## Intención siguiente
+Crear paquete de revisión con diff,fuentes y resúmenes; despachar revisión final P0 (incluye storage nuevo). No recompilar ni repetir pruebas válidas. Si revisión acepta, marcar C0,commit verificado/publicar cambios sin runtime/logs/binarios. Después crear worktree gestionado desde ese commit para P1,conservar toolchain/runtime de P0 en checkout original y referenciarlos explícitamente. Si permisos de worktree bloquean,documentar y usar fallback permitido sin borrar trabajo.
 
 ## Próxima acción exacta
-1. Verificar rama/archivos remotos y publicar el árbol curado mediante conector; registrar commit y resultado de enlace local.
-2. Cuando revisión automática vuelva a estar disponible, comprobar que probe-engine-v2 no existe y no hay compilación viva. Ejecutar native-build del bundle actual fijado a fdc87ae, --server-output runtime/probe-engine-v2 --profile dev, con mismo entorno scratch. No reinstalar Rust ni repetir build mínimo.
-3. Completar revisión independiente del candidato; corregir hallazgos. Ejecutar smoke manteniendo proceso padre vivo hasta salida (capturar exitcode), luego validar hooks, colisión y attachment entre recargas en mundo desechable.
-4. Cerrar C0 solo con matriz ejecutada; impulso jugador cliente y atomicidad inventario/progreso siguen abiertos.
+Leer docs/execution/evidence/p0-runtime-v5.json y generar paquete git diff + nuevos archivos para revisión P0. Revisar informes/persistencia/diseño; cerrar hallazgos antes de marcar P0 integrated. Después git diff --check y JSONchecks; commit con rutas explícitas,verificar/push GitHub y registrar SHA antes de comenzar P1.
 
-## Evidencia local
-Logs originales permanecen en docs/execution/evidence/*.log, excluidos de Git; el resumen p0.md y los informes de tareas se publican. runtime y snapshots son locales y reobtenibles por los SHA/URLs de p0-sources.json. Las copias .bak conservan el checkpoint anterior válido. No depender de IDs efímeros de sesiones/agentes.
-Publicación parcial confirmada: README.md creado en main,commit6114babfb5bc5f58d6e6c88f7db01e3aaaf572ca. Próxima mutación: árbol de23 archivos curados sobre ese commit y actualización main sin force con SHA esperado. No publicar runtime/logs/backups.
+## Recuperación
+Temporales y .bak:inspeccionar antes de reemplazar; logs crudos y runtimes permanecen locales ignorados. No reinstalar Rust ni repetir builds verificados. Errorreview/cuota inicial se superó y operaciones posteriores fueron autorizadas normalmente; no es bloqueo vigente. Fallos10013/10061 y timeoutContent45s están diagnosticados, no capacidades faltantes del SDK. Backup mundo:runtime/backups/AllomancyP0-before-capabilities.zip. Nunca reset/clean/destruirpara simplificar.
+Revisión Astra: viabilidad/calidad aprobadas para P1,sin fork; cumplimientoP0condicionadoR1 documental(receta completa+matrizAPI411). Sol p0_api tiene propiedad exclusiva compatibility.md/p0-pin-api.md para fix;no mutar esosarchivos enparalelo. R2P2: getter normaliza raízNeoForgeDatainválida;validarplayer_compoundfuera de turno antesdeset. Intención principal: crear verify.ps1 reproducible de evidencia runtime y validar JSON/pixelHUD/hashsource,sin repetirjuego. C0pendientere-reviewdocs.
+## Estado al consultar avance — 2026-11-13 America/Mexico_City
+Estimación comunicada:10–15% de la primera entrega vertical,aproximada,no métrica exacta. P0técnicoverificado y revisión Astra aprueba viabilidad;C0nointegrado por cierre documentalR1/re-reviewpendiente. P1–P10 no iniciados.
+El agente p0_api falló por cuota durante corrección R1;compatibility.md y p0-pin-api.md sí existen con cambios parciales. No asumir que encargo terminó: revisar esosarchivos/temporales/diff antes de repetir. Revisión R2corrupciónNeoForgeData debe quedar explícita. No repetir builds o pruebas v5válidas.
+Próxima acción exacta: contrastar receta completa y matriz pin con R1,revisar aclaraciónR2,terminar corrección si falta y realizar re-review cuando los modelos vuelvan a estar disponibles;despuéscommit/pushC0 y P1. Fuente/evidencias posteriores al commit6e5f001d siguen locales sin publicar.
+## Reanudación autorizada — 2026-11-13 America/Mexico_City
+Usuario pidió continuar. gitHEAD6e5f001d,codex/alomancia-p0; cambiosP0preservados,sin nueva implementación. Sol p0_api reanudado para terminar R1/R2 documental desde archivos reales,sin builds. Próxima acción: recibir cierre documental y re-review Astra;despuéscommit/publicarC0,P1.
+## Estado vigente — cierre C0
+Astra re-review1/5: R1/R2 ADDRESSED,calidad/cumplimiento P0aprobados para P1 sinfork (p0-final-review.md). C0 alcanzado con backendinline y límites ya registrados; gatesP2 no reducidos. Verificación reproducible verify.ps1 exit0 y6JSONfixtureválidos, sin repetir juego. R1documental cerrado y p0-pin-api.md cotejado.
+Herramientas independientes P1: rustfmt1.10.0 yclippy0.1.99 del Rust1.99.1 añadidos SOLO a binportable delruntime;SHA oficialesverificados,versionesexit0. Primer guard de archivo falló por raízexacta sin slash;corregido con inspección, ningúnpayload noverificado ejecutado.
+Intención inmediata: normalizar referencias locales privadas en evidencia pública,gitdiffcheck/JSONvalidación,stage solo fuente/documentos explícitos,commitP0 verificado,verificarHEAD/pushsinforce. No publicar runtimes/logs/crudos/screenshots/backups. Después worktreegestionadoP1 desdecommitnuevo;P1código no empezado aún.
+CommitC0 no ejecutado: precheckcached exit2,HEADsigue6e5f001d y stagingfuente/documentospreservado. Causa real: .diff de revisión contiene líneasdecontexto vacías con espacio obligatorio. El checkconcoreautocrlffalse además interpretóCRcomo whitespace;usarconfigvigente. Intención: atributo whitespace limitadoa*.diff pararespetarformatounified,yLFparaRustconservandobytes/hashsource;revalidar/stage/commit,sin omitirchecksdelcódigo.

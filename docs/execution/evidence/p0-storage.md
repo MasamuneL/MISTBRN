@@ -1,0 +1,9 @@
+# P0-storage — implementación estática
+
+Pin fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca. `Host::player_persistent_data(u128) -> Option<Tag>` lee el compound `NeoForgeData`; `set_player_persistent_data(u128, Tag) -> bool` reemplaza el compound completo. El source usa `level.player_extra` para jugador actuante y `Guest.saved` para invitado.
+
+Al entrar se lee el compound completo y se preservan tanto claves ajenas como campos adicionales del namespace. Si falta `allomancy_probe`, se crea con `schema: Int(1)` y `login_count: Int(0)`; se incrementa saturadamente el contador válido. Raíz o namespace de tipo incorrecto, schema diferente de Int(1), contador ausente, de otro tipo o negativo, y helper no disponible se registran como rechazo sin llamar al setter. Un setter fallido se registra como `write_ok=false`. Adjuntos permanecen para comparación, no como almacén canónico seguro.
+
+Pendiente compilación v5 y dos reaperturas reales a cargo del principal para evaluar persistencia; no se probó durabilidad ni atomicidad, ni se modificó inventario. No se ejecutó Cargo ni juego en este encargo.
+
+**Aclaración de revisión final R2 (2026-11-13):** la afirmación anterior sobre rechazo de raíz se limita al valor recibido del getter. En el pin, `native_player_state.rs:70–75` normaliza un `NeoForgeData` presente no-Compound a compound vacío; el guard `root_type` del probe no detecta esa corrupción on-disk y un setter posterior podría sustituirla. P2 debe leer `Host::player_compound` fuera del turno del jugador antes de cualquier escritura o consumo, distinguir clave ausente de clave presente inválida y rechazar/conservar esta última sin sobrescribir, preservando la raíz y los namespaces ajenos. El round-trip válido observado no prueba ese rechazo; véase la matriz `p0-pin-api.md` y la evidencia runtime del principal para los resultados posteriores a este informe estático.
