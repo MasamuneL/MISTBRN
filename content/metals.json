@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "catalog_version": "allomancy-content-internal-0.1.0",
+  "scope": "internal-catalog-not-hmod-not-hnmod",
+  "metals": [
+    {
+      "id": "allomancy:iron",
+      "order": 0,
+      "pair": "allomancy:iron_steel",
+      "role": "base",
+      "item": "allomancy:iron_ingot",
+      "sample": "allomancy:sample_iron",
+      "vanilla_input": "minecraft:iron_ingot",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:steel",
+      "order": 1,
+      "pair": "allomancy:iron_steel",
+      "role": "alloy",
+      "item": "allomancy:steel_ingot",
+      "sample": "allomancy:sample_steel",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:tin",
+      "order": 2,
+      "pair": "allomancy:tin_pewter",
+      "role": "base_new",
+      "item": "allomancy:tin_ingot",
+      "sample": "allomancy:sample_tin",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:pewter",
+      "order": 3,
+      "pair": "allomancy:tin_pewter",
+      "role": "alloy",
+      "item": "allomancy:pewter_ingot",
+      "sample": "allomancy:sample_pewter",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:zinc",
+      "order": 4,
+      "pair": "allomancy:zinc_brass",
+      "role": "base_new",
+      "item": "allomancy:zinc_ingot",
+      "sample": "allomancy:sample_zinc",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:brass",
+      "order": 5,
+      "pair": "allomancy:zinc_brass",
+      "role": "alloy",
+      "item": "allomancy:brass_ingot",
+      "sample": "allomancy:sample_brass",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:copper",
+      "order": 6,
+      "pair": "allomancy:copper_bronze",
+      "role": "base",
+      "item": "allomancy:copper_ingot",
+      "sample": "allomancy:sample_copper",
+      "vanilla_input": "minecraft:copper_ingot",
+      "assay_units_per_sample": 1000
+    },
+    {
+      "id": "allomancy:bronze",
+      "order": 7,
+      "pair": "allomancy:copper_bronze",
+      "role": "alloy",
+      "item": "allomancy:bronze_ingot",
+      "sample": "allomancy:sample_bronze",
+      "assay_units_per_sample": 1000
+    }
+  ],
+  "pairs": [
+    "allomancy:iron_steel",
+    "allomancy:tin_pewter",
+    "allomancy:zinc_brass",
+    "allomancy:copper_bronze"
+  ],
+  "items": [
+    {
+      "id": "allomancy:iron_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_iron",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:steel_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_steel",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:tin_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_tin",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:pewter_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_pewter",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:zinc_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_zinc",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:brass_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_brass",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:copper_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_copper",
+      "kind": "metal_sample"
+    },
+    {
+      "id": "allomancy:bronze_ingot",
+      "kind": "metal_material"
+    },
+    {
+      "id": "allomancy:sample_bronze",
+      "kind": "metal_sample"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:iron"
+      },
+      "id": "allomancy:vial_filled_iron",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:steel"
+      },
+      "id": "allomancy:vial_filled_steel",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:tin"
+      },
+      "id": "allomancy:vial_filled_tin",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:pewter"
+      },
+      "id": "allomancy:vial_filled_pewter",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:zinc"
+      },
+      "id": "allomancy:vial_filled_zinc",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:brass"
+      },
+      "id": "allomancy:vial_filled_brass",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:copper"
+      },
+      "id": "allomancy:vial_filled_copper",
+      "kind": "filled_vial"
+    },
+    {
+      "properties": {
+        "state": "filled",
+        "assay_units": 1000,
+        "metal": "allomancy:bronze"
+      },
+      "id": "allomancy:vial_filled_bronze",
+      "kind": "filled_vial"
+    },
+    {
+      "id": "allomancy:empty_vial",
+      "kind": "container",
+      "properties": {
+        "state": "empty",
+        "assay_capacity_units": 1000
+      }
+    },
+    {
+      "id": "allomancy:book",
+      "kind": "journal",
+      "properties": {
+        "opens_pair_trees": true
+      }
+    },
+    {
+      "id": "allomancy:research_table",
+      "kind": "station",
+      "properties": {
+        "purpose": "research"
+      }
+    },
+    {
+      "id": "allomancy:coin",
+      "kind": "metal_projectile",
+      "properties": {
+        "metal_tags": [
+          "allomancy:iron",
+          "allomancy:steel"
+        ]
+      }
+    },
+    {
+      "id": "allomancy:fragment_bastion",
+      "kind": "milestone_fragment",
+      "milestone": "allomancy:bastion_claim"
+    },
+    {
+      "id": "allomancy:fragment_elder_guardian",
+      "kind": "milestone_fragment",
+      "milestone": "allomancy:elder_guardian_claim"
+    },
+    {
+      "id": "allomancy:fragment_ancient_city",
+      "kind": "milestone_fragment",
+      "milestone": "allomancy:ancient_city_claim"
+    },
+    {
+      "id": "allomancy:fragment_dragon",
+      "kind": "milestone_fragment",
+      "milestone": "allomancy:dragon_mastery_claim"
+    }
+  ],
+  "configurable_trial_values": {
+    "assay_units_per_sample": 1000,
+    "empty_vial_capacity_units": 1000,
+    "notes": "Valores configurables para ensayo de contenido; no definen consumo, poder, XP ni balance final."
+  },
+  "milestones": [
+    {
+      "requires_warden_kill": false,
+      "unlocks_pair": "allomancy:tin_pewter",
+      "id": "allomancy:bastion_claim",
+      "fragment": "allomancy:fragment_bastion",
+      "claim_once_per_player": true
+    },
+    {
+      "requires_warden_kill": false,
+      "unlocks_pair": "allomancy:zinc_brass",
+      "id": "allomancy:elder_guardian_claim",
+      "fragment": "allomancy:fragment_elder_guardian",
+      "claim_once_per_player": true
+    },
+    {
+      "requires_warden_kill": false,
+      "unlocks_pair": "allomancy:copper_bronze",
+      "id": "allomancy:ancient_city_claim",
+      "fragment": "allomancy:fragment_ancient_city",
+      "claim_once_per_player": true
+    },
+    {
+      "unlocks_pair": null,
+      "claim_once_per_player": true,
+      "requires_warden_kill": false,
+      "grants": "allomancy:final_mastery",
+      "fragment": "allomancy:fragment_dragon",
+      "id": "allomancy:dragon_mastery_claim"
+    }
+  ]
+}

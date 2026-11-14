@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "catalog_version": "allomancy-content-internal-0.1.0",
+  "scope": "internal-catalog-not-hmod-not-hnmod",
+  "sources": [
+    {"id":"allomancy:existing_vanilla_materials","kind":"vanilla_material","status":"assumed_available","verified":false,"outputs":[{"id":"minecraft:iron_ingot","count":1},{"id":"minecraft:copper_ingot","count":1},{"id":"minecraft:glass","count":1},{"id":"minecraft:paper","count":1},{"id":"minecraft:oak_planks","count":1}],"note":"Materiales comunes de referencia; requisito exacto del contenido sujeto a confirmación de integración."},
+    {"id":"allomancy:bastion_tin_source","kind":"loot_or_trade_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:tin_ingot","count":1}],"worlds":"mundos existentes","note":"Fuente/mecanismo exacto sin regenerar mundo queda por verificar."},
+    {"id":"allomancy:bastion_fragment_source","kind":"milestone_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:fragment_bastion","count":1}],"milestone":"allomancy:bastion_claim","requires_warden_kill":false},
+    {"id":"allomancy:elder_guardian_zinc_source","kind":"loot_or_trade_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:zinc_ingot","count":1}],"worlds":"mundos existentes","note":"Fuente/mecanismo exacto sin regenerar mundo queda por verificar."},
+    {"id":"allomancy:elder_guardian_fragment_source","kind":"milestone_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:fragment_elder_guardian","count":1}],"milestone":"allomancy:elder_guardian_claim","requires_warden_kill":false},
+    {"id":"allomancy:ancient_city_fragment_source","kind":"milestone_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:fragment_ancient_city","count":1}],"milestone":"allomancy:ancient_city_claim","requires_warden_kill":false},
+    {"id":"allomancy:dragon_fragment_source","kind":"milestone_proposal","status":"proposed","verified":false,"outputs":[{"id":"allomancy:fragment_dragon","count":1}],"milestone":"allomancy:dragon_mastery_claim","requires_warden_kill":false}
+  ],
+  "trades": [
+    {"id":"allomancy:tin_trade_proposal","status":"proposed","verified":false,"output":{"id":"allomancy:tin_ingot","count":1},"note":"Comercio propuesto; vendedor, precio y API no verificados."},
+    {"id":"allomancy:zinc_trade_proposal","status":"proposed","verified":false,"output":{"id":"allomancy:zinc_ingot","count":1},"note":"Comercio propuesto; vendedor, precio y API no verificados."}
+  ]
+}

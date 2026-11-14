@@ -1,0 +1,398 @@
+{
+  "schema_version": 1,
+  "catalog_version": "allomancy-content-internal-0.1.0",
+  "scope": "internal-catalog-not-hmod-not-hnmod",
+  "recipes": [
+    {
+      "ingredients": [
+        {
+          "id": "minecraft:iron_ingot",
+          "count": 1
+        }
+      ],
+      "id": "allomancy:iron_ingot",
+      "result": {
+        "id": "allomancy:iron_ingot",
+        "count": 1
+      }
+    },
+    {
+      "ingredients": [
+        {
+          "id": "minecraft:copper_ingot",
+          "count": 1
+        }
+      ],
+      "id": "allomancy:copper_ingot",
+      "result": {
+        "id": "allomancy:copper_ingot",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:steel_ingot",
+      "ingredients": [
+        {
+          "id": "allomancy:iron_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:steel_ingot",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:pewter_ingot",
+      "ingredients": [
+        {
+          "id": "allomancy:tin_ingot",
+          "count": 1
+        },
+        {
+          "id": "allomancy:copper_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:pewter_ingot",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:brass_ingot",
+      "ingredients": [
+        {
+          "id": "allomancy:copper_ingot",
+          "count": 1
+        },
+        {
+          "id": "allomancy:zinc_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:brass_ingot",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:bronze_ingot",
+      "ingredients": [
+        {
+          "id": "allomancy:copper_ingot",
+          "count": 1
+        },
+        {
+          "id": "allomancy:tin_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:bronze_ingot",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:empty_vial",
+      "ingredients": [
+        {
+          "id": "minecraft:glass",
+          "count": 3
+        }
+      ],
+      "result": {
+        "id": "allomancy:empty_vial",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:book",
+      "ingredients": [
+        {
+          "id": "minecraft:paper",
+          "count": 3
+        },
+        {
+          "id": "minecraft:oak_planks",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:book",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:research_table",
+      "ingredients": [
+        {
+          "id": "minecraft:oak_planks",
+          "count": 4
+        }
+      ],
+      "result": {
+        "id": "allomancy:research_table",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:coin",
+      "ingredients": [
+        {
+          "id": "allomancy:steel_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:coin",
+        "count": 4
+      }
+    }
+  ],
+  "sample_recipes": [
+    {
+      "id": "allomancy:sample_iron",
+      "ingredients": [
+        {
+          "id": "allomancy:iron_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_iron",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_steel",
+      "ingredients": [
+        {
+          "id": "allomancy:steel_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_steel",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_tin",
+      "ingredients": [
+        {
+          "id": "allomancy:tin_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_tin",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_pewter",
+      "ingredients": [
+        {
+          "id": "allomancy:pewter_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_pewter",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_zinc",
+      "ingredients": [
+        {
+          "id": "allomancy:zinc_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_zinc",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_brass",
+      "ingredients": [
+        {
+          "id": "allomancy:brass_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_brass",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_copper",
+      "ingredients": [
+        {
+          "id": "allomancy:copper_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_copper",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:sample_bronze",
+      "ingredients": [
+        {
+          "id": "allomancy:bronze_ingot",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:sample_bronze",
+        "count": 1
+      }
+    }
+  ],
+  "filled_vial_recipes": [
+    {
+      "id": "allomancy:vial_iron",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_iron",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_iron",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_steel",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_steel",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_steel",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_tin",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_tin",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_tin",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_pewter",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_pewter",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_pewter",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_zinc",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_zinc",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_zinc",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_brass",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_brass",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_brass",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_copper",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_copper",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_copper",
+        "count": 1
+      }
+    },
+    {
+      "id": "allomancy:vial_bronze",
+      "ingredients": [
+        {
+          "id": "allomancy:empty_vial",
+          "count": 1
+        },
+        {
+          "id": "allomancy:sample_bronze",
+          "count": 1
+        }
+      ],
+      "result": {
+        "id": "allomancy:vial_filled_bronze",
+        "count": 1
+      }
+    }
+  ],
+  "integration_contract": "El uso de un vial lleno consume el objeto completo y entrega su dosis una sola vez; la devolución del envase se realiza atómicamente en P2/P3. Este catálogo no simula ni receta el vial lleno de vuelta a ingredientes."
+}
