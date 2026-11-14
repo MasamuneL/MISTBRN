@@ -2,6 +2,7 @@ use crate::{BurnState, Metal, PlayerState};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReserveRules {
     pub consumption_milli_per_tick: [u64; 8],
     pub base_capacity_milli: [u64; 8],
@@ -10,6 +11,7 @@ pub struct ReserveRules {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReserveAccounting {
     pub remainder: [u16; 8],
 }

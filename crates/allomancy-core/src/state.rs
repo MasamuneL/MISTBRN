@@ -10,6 +10,7 @@ pub enum BurnState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MetalState {
     pub unlocked: bool,
     pub reserve_milli: u64,
@@ -17,6 +18,7 @@ pub struct MetalState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlayerState {
     pub player_id: PlayerId,
     pub world_id: WorldId,
