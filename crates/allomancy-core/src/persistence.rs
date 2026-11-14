@@ -208,6 +208,10 @@ fn validate_object_shapes(bytes: &[u8], fixture_v0: bool) -> Result<(), SaveErro
     };
     require_object(saved)?;
     require_object(&saved["state"])?;
+    // Option<Tick> accepts missing as None; the wire schema requires explicit null.
+    if saved["state"].get("last_tick").is_none() {
+        return Err(SaveError::InvalidSchema);
+    }
     require_object(&saved["rules"])?;
     for metal in saved["state"]["metals"]
         .as_array()

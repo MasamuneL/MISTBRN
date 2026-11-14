@@ -41,7 +41,7 @@ Las pruebas usan implementación real y filesystem temporal, sin mocks SDK ni as
 
 Rename real Windows: un handle sin FILE_SHARE_DELETE provoca error de sustitución; se conservan principal y backup anteriores completos, se limpia temporal propio y un retry después de cerrar handle guarda el nuevo estado. Un temporal parcial preexistente no se promueve ni sobrescribe. Backup futuro, principal futuro/corrupto, backup corrupto, destino bloqueado y principal ausente se verifican sin overwrite. Esto no es una terminación real del proceso Horizon ni ensayo de pérdida de energía.
 
-## SHA-256 del corte verificado
+## SHA-256 del corte inicial verificado (67f4d76, antes de fix1)
 
 | Archivo | SHA-256 |
 | --- | --- |
@@ -69,3 +69,32 @@ La utilidad offline exige acceso exclusivo y valida principal/backup antes de re
 Canon real pendiente: NeoForgeData inline namespaced, identidad estable resuelta por Host, player_compound fuera de acting para detectar raíz corrupta, merge ajeno, slot exacto, rollback y autosave/cortes nativos. No se habilitó beber ni se escribió .dat live. Revisión independiente del corte y posterior integración serial del principal son la siguiente acción; no declarar P2 completa.
 
 Cargo y fuentes liberados; cierre documental recuperado de temporales propios, sin repetir verificaciones costosas ni tocar fuentes. Revisión independiente pendiente del principal.
+
+## Fixloop ronda 1 — presencia obligatoria de last_tick
+
+Base inmutable revisada `67f4d76ecd5c02f90cbaca2beaad29200cb8be0c`. Hallazgo P2 de [revisión independiente](p2-persistence-review.md) confirmado mediante dos regresiones JSON reales: omitir `/saved_player/state/last_tick` en v1 o `/state/last_tick` en fixture v0 era aceptado como None por serde. Las dos pruebas comprueban primero que null explícito sigue siendo válido; después eliminan solo la clave y exigen InvalidSchema. El round-trip previo con Tick(19) también sigue aprobado.
+
+Corrección mínima: cuatro líneas en validate_object_shapes, compartida por ambos formatos, comprueban presencia mediante get(last_tick).is_none antes de deserialize tipado. Sin cambios de tipos/firma P1, DTO espejo, esquema, API, balance o lógica de reservas. Archivos de ronda: src/persistence.rs, tests/persistence.rs y tres documentos propios; docs/persistence.md solo aclara el requisito y actualiza el contador. No lib/state/reserves/manifiestos/lock/comandos/SDK, commits ni subagentes. La tabla anterior conserva hashes históricos del corte inicial; los siguientes son los actuales para esta ronda.
+
+| Comando / etapa | Exit | Resultado observado |
+| --- | --- | --- |
+| `cargo test --locked --offline -p allomancy-core --test persistence` RED fix1 | 101 | 26 tests compilan/ejecutan: 24 pasan y las dos regresiones fallan porque se acepta la omisión. Null explícito pasa. |
+| `rustfmt --edition 2024` solo persistence.rs y test propio | 0 | Formato mutante acotado. |
+| Dedicado GREEN fix1 | 0 | 26/26 aprobadas. |
+| `cargo test --locked --offline --workspace` | 0 | 13 contratos + 26 persistencia + 16 reservas + 1 doctest aprobados. |
+| `cargo fmt --all -- --check` | 0 | Sin salida; exit0 observado. |
+| `git diff --check` y lectura del diff exclusivo | 0 | Una guarda mínima y dos tests, sin cambios de fuentes ajenas. |
+
+Logs ignorados separados `p2-persistence-fix1-{red,green,workspace,fmt}.log`; ningún log previo se sobrescribió. Mismo toolchain/cache original retenido, cwd explícito, offline/locked, RUSTDOC extraído + sysroot y Cargo exclusivo; sin instalación ni SDK build. Cero advertencias de compilación. Fuente y Cargo liberados al principal al terminar el gate; solo documentación atómica después.
+
+| Archivo | SHA-256 actual fix1 |
+| --- | --- |
+| `crates/allomancy-core/src/persistence.rs` | `200a8b6eb1a8ade154f47e8179ded4a2a395546270b0151d68c4ca406ffa79a7` |
+| `crates/allomancy-core/tests/persistence.rs` | `ecb0c410ceb49b517ca15be45bea26f495fca370ff5d1427156bbf3ce81f677a` |
+| `Cargo.lock` (intacto) | `4515b7aa2d1a0c667a9d98b78c6e0b524a5025a5df09b0aaab90fc138cefa36b` |
+| `p2-persistence-fix1-red.log` | `efd6d0ed53f90ec60efe141afb148f45c84d5dc564218cb622b35dd2b7dd6d42` |
+| `p2-persistence-fix1-green.log` | `1d0fb36c3b59e701e36f4d9d93f27710c8bcb82de596a5684eb97ab552f39677` |
+| `p2-persistence-fix1-workspace.log` | `b75497d81e03bb2c7d7179a1a043e83fa44491516f1ad64465065a1d2428eef5` |
+| `p2-persistence-fix1-fmt.log` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+
+Siguiente acción: principal integrar/someter el nuevo diff a rereview independiente. Se conservan todos los límites del núcleo/export offline; P2 nativa, N0, inventario, NeoForgeData, durabilidad y gameplay siguen pendientes. No se cierra la fase.

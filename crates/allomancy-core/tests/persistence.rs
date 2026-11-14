@@ -511,6 +511,41 @@ fn fixture_v0_migration_is_explicit_offline_and_refuses_lost_economy() {
     }
 }
 
+#[test]
+fn v1_requires_last_tick_presence_but_accepts_explicit_null() {
+    let mut value = wire(&fresh());
+    assert_eq!(value["saved_player"]["state"]["last_tick"], Value::Null);
+    assert_eq!(decode_value(value.clone()).unwrap().state().last_tick, None);
+    value["saved_player"]["state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("last_tick");
+    assert_eq!(decode_value(value), Err(SaveError::InvalidSchema));
+}
+
+#[test]
+fn fixture_v0_requires_last_tick_presence_but_accepts_explicit_null() {
+    let mut fixture = json!({"schema_version":0,"state":fresh().state(),"rules":rules()});
+    let world = WorldId::new("world-1");
+    let player = PlayerId::new("player-1");
+    assert_eq!(fixture["state"]["last_tick"], Value::Null);
+    assert_eq!(
+        migrate_fixture_v0(&serde_json::to_vec(&fixture).unwrap(), &world, &player)
+            .unwrap()
+            .state()
+            .last_tick,
+        None
+    );
+    fixture["state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("last_tick");
+    assert_eq!(
+        migrate_fixture_v0(&serde_json::to_vec(&fixture).unwrap(), &world, &player),
+        Err(SaveError::InvalidSchema)
+    );
+}
+
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 #[test]

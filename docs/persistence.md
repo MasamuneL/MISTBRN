@@ -1,6 +1,6 @@
 # Persistencia P2B — contrato implementado del núcleo
 
-Fecha: 2026-11-13. Contrato propio del proyecto, aprobado en su forma por jugador por el principal y congelado antes de implementar. Núcleo implementado y verificado con 24 pruebas de persistencia; integración/revisión quedan pendientes. Consume [contratos P1](contracts.md), [reservas P2A](reserves.md) y [análisis P0 del backend](execution/evidence/p0-persistence-api.md). Evidencia y límites en [entrega P2B](execution/evidence/p2-persistence.md).
+Fecha: 2026-11-13. Contrato propio del proyecto, aprobado en su forma por jugador por el principal y congelado antes de implementar. Núcleo implementado y verificado con 26 pruebas de persistencia tras fix1; integración/revisión quedan pendientes. Consume [contratos P1](contracts.md), [reservas P2A](reserves.md) y [análisis P0 del backend](execution/evidence/p0-persistence-api.md). Evidencia y límites en [entrega P2B](execution/evidence/p2-persistence.md).
 
 ## Alcance y representación
 
@@ -63,7 +63,7 @@ read_export_with_backup(&Path, &WorldId, &PlayerId)
 
 Los límites son decisiones del prototipo, no balance. Retener 4096 recibos cuesta O(n) espacio/serialización; clones/candidatos e inserción en Vec cuestan O(n), lookup O(log n), validación íntegra O(n log n). El decode hace sondeo, comprobación de forma y deserialización tipada sobre entrada acotada. Al llenarse se rechazan **nuevas** transacciones económicas; replays válidos siguen funcionando. No LRU, TTL, recorte, limpieza en muerte ni reemplazo automático. Aumentar el límite exige revisar límites de bytes/almacenamiento y pruebas; nunca habilitar replays olvidando IDs viejos.
 
-Decode construye/valida un valor separado y no recibe `&mut` al estado live. Encode valida antes de producir bytes. Cualquier fallo deja intactos bytes originales, estado live, inventario y ledger. Ausente se distingue de corrupto; no hay autosave correctivo tras error.
+Decode construye/valida un valor separado y no recibe `&mut` al estado live. Encode valida antes de producir bytes. Cualquier fallo deja intactos bytes originales, estado live, inventario y ledger. Ausente se distingue de corrupto; no hay autosave correctivo tras error. `last_tick` exige presencia tanto en v1 como en la fixture v0: `"last_tick":null` es válido, omitir la clave es InvalidSchema; el Option de P1 no modifica este requisito wire.
 
 ## Revisión monotónica y mutación
 
