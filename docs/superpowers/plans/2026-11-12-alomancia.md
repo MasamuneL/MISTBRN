@@ -17,6 +17,7 @@
 - No tocar mundos personales: pruebas sobre mundos dedicados respaldados.
 - No distribuir recursos de Minecraft ni ilustraciones/textos de las novelas.
 - Cada cambio persistente y cada tarea deben poder retomarse conforme a CHECKPOINT.md.
+- Revisar el espacio antes de builds grandes y limpiar copias obsoletas tras verificar su sustituto, según `docs/execution/MAINTENANCE.md`. Conservar build actual y baseline necesario; no acumular exports completos sin justificación ni borrar mundos, backups, evidencias o dependencias útiles.
 - Los valores de balance del diseño son hipótesis de ensayo, configurables.
 
 ## Review Focus

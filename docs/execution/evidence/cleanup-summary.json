@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-13",
+  "status": "succeeded",
+  "removed_directories": 7,
+  "removed_files": 210385.0,
+  "removed_bytes": 9468968415,
+  "removed_GiB": 8.82,
+  "remaining_project_bytes": 18072615375,
+  "remaining_project_GiB": 16.83,
+  "remaining_project_files": 267180,
+  "protected_files_sha256_verified": 60,
+  "retained": [
+    "probe-engine-v5",
+    "p1-bridge2-engine",
+    "launcher/native/server-builds/native-fdc87ae-250494cffe9b",
+    "launcher/native/target",
+    "SDK sources/toolchain/cargo",
+    "worlds/backups/evidence",
+    "devtools/rustdoc"
+  ],
+  "deleted": [
+    "server-engine",
+    "probe-engine-v2",
+    "probe-engine-v3",
+    "probe-engine-v4",
+    "launcher/native/server-builds/native-fdc87ae-0c8f7a9b8f47",
+    "launcher/native/server-builds/native-fdc87ae-9d6935b62822",
+    "launcher/native/server-builds/native-fdc87ae-a3af68e0ff84"
+  ]
+}

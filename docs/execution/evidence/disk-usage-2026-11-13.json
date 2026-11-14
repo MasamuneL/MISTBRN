@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-13",
+  "reason": "User asked why original project folder occupies 25.6 GB",
+  "scope": "Original project experiments/horizon-probe/runtime",
+  "read_only_measurement": true,
+  "deleted_files": 0,
+  "runtime_GiB": 25.5,
+  "runtime_files": 476524,
+  "native_target_GiB": 6.79,
+  "native_server_builds_GiB": 5.04,
+  "exported_test_engines_GiB": 7.56,
+  "rust_toolchain_GiB": 1.71,
+  "game_probe_cache_GiB": 1.75,
+  "cargo_cache_GiB": 0.93,
+  "launcher_version_GiB": 1.17,
+  "tracked_source_MiB": 0.33,
+  "source_and_untracked_documents_MiB": 0.48,
+  "ignored_by_git": true
+}

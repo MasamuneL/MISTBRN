@@ -8,6 +8,8 @@
 /docs/execution/evidence/*-controls.json
 /docs/execution/evidence/p0-smoke-*.json
 /docs/execution/evidence/*.png
+/docs/execution/evidence/cleanup-*-local.json
+/docs/execution/evidence/cleanup-2026-11-13.json
 *.tmp
 *.bak
 target/
