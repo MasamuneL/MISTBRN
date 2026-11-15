@@ -7,3 +7,21 @@ horizon_revision = "fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca"
 
 [api]
 path = "crates/allomancy-horizon"
+
+[[crate]]
+id = "core"
+path = "crates/allomancy-core"
+
+[[module]]
+id = "world_guard"
+file = "crates/horizon-client/src/game/world_loading.rs"
+name = "allomancy_world_guard"
+source = "world_guard.rs"
+
+[[injection]]
+id = "world_preflight"
+target = "horizon_client::game::world_loading::WorldRequest::prepare_world"
+kind = "HEAD"
+cancellable = true
+helper = "preflight.rs"
+bindings = [{ name = "request", ty = "&WorldRequest", value = "&self" }]

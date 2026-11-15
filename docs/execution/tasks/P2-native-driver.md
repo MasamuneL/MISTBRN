@@ -1,0 +1,9 @@
+# P2 native-test driver
+
+Estado: implementación estática; no compilada ni ejecutada. Solo actúa con feature native-test, que debe permanecer desactivada por defecto en producción. Build de prueba la activa únicamente en manifiesto staged. No hay seed ni grant.
+
+Definir ALLOMANCY_NATIVE_TEST_RUNTIME, ALLOMANCY_NATIVE_TEST_ROOT, ALLOMANCY_NATIVE_TEST_WORLD_ID y ALLOMANCY_NATIVE_TEST_SCENARIO (observe o roundtrip). La validación exige directorios existentes canonizados, root dentro de runtime con componentes game-p2-*/saves/<mundo>, y marker existente leído por load_world_identity cuyo WorldId coincida exactamente. Sin env, con scenario inválido o ante error, informa razón sin ruta/UUID y usa hooks_without_native_test. No provisiona identidad. observe no muta a través del driver.
+
+roundtrip espera jugador Ready y primer slot 0..35 ocupado con count >= 1, usa snapshot exacto y prepara count - 1 o None. Ejecuta una vez por proceso; transaction deriva de revision y se rechaza si ya existe. Comprueba receipt Iron +1000, revision +1, reserva, ledger anterior intacto con entrada nueva y stack exacto, luego repite transaction y comprueba receipt, estado y slot inalterados. Registra PASS/FAIL sin datos privados; aceptación es en memoria, durable=false. El harness prepara inventario y debe esperar o declarar timeout si no hay Ready/slot; no se registra PASS sin ejecución.
+
+Limitaciones: no hay prueba de durabilidad ni de fallo real de IO, rollback, lifecycle o WorldOpenFailed. No se instrumentó Host falso. El checkout SDK, manifiestos y fuentes externas no fueron modificados. SaveBackend::test_world compara PathBuf literal del Host con root canónico; en Windows canonicalize puede introducir prefijo verbatim. Confirmar igualdad de representación en lanzamiento o corregir comparación en integración antes de depender del driver. La compilación SDK y N1 reales quedan pendientes del principal.

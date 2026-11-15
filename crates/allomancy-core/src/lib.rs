@@ -9,3 +9,6 @@ pub use persistence::*;
 pub use reserves::*;
 pub use state::*;
 pub use types::*;
+
+mod world_identity;
+pub use world_identity::*;

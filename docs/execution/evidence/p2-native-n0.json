@@ -1,0 +1,199 @@
+{
+  "date": "2026-11-15 America/Mexico_City",
+  "branch": "codex/alomancia-p2-native",
+  "base": "fed744b9252e14ae6fcd12b314fba61040250fe0",
+  "build": "p2-native2",
+  "engine_sha256": "0A51CCBF7D1D695B0467E41842214B9F4E3ABCFF7CD418CE7AE97F391DB9E0BB",
+  "scope": "Integrated server; explicit offline profile Player; native-test opt-in; engine direct without preflight wrapper",
+  "n0_product_complete": false,
+  "blocking_issue": "SDK owner alias writes namespace under a different player UUID with other profiles; see P2-native-identity-debug.md",
+  "results": [
+    {
+      "run": "n0-aligned1",
+      "expect": "accept",
+      "pass": true,
+      "exit_code": 0,
+      "termination": "spontaneous",
+      "snapshots_unchanged": false,
+      "reason": "guard accept; backend ready",
+      "io_lock": "not_requested",
+      "receipt_sha256": "3A18238FA4F22C8DCB5C3479C4D2A076E704A5DFB63F007FC6912FC56DEB35B1"
+    },
+    {
+      "run": "n0-aligned2",
+      "expect": "accept",
+      "pass": true,
+      "exit_code": 0,
+      "termination": "spontaneous",
+      "snapshots_unchanged": false,
+      "reason": "guard accept; backend ready",
+      "io_lock": "not_requested",
+      "receipt_sha256": "50D5BC041A1C6E940A9EB2A2B9A63ABEAF66A443C95E695314CEA2390126A61E"
+    },
+    {
+      "run": "n0a-foreign",
+      "expect": "accept",
+      "pass": true,
+      "exit_code": 0,
+      "termination": "spontaneous",
+      "snapshots_unchanged": false,
+      "reason": "guard accept; backend ready",
+      "io_lock": "not_requested",
+      "receipt_sha256": "6AF0917F4C1111EAE3B9A0DDCC2C1F1CEDA810C91C8B4C2F19B6128657A284C0"
+    },
+    {
+      "run": "n0a-fault",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy storage fault present; restore a complete snapshot offline",
+      "io_lock": "not_requested",
+      "receipt_sha256": "4BBED991264AAC5A7569735160AD116E24BEEC3A75D9B77BCC4CAF80E3906B14"
+    },
+    {
+      "run": "n0a-fault-scalar",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy storage fault present; restore a complete snapshot offline",
+      "io_lock": "not_requested",
+      "receipt_sha256": "1E7132FFE38FF7BB42F642891BE1349E8E57A367ACD89849EBCE3C0C08EE1BC9"
+    },
+    {
+      "run": "n0a-fault-future",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy storage fault present; restore a complete snapshot offline",
+      "io_lock": "not_requested",
+      "receipt_sha256": "BDA1DC9397C4F2883FC13C501D93B34772BC0C9540DC382947A71AEF7E833355"
+    },
+    {
+      "run": "n0a-future-transport",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: future Allomancy transport version",
+      "io_lock": "not_requested",
+      "receipt_sha256": "E569B029EE956A75E4BDF0521A40A50DD4000931C46666764C472BD613120522"
+    },
+    {
+      "run": "n0a-future-json",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy payload UnsupportedVersion(999)",
+      "io_lock": "not_requested",
+      "receipt_sha256": "13F08625F1B080C665D87ABC86D488CB86DC8B938E0386E3C0F4CDF86BED3635"
+    },
+    {
+      "run": "n0a-corrupt-json",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy payload InvalidJson",
+      "io_lock": "not_requested",
+      "receipt_sha256": "5C4C086FF3826685584E32F3FCC6429A04982A501B472F62F0825697BEE5B0A6"
+    },
+    {
+      "run": "n0a-invalid-root",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: NeoForgeData must be Compound",
+      "io_lock": "not_requested",
+      "receipt_sha256": "0BE08517DB3A5173E2DFB0FE29D1A5130699C86DBF5261CC5E7DBAEA14A851B5"
+    },
+    {
+      "run": "n0a-duplicate",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: duplicate raw NBT compound key",
+      "io_lock": "not_requested",
+      "receipt_sha256": "F061A8570B92EAF96FA1FA6105681C4C2EDD41943F7231F82157B1A085A3765E"
+    },
+    {
+      "run": "n0a-truncated",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: snapshot Gzip decode error",
+      "io_lock": "not_requested",
+      "receipt_sha256": "1AF9A1248C1457377BC4104AEAD8D0CD5B68B0ACFC0C20034CD6A4220BB292A0"
+    },
+    {
+      "run": "n0a-dat-uppercase",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: duplicate raw NBT compound key",
+      "io_lock": "not_requested",
+      "receipt_sha256": "5DD081DCDFD6E7D041A9CB330F44D833C9D3D23FCAA801246B021789D27CEA94"
+    },
+    {
+      "run": "n0a-backup-fault",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy storage fault present; restore a complete snapshot offline",
+      "io_lock": "not_requested",
+      "receipt_sha256": "BE75EB9F2C53C72A82507383093B98D99B4F2AD6DAABE8DB6DA3EB1A43D64E4E"
+    },
+    {
+      "run": "n0a-io",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: snapshot open IO error",
+      "io_lock": "released_after_exit",
+      "receipt_sha256": "68A17CF311E2A04B2D5B1103FB5E1CC8C8D3317DB658C858F1A030A56E16F019"
+    },
+    {
+      "run": "n0a-marker-missing",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: Allomancy namespace exists without world identity",
+      "io_lock": "not_requested",
+      "receipt_sha256": "F138CA11E02E63AE39E8312C16B60A5514D92B7B7BEC53ABE6BC41474AA8D17C"
+    },
+    {
+      "run": "n0a-marker-future",
+      "expect": "reject",
+      "pass": true,
+      "exit_code": -1,
+      "termination": "controlled_after_rejection",
+      "snapshots_unchanged": true,
+      "reason": "Allomancy preflight: world identity Future(2)",
+      "io_lock": "not_requested",
+      "receipt_sha256": "730743832E41356632FDF3CF82AA516854F3A8823FBA9B6D5C64E646FE44EC59"
+    }
+  ]
+}

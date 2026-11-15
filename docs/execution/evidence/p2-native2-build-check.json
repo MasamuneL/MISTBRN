@@ -1,0 +1,9 @@
+{
+  "build": "p2-native2",
+  "status": "succeeded",
+  "exit_code": 0,
+  "engine_sha256": "0A51CCBF7D1D695B0467E41842214B9F4E3ABCFF7CD418CE7AE97F391DB9E0BB",
+  "input_hashes_match": true,
+  "world": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-base\\saves\\AllomancyP2",
+  "world_id": "58f1d6d013a548e3be20db72d476dd7f"
+}

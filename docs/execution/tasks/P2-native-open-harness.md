@@ -1,0 +1,18 @@
+# P2 harness de apertura integrada
+
+Implementado tools/test-native-open.ps1; AST PowerShell analizado sin errores. No se ejecutaron juego, Cargo ni fixtures. Antes de usarlo se requieren build native-test succeeded y mundo de prueba ya preparado, con identidad preparada salvo en casos deliberadamente inválidos. No crea ni edita archivos DAT; no llama preflight externo.
+
+Ejemplo (sustituir rutas y nombres reales):
+
+```powershell
+pwsh -NoProfile -File tools/test-native-open.ps1 -BuildName p2-build -RuntimeRoot '<runtime>' -RunId n0-case01 -WorldRoot '<runtime>/game-p2-n0-case01/saves/N0' -Expect reject -TimeoutSeconds 180
+```
+
+RunId debe ser nuevo; evidencia en runtime/native-open-runs/<RunId>. Lanza directamente engine exportado con --world, game-dir aislado y recursos del build; habilita observe y usa límites de frames generales y de mundo. Verifica receipt succeeded/exit 0/native_test, registra hash engine y receipt y hashes actuales y registrados de entradas, sin afirmar que bytes actuales reconstruyen el binario. Toma snapshot recursivo de level.dat/old, players/data *.dat/*.dat_old y marker/backup antes y después; las listas detectan archivos nuevos o faltantes, sin incluir session.lock.
+
+Rechazo PASS exige preflight reject y callback WorldOpenFailed, ausencia de WorldOpenReady/login y hash idéntico. Tras observar rechazo detiene solo el Process iniciado, espera salida y etiqueta controlled_after_rejection: eso NO es cierre limpio. Aceptación exige salida espontánea 0 y trazas accept, WorldOpenReady y ready. Un timeout sin bloqueo deja vivo el PID para inspección y falla. Con bloqueo detiene el proceso propio antes de liberar el archivo y registra timeout_failed; nunca intenta matar procesos ajenos. result.json se actualiza con tmp/bak y conserva argumentos, PID, logs, hashes, estado, exit y terminación. Comprobar manualmente logs y receipt de integración además del resultado.
+
+Límites: rechazo que termina solo antes de detención controlada falla; --frames podría terminar antes de WorldOpenReady y también falla. El marker primario ausente o JSON inválido no impide lanzar: world_id queda vacío y el driver puede desactivarse; la traza lifecycle depende de la feature compilada. El guard decide si la identidad es válida; el parseo del harness no es validación del guard. La igualdad literal entre world_dir Host y ruta canónica del driver puede impedir callbacks de driver en Windows; comprobar en build real. El callback lifecycle debe estar integrado en la build. El resultado no demuestra durabilidad, exclusión frente a terceros ni corrección universal del guard.
+
+Para error de lectura real en Windows, preparar un fixture DAT adicional y usar por ejemplo -DenyReadRelativePath 'players/data/00000000-0000-0000-0000-000000000001.dat'. El archivo debe existir dentro del mundo; se rechazan rutas absolutas, componentes . o .. y reparse points en la ruta. Tras snapshot inicial y receipt se abre FileStream Read con FileShare.None, conservado durante apertura. Una vez confirmado el proceso terminado se libera antes del snapshot final. El receipt registra ruta y estado del bloqueo; verificar en logs que el guard encontró error IO real. Si ocurre error o timeout con bloqueo, el harness detiene el proceso propio antes de liberar; no es PASS ni cierre limpio. Si falla la adquisición, no se inicia el engine.
+N0 n0-base1 reveló sharing violation leyendo logs mientras el engine redirigía. Logs abre ahora FileStream con ReadWrite|Delete y StreamReader; tolera IOException transitoria para el siguiente poll y falla tras diez lecturas consecutivas del mismo archivo. AST comprobado; falta reensayo real n0-base2.

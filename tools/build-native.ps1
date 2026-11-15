@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('\A[a-z0-9-]+\z')]
     [string]$BuildName,
-    [string]$RuntimeRoot
+    [string]$RuntimeRoot,
+    [switch]$NativeTest,
+    [switch]$StageOnly
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -19,7 +21,9 @@ $receiptPath = Join-Path $build 'receipt.json'
 $log = Join-Path $root "docs/execution/evidence/$BuildName-build.log"
 $descriptor = Join-Path $root 'integration/horizon/horizon-mixin.toml'
 $crates = @('allomancy-core', 'allomancy-horizon')
-$required = @($launcher, (Join-Path $base '.installed'), (Join-Path $base 'horizon-client.exe'), (Join-Path $base '.local/horizon-client/26.3/horizon-resources.json'), $descriptor)
+$helpers = @('preflight.rs', 'world_guard.rs')
+$required = @($helpers | ForEach-Object { Join-Path $root "integration/horizon/$_" })
+$required += @($launcher, (Join-Path $base '.installed'), (Join-Path $base 'horizon-client.exe'), (Join-Path $base '.local/horizon-client/26.3/horizon-resources.json'), $descriptor)
 foreach ($crate in $crates) {
     $required += Join-Path $root "crates/$crate/Cargo.toml"
     $required += Join-Path $root "crates/$crate/src/lib.rs"
@@ -35,9 +39,10 @@ foreach ($crate in $crates) {
     $inputs += Join-Path $root "crates/$crate/Cargo.toml"
     $inputs += @(Get-ChildItem -LiteralPath (Join-Path $root "crates/$crate/src") -File -Recurse | ForEach-Object { $_.FullName })
 }
+$inputs += @($helpers | ForEach-Object { Join-Path $root "integration/horizon/$_" })
 $hashes = @($inputs | ForEach-Object { @{ path = $_; sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash } })
 $argsList = @('native-build', $bundle, '--version', $version, '--trust-native-code', '--profile', 'dev', '--server-output', $export)
-$receipt = [ordered]@{ status = 'staging'; launcher = $launcher; base = $base; inputs = $hashes; arguments = $argsList; log = $log; staged_manifest = $null; exit_code = $null; error = $null }
+$receipt = [ordered]@{ status = 'staging'; launcher = $launcher; base = $base; inputs = $hashes; arguments = $argsList; log = $log; staged_manifest = $null; exit_code = $null; error = $null; native_test = [bool]$NativeTest }
 function Save-Receipt {
     $tmp = "$receiptPath.tmp"
     $receipt | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $tmp -Encoding UTF8
@@ -50,26 +55,38 @@ New-Item -ItemType Directory -Path $bundle -Force | Out-Null
 try {
     Save-Receipt
     Copy-Item -LiteralPath $descriptor -Destination (Join-Path $bundle 'horizon-mixin.toml')
+    foreach ($helper in $helpers) {
+        Copy-Item -LiteralPath (Join-Path $root "integration/horizon/$helper") -Destination (Join-Path $bundle $helper)
+    }
     foreach ($crate in $crates) {
         $destination = Join-Path $bundle "crates/$crate"
         New-Item -ItemType Directory -Path $destination -Force | Out-Null
         Copy-Item -LiteralPath (Join-Path $root "crates/$crate/Cargo.toml") -Destination $destination
         Copy-Item -LiteralPath (Join-Path $root "crates/$crate/src") -Destination $destination -Recurse
     }
-    # The SDK stages only the [api] folder. Keep its pure dependency inside that folder.
+    # Both API and mixin link the single SDK-staged native-crates package.
     $api = Join-Path $bundle 'crates/allomancy-horizon'
-    Copy-Item -LiteralPath (Join-Path $bundle 'crates/allomancy-core') -Destination (Join-Path $api 'allomancy-core') -Recurse
     $manifestPath = Join-Path $api 'Cargo.toml'
     $manifest = [IO.File]::ReadAllText($manifestPath)
     $oldPath = 'path = "../allomancy-core"'
     if ([regex]::Matches($manifest, [regex]::Escape($oldPath)).Count -ne 1) {
         throw 'Expected exactly one sibling core dependency in the adapter manifest.'
     }
-    [IO.File]::WriteAllText($manifestPath, $manifest.Replace($oldPath, 'path = "allomancy-core"'))
+    [IO.File]::WriteAllText($manifestPath, $manifest.Replace($oldPath, 'path = "../../native-crates/allomancy/core"'))
+    if ($NativeTest) {
+        if ([regex]::Matches($manifest, 'default = \[\]').Count -ne 1) { throw 'Expected empty default features in source manifest.' }
+        $staged = [IO.File]::ReadAllText($manifestPath).Replace('default = []', 'default = ["native-test"]')
+        [IO.File]::WriteAllText($manifestPath, $staged)
+    }
     $receipt.staged_manifest = @{
         path = $manifestPath
         sha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
-        transformation = 'Core copied inside API folder; dependency ../allomancy-core changed to allomancy-core in staging only.'
+        transformation = 'Single core at native-crates/allomancy/core; API dependency path transformed only in staging; opt-in native-test recorded.'
+    }
+    if ($StageOnly) {
+        $receipt.status = 'staged'
+        Save-Receipt
+        return
     }
     $receipt.status = 'building'
     Save-Receipt

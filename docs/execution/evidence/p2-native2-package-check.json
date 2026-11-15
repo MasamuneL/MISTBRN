@@ -1,0 +1,10 @@
+{
+  "exit_code": 0,
+  "core_count": 1,
+  "core_manifest": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\stage\\native-crates\\allomancy\\core\\Cargo.toml",
+  "api_manifest": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\stage\\native-api\\allomancy\\Cargo.toml",
+  "api_features": [
+    "default",
+    "native-test"
+  ]
+}
