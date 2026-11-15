@@ -1,0 +1,101 @@
+{
+  "oracle": "PASS",
+  "snapshots": [
+    {
+      "world": "game-p2-io/saves/create-new-reopen",
+      "suffix": ".dat",
+      "sha256": "A71141429473394A8B1F366FD0B80B1CBDB1FDC0CA2174FA1F913B8B9549480F",
+      "reserve": 1000,
+      "revision": 6,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ]
+    },
+    {
+      "world": "game-p2-io/saves/create-new-reopen",
+      "suffix": ".dat_old",
+      "sha256": "A71141429473394A8B1F366FD0B80B1CBDB1FDC0CA2174FA1F913B8B9549480F",
+      "reserve": 1000,
+      "revision": 6,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ]
+    },
+    {
+      "world": "game-p2-io/saves/deny-rename-reopen",
+      "suffix": ".dat",
+      "sha256": "A71141429473394A8B1F366FD0B80B1CBDB1FDC0CA2174FA1F913B8B9549480F",
+      "reserve": 1000,
+      "revision": 6,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ]
+    },
+    {
+      "world": "game-p2-io/saves/deny-rename-reopen",
+      "suffix": ".dat_old",
+      "sha256": "A71141429473394A8B1F366FD0B80B1CBDB1FDC0CA2174FA1F913B8B9549480F",
+      "reserve": 1000,
+      "revision": 6,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ]
+    }
+  ]
+}

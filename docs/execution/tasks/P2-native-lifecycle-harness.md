@@ -45,3 +45,7 @@ Antes de cada caso, root prepara clon cerrado separado del baseline B de crédit
 
 ## Actualización root: ejecución y revisión reales
 Ver evidence/p2-native-lifecycle.md/json. owner-death-respawn1/save-pause2/dimension1 PASS nativo y oracleoffline; death-replay1 PASS adicional sin ítem. save-pause1 fallo preservado; comando corregido a control directo save-all (SDK integrated.call), chatunknown failfast; SHA E4C797AF9A5BD21710D2AC8A66222FB5C837A324CB7EBAF218655084BB9226CE. Revisión Sol sólolectura aprobó corrección/criterios. death-logout NO ejecutado: SDK quit omite logging_out al detener, sólo logged_out; gate necesita otra ruta nativa, no carrera de dos comandos. Estado anterior congelado es histórico. NoP2/N9completos ni fsync.
+
+
+## Ampliación IO en rama codex/alomancia-p2-io
+Root agregó io-create-new/io-deny-rename y OwnerUuid explícito; Send-Control allowError sólo opt-in y defecto false preserva comportamiento anterior. Baseline save→lock→give1→saveerrorOS→killantesunlock→hashA, sinquit; reviewSol y2casosrealesPASS,2reopenPASS. Hash DF5C66530D49E50C9CF9DE0AC7481693B3FF7AA891E709508D13EA41A5843CFD. Ver P2-native-io.md/evidence. No códigoRust ni escenariospreviosrepetidos.

@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory)][ValidatePattern('\A[a-zA-Z0-9-]+\z')][string]$RunId,
     [Parameter(Mandatory)][string]$WorldRoot,
     [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName = 'AllomancyQA',
-    [ValidateSet('death-respawn','death-logout','save-pause','dimension')][string]$Scenario = 'death-respawn'
+    [ValidateSet('death-respawn','death-logout','save-pause','dimension','io-create-new','io-deny-rename')][string]$Scenario = 'death-respawn',
+    [ValidatePattern('\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z')][string]$OwnerUuid
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
@@ -98,7 +99,7 @@ function Logs { return ([string](Read-Shared $stdout) + "`n" + [string](Read-Sha
 function Check-Budget {
     if ($timer.Elapsed.TotalSeconds -ge 120) { throw 'Deadline global de 120 segundos.' }
 }
-function Send-Control([string]$command) {
+function Send-Control([string]$command,[bool]$allowError = $false) {
     Check-Budget
     $number = $result.commands.Count + 1
     $commandFile = Join-Path $runDir ("command-{0:D3}.txt" -f $number)
@@ -112,9 +113,9 @@ function Send-Control([string]$command) {
     $result.commands.Add([ordered]@{ command = $command; command_file = $commandFile; reply_file = $replyFile; reply = $text; exit = $code; started_seconds = $started; ended_seconds = $timer.Elapsed.TotalSeconds })
     Save-Result
     Check-Budget
-    if ($code -ne 0) { throw "Control falló en command-$number; ver reply redacted." }
+    if ($code -ne 0 -and -not $allowError) { throw "Control falló en command-$number; ver reply redacted." }
     $reply = $text | ConvertFrom-Json
-    if ($null -eq $reply -or $reply.PSObject.Properties['error'] -or $reply.ok -eq $false) {
+    if ($null -eq $reply -or (-not $allowError -and ($reply.PSObject.Properties['error'] -or $reply.ok -eq $false))) {
         throw "Respuesta inválida/error en command-$number."
     }
     if (@($reply.chat) -match 'Unknown or incomplete command|Unknown command|<--\[HERE\]') {
@@ -163,7 +164,7 @@ function Save-Events {
     $result.event_counts = $counts; $result.events = $events.ToArray()
 }
 Save-Result
-$process = $null; $quitSent = $false
+$process = $null; $quitSent = $false; $ioLock = $null
 $timer = [Diagnostics.Stopwatch]::StartNew()
 try {
     $quoted = $options | ForEach-Object { '"' + $_ + '"' }
@@ -173,6 +174,57 @@ try {
     $initialState = Send-Control 'state'
     if ($initialState.screen -eq 'paused' -or $initialState.paused -eq $true) { $null = Send-Control 'resume' }
     Wait-Phase 'playing' { State-Is 'playing' $false }
+    if ($Scenario -like 'io-*') {
+        if (-not $OwnerUuid) { throw 'IO requiere OwnerUuid explícito del snapshot cerrado.' }
+        $primary = Join-Path $world "players/data/$OwnerUuid.dat"
+        $old = "$primary`_old"
+        $new = "$primary`_new"
+        foreach ($path in @($primary,$old)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw 'IO requiere DAT y backup completos existentes.' }
+        }
+        $result.phase = 'baseline save'; Save-Result
+        $null = Send-Control 'save'
+        $before = @($primary,$old | ForEach-Object { [ordered]@{ path = $_; sha256 = (Get-FileHash -LiteralPath $_).Hash } })
+        $result['io_before'] = $before
+        if ($Scenario -eq 'io-create-new') {
+            if (Test-Path -LiteralPath $new) { throw 'No sobrescribir _new preexistente.' }
+            $ioLock = [IO.File]::Open($new,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+            $result['io_lock'] = [ordered]@{ path=$new; mode='CreateNew'; access='ReadWrite'; share='None' }
+        } else {
+            $ioLock = [IO.File]::Open($primary,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+            $result['io_lock'] = [ordered]@{ path=$primary; mode='Open'; access='Read'; share='ReadWrite without Delete' }
+        }
+        $result.phase = 'IO lock installed'; Save-Result
+        $null = Send-Control 'command give @s minecraft:iron_ingot 1'
+        $reply = Send-Control 'save' $true
+        $lastCommand = $result.commands[$result.commands.Count - 1]
+        if ($lastCommand.exit -ne 1 -or -not $reply.PSObject.Properties['error'] -or
+            [string]$reply.error -notmatch 'os error (5|32|33)\)') {
+            throw 'Save no reportó error Windows de acceso/sharing esperado; no acreditar N8.'
+        }
+        $result['io_error'] = [string]$reply.error
+        # Keep the denied handle until the process is dead. No quit/save recovery.
+        $process.Refresh()
+        if ($process.HasExited) { throw 'Engine salió antes del kill controlado de IO.' }
+        $process.Kill(); $process.WaitForExit(); $process.Refresh()
+        $result.exit_code = $process.ExitCode
+        $result.termination = 'killed_after_expected_io_error'
+        $ioLock.Dispose(); $ioLock = $null
+        $after = @($primary,$old | ForEach-Object { [ordered]@{ path = $_; sha256 = (Get-FileHash -LiteralPath $_).Hash } })
+        $result['io_after'] = $after
+        for ($i=0; $i -lt 2; $i++) {
+            if ($before[$i].sha256 -ne $after[$i].sha256) { throw 'DAT/old cambió pese a bloqueo; investigar sin gate.' }
+        }
+        $result['io_new'] = if (Test-Path -LiteralPath $new -PathType Leaf) {
+            [ordered]@{ path=$new; bytes=(Get-Item -LiteralPath $new).Length; sha256=(Get-FileHash -LiteralPath $new).Hash }
+        } else { $null }
+        Save-Events
+        $result.pass = $true; $result.status = 'passed'; $result.phase = 'complete'
+        $result.offline_oracle = 'pending: inspect primary/old and optional _new; reopen a separate closed-world copy'
+        Save-Result
+        Write-Output "result=$resultPath status=$($result.status) pass=$($result.pass) expected_real_io_error=true"
+        return
+    }
     switch ($Scenario) {
         'death-respawn' {
             $null = Send-Control 'command kill @s'
@@ -249,4 +301,5 @@ try {
     $result.status = 'failed'; $result.pass = $false; Save-Result
     throw
 }
+finally { if ($ioLock) { $ioLock.Dispose() } }
 Write-Output "result=$resultPath status=$($result.status) pass=$($result.pass)"

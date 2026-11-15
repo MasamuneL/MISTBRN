@@ -1,0 +1,136 @@
+{
+  "oracle": "PASS",
+  "snapshots": [
+    {
+      "world": "game-p2-io/saves/create-new",
+      "suffix": ".dat",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "interpretation": "complete retained A"
+    },
+    {
+      "world": "game-p2-io/saves/create-new",
+      "suffix": ".dat_old",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "interpretation": "complete retained A"
+    },
+    {
+      "world": "game-p2-io/saves/create-new",
+      "suffix": ".dat_new",
+      "bytes": 0,
+      "interpretation": "empty harness-created locked file; not a game snapshot"
+    },
+    {
+      "world": "game-p2-io/saves/deny-rename",
+      "suffix": ".dat",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "interpretation": "complete retained A"
+    },
+    {
+      "world": "game-p2-io/saves/deny-rename",
+      "suffix": ".dat_old",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "interpretation": "complete retained A"
+    },
+    {
+      "world": "game-p2-io/saves/deny-rename",
+      "suffix": ".dat_new",
+      "sha256": "F6934C58A664A073B0D301E16429CD9AF1C03D7BFC5F864D098434C86EF2B5D3",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 3,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "interpretation": "complete attempted B, never adopted"
+    }
+  ]
+}

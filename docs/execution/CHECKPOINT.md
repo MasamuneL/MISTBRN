@@ -1,13 +1,14 @@
 # Checkpoint de ejecución — Alomancia Horizon
-schema_version: 13
+schema_version: 14
 fecha: 2026-11-15 America/Mexico_City
 estado: P0/P1 integrated; corrección owner P2 compilada y verificada; P2/N0–N9 parciales
-rama: codex/alomancia-p2-owner
-HEAD_base: e55db8cab13cdb6870e11ff5615cc7f14e42d221 (parent del siguiente commit; consultar git HEAD real)
+rama: codex/alomancia-p2-io
+HEAD_base: 02644603f91751a90f6ab2474c7f984b70e7572a (owner probado; consultar HEAD real para commit IO)
 worktree: C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN
 original_runtime: C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime
 
 ## Estado real vigente
+- N8 adicional sobre la MISMA build owner1: seis receipts nuevos PASS (2 errorOS32 real/2reopen/2rechazos ownerprimary), total39observados. Evidencias p2-io-checks.json y p2-native-io.md/json/oráculos reproducibles. Principal/old conservan A, temporal B nunca adoptado. Bloqueos liberados después killpropio; sin proceso vivo. No N8global, N7 ni fsync. IO harness ampliado revisado Sol y ensayado, default de escenarios previos conserva checks.
 - P1 integrado main; reservas/codec P2 y catálogo P3 tienen revisiones previas. No repetir71+doctest sin cambio. P2/P3 no completos, sin poderes jugables, sin merge de P2 a main.
 - Corrección de owner: tres HEAD cancellable (integrated::serve, WorldRequest::prepare_world, Level::write) y módulo único público allomancy_world_guard en horizon-client-lib. Captura Launch.owner exacto, admisión previa y bootstrap Fresh en RAM, sin modificar SDK/fork. Existing owner exige UUID metadata/archivo/perfil coherentes; no migración. Planner2 exit0 y revisión estática Sol aprobada.
 - Build actual p2-owner1 succeeded exit0, native-test opt-in sólo staged, un core. Engine SHA256 AB56DEDB6756DF75E1BE706A7D0E717B18E8A6FD2C2263F72D939A22475D6DF3. Fuentes/inputs coinciden receipt, sin cambios Rust posteriores. Quarantine rechaza por presencia de marker, conserva claves ajenas y Fault ante inverso no verificado.
@@ -16,8 +17,8 @@ original_runtime: C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/expe
 - Fallo owner original Native2 y backup intactos (no reparación). owner-save-pause1 falló por comando dedicado erróneo del harness; corregido a control directo save-all y revisión Sol. Fallos y sus receipts conservados.
 
 ## Próxima acción y gates pendientes
-Preservar este bloque probado en commit local sobre owner, excluyendo tres diffs preexistentes; jamás merge main ni marcar P2 completa. Trabajo nuevo de cortes/IO va en rama codex/ nueva desde commit probado, en MISMO worktree. Antes de editar, leer protocolo N6–N8 de evidence/p2-storage-architecture.md y diseño opt-in; instrumentación sin Host/save/ticks mientras pausa. Revisar fuente/cortes reales antes de afirmar recuperación. Pendientes también N1 variantes, N3 conflictos/límites, N4 reentrada, N5 writer FIFO, N9 fracciones/reinicio muerto/logout antes tick. Quit integrado omite logging_out: no ejecutar ese harness como gate temporal, necesita ruta real adecuada. Dedicated runtime pendiente; plataforma inicial individual.
-
+Commit local IO desde owner0264460, sólo harness/evidencias/checkpoints y sin los3diffs preexistentes; verificar HEAD/status real. No merge main ni P2 completo. Siguiente trabajo NUEVO: rama codex/alomancia-p2-cuts desde commitIO en MISMO worktree, leer N6 de evidence/p2-storage-architecture.md y contratosnative-test. Implementar4pausas opt-in antesinventario/despuésinventario/despuésinline/despuéscorecommit antes save; sin Host/save/ticks mientras pausa y fuera mutex, registro de frontera y control externo killPID exacto. Una build nueva sólo si cambia Rust; revisar/medir runtime primero y limpiar únicamente cache/export obsoleto tras sustituto verificado. Copias cerradas + hashes/A-B + reopen de otra copia; no afirmar durabilidad por ACK.
+Pendientes N1variantes, N3conflictos/límites, N4reentrada, N5writerFIFO, N6cortesadaptador, N7fronteraswriter reales, N8restauracióncompleta/otrosIO y N9fracciones/reiniciomuerto/logout antes tick. Quit integrado omite logging_out; no ejecutar harness death-logout como gate temporal sin ruta/barrera real. Dedicated runtime pendiente, plataforma inicial individual. N6/N7 no se reemplazan por las fixturesN8.
 ## Seguridad y mantenimiento
 Sin Horizon/Cargo/rustc activo al último cierre. Cache Native2 redundante fc09 eliminado tras manifests/hashes/reparse/contención; 1353297849 bytes recuperados (1.26GiB), receipt p2-owner-maintenance.json completed. No repetir eliminación ni limpieza anterior8.82GiB. Retenidos exportNative2 como baseline bug, owner1 actual/export+cache4d97, P1bridge2/cache250494, P0probev5, SDK/toolchain/target/deps/mundos/backups/evidencias. No nuevos exports por ensayo.
 Root único escritor checkpoint/manifests/build/Cargo/commits; hijos archivos exclusivos. Terra/Luna/Astra cuota: no reintentos; fallback Sol/root registrado. Tres diffs ajenos preservados sin stage: evidence/p0-initial-probe.rs, evidence/p2-horizon-preflight.md y experiments/horizon-probe/bundle/api/src/lib.rs. Historia inferior es cronológica y sus pendientes antiguos quedan sustituidos por esta cabecera; historial íntegro antes de resumen en history/CHECKPOINT-before-lifecycle-summary-2026-11-15.md.
@@ -197,3 +198,45 @@ DESPUÉS mantenimiento cache Native2: eliminado sólo C:\Users\alanj.VIKINGO\One
 owner-death-replay1 PASS/exit0; sin give, ledger existente se acepta SIN saldo ni ítem presente tras muerte. Oracle ocho snapshots principal/old: muerte/respuesta replay ambos reserva0, ledgerTx3receipt4 exacto, inventario vacío (dropvanilla al morir); save/pause/dimensión mantienen reserva1000 e iron2. Reglas, accounting, unlocked, selección, identidad/mundo inalterados, sinmarca. Se añadió comprobación inventario y primera hipótesis «siemprepreservado» falló por dropnormalvanilla: inspector investigó archivos cerrados, corrigió expectativa explícita muerte→[]; no mod/gamefix ni repeticiónensayos. Oráculo ahora PASS con ocho snapshots; fuente preservada en evidence/p2-native-lifecycle-inspect.cjs. No fsync ni muerte→logoutprevioTick acreditado. RevisiónSol confirmócorrecciónharness y resto sinbloqueantes en escenarios3.
 ## Antes commit local owner verificado
 Inputs22/engine del receipt owner1 siguen idénticos; AST4PowerShell y parse3Node PASS. git diff --check PASS con política EOL del repo; primer intento core.autocrlf=false produjo falsos trailingCRLF, corregido a política vigente sin tocar archivos/recompilar. Revisión owner (hashes finales) aprobada y revisión lifecycle Sol sin bloqueantes;33 receiptsPASS conservados más fracaso save-pause1 explícito. Commit local preserva owner y QA/evidencias, NO cierraP2 ni merge main. Lista stage explícita derivada de status, excluye exactamente tres diffs preexistentes; verificar staged antes commit. Nueva rama para siguiente cortes/IO se creará DESPUÉS desdecommit probado, mismo worktree.
+## Commit owner confirmado — antes N8 en nueva rama
+Commit02644603f91751a90f6ab2474c7f984b70e7572a contiene43archivos owner/QA/evidencias probados. Gitstatus después EXACTAMENTE tres diffs preexistentes preservados, sin otroscambios ni stage. Nueva rama codex/alomancia-p2-io creada en MISMO worktree para N8; sin checkout/SDKcopy. No merge main, noP2completo.
+N8 primero sin Rust/buildnuevo: investigar writer real y controlsave en SDK; bloquear con sharing/archivo ruta _new de COPIAcerrada dedicada, luego abrir proceso y provocar guardado controlreal. Exigir errorvisible, nuncaACKdurable, liberarlock y verificar snapshots completos antes recuperación/reopen. Caso principal ausente/backup válido puede ser rechazo explícito por política guard estricta; no cambiar a recuperaciónsilenciosa. Root dueño harnessIO nuevo, subagente sólolectura source/ruling para seguridad; sin otrojuego/cargoactivo.
+## Antes implementar harness N8 sin rebuild
+Fuente SDK localizada vía rg: lan/playerdata.rs y game/native_hooks.rs (búsqueda inicial paths src/playerdata/game/playerdata erróneos sin edición). save.rs3175 write_dat_as escribe <uuid>.dat_new, luego primary→old y new→primary; Level.write_internal llama write_player? antes level.dat. Control directo save→integrated.call save_game propaga error de Level; async otrosfallos pueden sólo log. Plan QA acotado: ampliar lifecycle con io-create-new/io-deny-rename, OwnerUuid explícito validado; baseline save real sin lock, hashprimary/old, bloqueo Windows sólo después Ready. Agregarunlingote para distinguir snapshotB, save real esperadoerrorOS5/32/33 y code1. Kill SOLO PID propio ANTES liberarlock; ningúnquit, luego hashes A intactos y oracleoffline primary/old/_new; PASS de errorinducido NO cierrelimpio ni corteN7. Si respuesta no muestra IOerror, falla explícita. SinRust/SDKnewbuild.
+
+N8 fixtures CLOSED preparadas: missing-owner/truncated-owner en game-p2-io/saves, ownerDAT realB conserva original.fixture-original wx(nooverwrite); oldválido conserva snapshotB1000/ledger1/inv2. sourcewholecreditclosed intacto. Solo alteraciónofflineesperada, sinjuego. Hashes en p2-io-owner-fixtures.json. Próximo openreject sinwrapper, nofallbackauto ni recuperaciónparcial.
+
+ANTES owner-io-missing-owner1 : fixtureownerBreal primaryalterado/oldválido, guardstrict expectedreject preservahashes, sinwrapper; buildowner1 sinRustcambio.
+
+DESPUÉS owner-io-missing-owner1 : pass=True exit=-1 termination=controlled_after_rejection hashunchanged=. Política exige restaurar snapshotcompletooffline, no fallbackparcial; noN7cortereal.
+
+ANTES owner-io-truncated-owner1 : fixtureownerBreal primaryalterado/oldválido, guardstrict expectedreject preservahashes, sinwrapper; buildowner1 sinRustcambio.
+
+DESPUÉS owner-io-truncated-owner1 : pass=True exit=-1 termination=controlled_after_rejection hashunchanged=. Política exige restaurar snapshotcompletooffline, no fallbackparcial; noN7cortereal.
+
+RevisiónSol DF5C6653harness APTO2IOcase, límitesowner sync/FIFO descritos; missing/truncatedowner guardreject ambosPASS hashintacto (controlled-1). Noquitrecovery. Antes ejecución serialIO2 con OwnerUuidB3efd2c0e-f0de-3e85-b045-dec265b3f79c validado offline.
+
+ANTES owner-io-create-new1 : cloncerradocreditB, lockWindows trasbaselinesave; exigeerrorJSONOS y paresAhashintactos; no build ni Rustchange.
+
+DESPUÉS owner-io-create-new1 : pass=True exit=-1 termination=killed_after_expected_io_error errorIO=The process cannot access the file because it is being used by another process. (os error 32), newbytes=0. Sóloerrorinducido+hashA, noN7cut/fsync, oracle/reopenpendientes.
+
+ANTES owner-io-deny-rename1 : cloncerradocreditB, lockWindows trasbaselinesave; exigeerrorJSONOS y paresAhashintactos; no build ni Rustchange.
+
+DESPUÉS owner-io-deny-rename1 : pass=True exit=-1 termination=killed_after_expected_io_error errorIO=C:\Users\alanj.VIKINGO\OneDrive\Documents\ChatGPT\MISTBRN\experiments\horizon-probe\runtime\game-p2-io\saves\deny-rename\players\data\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat: The process cannot access the file because it is being used by another process. (os error 32), newbytes=1281. Sóloerrorinducido+hashA, noN7cut/fsync, oracle/reopenpendientes.
+
+N8 oracleoffline PASS: ambosparesdat/old A hashidéntico(baselinesync rev5,reserva1000,ledgerTx3receipt4,inv2); create-denied new vacío creadoharness no gamesnapshot; rename-denied new1281bytes es B completo inv3, namespaceidentidad/economía intacta. ErrorrealOS32 ambos/helperexit1, ningúnACKdurable, killantesunlock. Siguiente reopencopias independientessourcefallido(sininyección) para probarA elegido y noadopción_new; originalesfallidosconservados.
+
+ANTES owner-io-create-new-reopen1 : clonCERRADO de snapshotIOfallido preservando_new, ownerB same, buildowner1; expectaccept sin injection.
+
+DESPUÉS owner-io-create-new-reopen1 : pass=True exit=0 termination=spontaneous, cierre normal; oracleA trasreopen pendiente.
+
+ANTES owner-io-deny-rename-reopen1 : clonCERRADO de snapshotIOfallido preservando_new, ownerB same, buildowner1; expectaccept sin injection.
+
+DESPUÉS owner-io-deny-rename-reopen1 : pass=True exit=0 termination=spontaneous, cierre normal; oracleA trasreopen pendiente.
+## N8 seis ensayos y oráculos PASS
+p2-io-checks.json6receipts:2IOrealOS32/killedesperado+2reopen0+2guardrejectcontrolado-1/hashintacto. Más33previos=39observados, NO P2/N8completos. Oráculo reaperturaA inv2/noB3/reserve1000/rev6/ledgerTx3receipt4, cuatrodat/old PASS. Previos dosparesA/temporalB/temporalvacío en p2-native-io*.json/cjs. SourceRust/build intactos, sinexportnuevo ni testsantiguosrepetidos. Guardstrictbackup exige restauracióncompletaoffline.
+Primerconsolidado buscó propiedad snapshots_unchanged inexistente en receipt; falló antes de escribir evidencia. Corregido comparando arrays before/after completos exactos; ambosiguales. Losanexosporcaso hashunchangedvacíos NO eran un resultado; evidenciaarrays original vigentes ahora comprobada independientemente. No repetir juegos. ReviewfinalscopedSol en cursoantescommitIO.
+## Revisión N8 y fortalecimiento oracleoffline
+Sol releyó receipts/logs: confirma OS32ambos/hashA/temporalB/reopenA/rechazosíntegros. Señaló asserts incompletos para payloadledger y formato reopen, aunque datos JSON actuales correctos. Root añadió comparaciónliteral MetalIron/amount1000 y transport/schema1 enreopen; ejecutó SOLOinspectoresofflineactualizados, ambosPASS. Ningúnjuego/testprevio repetido. Revisiónsinbloqueantes restantes; siguiente verificacionesAST/diff/inputshash ycommitlocalIO, no merge niP2completo.
+
+ANTEScommitIOlocal: revisiónSolaprobóscoped; ASTlifecycle0errors/Nodeparse2/inputshash22iguales/gitdiffcheckPASS, ningúnprocesoHorizon/Cargo/rustc vivo. Seescenifican12archivos explícitosIOdocs/harness, excluidos3diffspreexistentes. Commitdepruebasinducidas/recuperaciónparcial, NOmerge/P2complete. SiguienteN6documentadoHANDOFFschema14.

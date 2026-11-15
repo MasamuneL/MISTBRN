@@ -1,0 +1,64 @@
+{
+  "build": "p2-owner1",
+  "p2_complete": false,
+  "previous_checks": 33,
+  "native_checks_this_batch": 6,
+  "results": [
+    {
+      "snapshots_unchanged": true,
+      "pass": true,
+      "termination": "controlled_after_rejection",
+      "receipt_sha256": "E76B48F82ED9D1F9DDE9084396E36C29067B229313C5E7D60D637BC32DB2142F",
+      "exit_code": -1,
+      "run": "owner-io-missing-owner1",
+      "kind": "reject"
+    },
+    {
+      "snapshots_unchanged": true,
+      "pass": true,
+      "termination": "controlled_after_rejection",
+      "receipt_sha256": "C28117CCE15385F7DCB73B9932DAC231957D9F8E07EB9EEA188336841410404C",
+      "exit_code": -1,
+      "run": "owner-io-truncated-owner1",
+      "kind": "reject"
+    },
+    {
+      "snapshots_unchanged": null,
+      "pass": true,
+      "termination": "killed_after_expected_io_error",
+      "receipt_sha256": "CF03E869746B2AF7B5FFCA959E649060B9B5D0B7EF81A6A7C060E6D5CC9E4F66",
+      "exit_code": -1,
+      "run": "owner-io-create-new1",
+      "kind": "IO"
+    },
+    {
+      "snapshots_unchanged": null,
+      "pass": true,
+      "termination": "killed_after_expected_io_error",
+      "receipt_sha256": "1F4A114CE9E00364818F7DBC7D61E7F6626383B62DC1342C5A6273E0395A1AED",
+      "exit_code": -1,
+      "run": "owner-io-deny-rename1",
+      "kind": "IO"
+    },
+    {
+      "snapshots_unchanged": null,
+      "pass": true,
+      "termination": "spontaneous",
+      "receipt_sha256": "E554927D90D1DA059E9308EE22DC34ADB6BF7B931903312A72BF7F83FC416C65",
+      "exit_code": 0,
+      "run": "owner-io-create-new-reopen1",
+      "kind": "reopen"
+    },
+    {
+      "snapshots_unchanged": null,
+      "pass": true,
+      "termination": "spontaneous",
+      "receipt_sha256": "FA0DCAA6DB86AC1AC283CF021F6E2F25416C0B8465F253AB9962520EFD760424",
+      "exit_code": 0,
+      "run": "owner-io-deny-rename-reopen1",
+      "kind": "reopen"
+    }
+  ],
+  "n8_complete": false,
+  "total_observed": 39
+}

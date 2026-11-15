@@ -1,0 +1,16 @@
+[
+  {
+    "world": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-io\\saves\\missing-owner",
+    "kind": "missing-owner",
+    "original_retained": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-io\\saves\\missing-owner\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat.fixture-original",
+    "backup_sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+    "original_sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+  },
+  {
+    "world": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-io\\saves\\truncated-owner",
+    "kind": "truncated-owner",
+    "original_retained": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-io\\saves\\truncated-owner\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat.fixture-original",
+    "backup_sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+    "original_sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+  }
+]
