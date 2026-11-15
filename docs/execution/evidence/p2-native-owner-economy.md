@@ -1,0 +1,15 @@
+# P2 owner — crédito, replay persistido, rollback y cuarentena
+
+2026-11-15. Build `p2-owner1` (API411/Rust1.99.1/pin fijado), cinco receipts PASS con quit/WorldCloseFinal y exit0. Ensayos Host reales, feature native-test opt-in; ningún Host falso. Principal completó el oráculo offline al agotarse cuota Terra; no se repitieron las ejecuciones aprobadas.
+
+- `owner-credit1`: perfil AllomancyQA, consume 1 de 3 lingotes, crédito1000Iron, ledger1, replay inmediato sin segundo gasto.
+- `owner-replay-old1`: abre copia completa del snapshot Native2 aceptado, perfil Player, SIN give; misma transacción persistida native-roundtrip-3 y recibo revisión4, reserva1000/inventario2 conservados. Reconnect lleva SavedPlayer de revisión4 a5; no añade transacción.
+- `owner-rollback-inventory1` y `owner-rollback-inline1`: errores inducidos AfterInventory/AfterInline deben devolver HostRejected, restituir preimagen completa Host/core/inventario y quedar Ready; traza rollback_verified. Después el mismo ID se acredita y se reproduce una sola vez: reserva1000, ledger1, inventario2. No se presenta la inyección como fallo espontáneo del Host.
+- `owner-quarantine1`: failpoint RollbackInventory omite intencionalmente el inverso (fallo artificial del adaptador). Backend Fault, marker escrito y leído mediante Host real; se guarda normalmente. Snapshot conserva reserva0/ledger0/revisión3 e inventario2, con NeoForgeData[allomancy:storage_fault]={format_version:1,reason:rollback_unverified}. No se anuncia recibo económico exitoso.
+- `owner-quarantine-reopen1`: mismo mundo marcado se rechaza antes de login/Ready, hashes de todos DAT/markers intactos; salida controlada tras WorldOpenFailed. Acredita cuarentena después de guardado normal/reinicio, no fsync.
+
+Oráculo offline PASS de14snapshots: baselineB(.dat/.old), Native2creditA(.dat/.old) y ambos snapshots de cada uno de los cinco escenarios. Para credit/rollbacks: UUID B=3efd2c0ef0de3e85b045dec265b3f79c en filename/NBT/payload, reserva1000, revisión4, ledger native-roundtrip-3 con receipt4, slot0 iron_ingot2. Replay antiguo conserva UUID A=a01e3843e5213998958af459800e4d11 y ledger anterior. En cuarentena principal Y old tienen marca canónica; ningún snapshot parcial quedó sin marca.
+
+Comando de lectura: node target/p2-native-owner-economy-inspect.cjs, exit0; salida target/p2-native-owner-economy.jsonl. Principal afirmó independientemente14expectativas por fila (identidad, formato, mundo, saldo, revisión, ledger, inventario y marca), exit0. Hashes y filas en `p2-native-owner-economy.json`; parser de desarrollo sólo lee/copias de fixture cerradas, no modifica mundos ni sustituye el codecRust. Los logs/receipts completos están bajo runtime/native-credit-runs/<run>/ y native-open-runs/owner-quarantine-reopen1.
+
+N1–N9 NO completos: pendientes namespace ajeno del jugador activo, lifecycle/cortes/writer/errores Host reales, entre otros. Rollback normal con Host inverso real y cuarentena inducida no acreditan fallo real del inverso ni N7. No se amplía la atomicidad a chunks, otros jugadores, energía o mods ajenos reentrantes.

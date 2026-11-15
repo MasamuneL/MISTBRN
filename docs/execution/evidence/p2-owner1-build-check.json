@@ -1,0 +1,11 @@
+{
+  "build": "p2-owner1",
+  "exit_code": 0,
+  "engine_sha256": "AB56DEDB6756DF75E1BE706A7D0E717B18E8A6FD2C2263F72D939A22475D6DF3",
+  "input_hashes_match": true,
+  "core_count": 1,
+  "core_manifest": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\stage\\native-crates\\allomancy\\core\\Cargo.toml",
+  "library_core_dependency": "path+file:///C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime/launcher/native/stage/native-crates/allomancy/core#allomancy-core@0.1.0",
+  "heads": 3,
+  "module_visibility": "pub in horizon_client_lib::save"
+}

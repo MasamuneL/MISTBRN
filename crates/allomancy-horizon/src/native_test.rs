@@ -1,6 +1,8 @@
-use crate::save::{CreditFailpoint, CreditIntent, NativeTestConfig, SaveBackend};
+use crate::save::{
+    CreditFailpoint, CreditIntent, NativeTestConfig, PlayerStatus, SaveBackend, StorageError,
+};
 use allomancy_core::{Metal, TransactionId, WorldId, load_world_identity};
-use horizon_client::mod_api::{Hooks, Host};
+use horizon_client::mod_api::{Hooks, Host, Tag};
 use std::{
     env, fs,
     path::PathBuf,
@@ -13,10 +15,14 @@ pub fn make_hooks() -> Box<dyn Hooks> {
     match config() {
         Ok((config, scenario)) => {
             eprintln!("ALLOMANCY_NATIVE_TEST event=enabled scenario={scenario}");
-            let driver = if scenario == "observe" {
-                observe
-            } else {
-                roundtrip
+            let driver: fn(&SaveBackend, &mut dyn Host) = match scenario.as_str() {
+                "observe" => observe,
+                "roundtrip" => roundtrip,
+                "replay" => replay,
+                "rollback-inventory" => rollback_inventory,
+                "rollback-inline" => rollback_inline,
+                "quarantine" => quarantine,
+                _ => unreachable!(),
             };
             crate::hooks_with_native_test(config, driver).0
         }
@@ -32,7 +38,16 @@ fn config() -> Result<(NativeTestConfig, String), &'static str> {
     let root = env::var_os("ALLOMANCY_NATIVE_TEST_ROOT").ok_or("root_missing")?;
     let id = env::var("ALLOMANCY_NATIVE_TEST_WORLD_ID").map_err(|_| "world_id_missing")?;
     let scenario = env::var("ALLOMANCY_NATIVE_TEST_SCENARIO").map_err(|_| "scenario_missing")?;
-    if scenario != "observe" && scenario != "roundtrip" {
+    if ![
+        "observe",
+        "roundtrip",
+        "replay",
+        "rollback-inventory",
+        "rollback-inline",
+        "quarantine",
+    ]
+    .contains(&scenario.as_str())
+    {
         return Err("scenario_invalid");
     }
     let runtime = fs::canonicalize(runtime).map_err(|_| "runtime_invalid")?;
@@ -71,59 +86,162 @@ fn config() -> Result<(NativeTestConfig, String), &'static str> {
 }
 
 fn observe(_: &SaveBackend, _: &mut dyn Host) {}
+fn roundtrip(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "roundtrip");
+}
+fn replay(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "replay");
+}
+fn rollback_inventory(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "rollback-inventory");
+}
+fn rollback_inline(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "rollback-inline");
+}
+fn quarantine(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "quarantine");
+}
 
-fn roundtrip(backend: &SaveBackend, host: &mut dyn Host) {
+fn run(backend: &SaveBackend, host: &mut dyn Host, scenario: &str) {
     if ATTEMPTED.load(Ordering::Acquire) {
         return;
     }
     for player in host.server_players() {
-        let Some((before, generation)) = backend.native_test_state(player.uuid) else {
+        let uuid = player.uuid;
+        let Some((before, generation)) = backend.native_test_state(uuid) else {
             continue;
         };
-        let Some(stacks) = host.player_stacks(player.uuid) else {
+        let Some(stacks) = host.player_stacks(uuid) else {
             continue;
         };
-        let Some((slot, stack)) = stacks.iter().take(36).enumerate().find_map(|(i, stack)| {
-            stack
-                .as_ref()
-                .filter(|s| s.count >= 1)
-                .map(|s| (i, s.clone()))
-        }) else {
+        let entry = before.ledger().last().cloned();
+        if scenario == "replay" && entry.is_none() {
             continue;
-        };
+        }
+        let slot_stack = stacks
+            .iter()
+            .take(36)
+            .enumerate()
+            .find_map(|(i, s)| s.as_ref().filter(|s| s.count >= 1).map(|s| (i, s.clone())));
+        if scenario != "replay" && slot_stack.is_none() {
+            continue;
+        }
         if ATTEMPTED.swap(true, Ordering::AcqRel) {
             return;
         }
-        let transaction = TransactionId::new(format!("native-roundtrip-{}", before.revision()));
-        if before
-            .ledger()
-            .iter()
-            .any(|entry| entry.transaction == transaction)
-        {
-            eprintln!(
-                "ALLOMANCY_NATIVE_TEST scenario=roundtrip result=FAIL reason=transaction_exists"
-            );
-            return;
-        }
-        let mut reduced = stack.clone();
-        reduced.count -= 1;
-        let replacement = (reduced.count > 0).then_some(reduced);
-        let intent = || CreditIntent {
-            player: player.uuid,
-            generation,
-            transaction: transaction.clone(),
-            metal: Metal::Iron,
-            amount_milli: 1000,
-            slot,
-            expected: Some(stack.clone()),
-            replacement: replacement.clone(),
-        };
         let result = (|| -> Result<(), &'static str> {
+            let raw = host.player_compound(uuid).ok_or("raw_before")?;
+            let mods = raw.get("NeoForgeData").cloned();
+            let (slot, expected, replacement, transaction, metal, amount) = if scenario == "replay"
+            {
+                let e = entry.ok_or("ledger_missing")?;
+                let stack = stacks.first().cloned().ok_or("inventory_empty")?;
+                (
+                    0,
+                    stack.clone(),
+                    stack,
+                    e.transaction,
+                    e.payload.metal,
+                    e.payload.amount_milli,
+                )
+            } else {
+                let (slot, stack) = slot_stack.ok_or("slot_missing")?;
+                let mut reduced = stack.clone();
+                reduced.count -= 1;
+                let replacement = (reduced.count > 0).then_some(reduced);
+                (
+                    slot,
+                    Some(stack),
+                    replacement,
+                    TransactionId::new(format!("native-roundtrip-{}", before.revision())),
+                    Metal::Iron,
+                    1000,
+                )
+            };
+            let intent = || CreditIntent {
+                player: uuid,
+                generation,
+                transaction: transaction.clone(),
+                metal,
+                amount_milli: amount,
+                slot,
+                expected: expected.clone(),
+                replacement: replacement.clone(),
+            };
+            if scenario == "replay" {
+                let e = before.ledger().last().ok_or("ledger_missing")?;
+                let receipt = backend
+                    .credit_for_native_test(host, intent(), CreditFailpoint::None)
+                    .map_err(|_| "replay")?;
+                if receipt.payload != e.payload
+                    || receipt.committed_revision != e.committed_revision
+                    || backend.native_test_state(uuid) != Some((before.clone(), generation))
+                    || host.player_stacks(uuid) != Some(stacks.clone())
+                    || host
+                        .player_compound(uuid)
+                        .and_then(|r| r.get("NeoForgeData").cloned())
+                        != mods
+                {
+                    return Err("replay_verification");
+                }
+                return Ok(());
+            }
+            if before.ledger().iter().any(|e| e.transaction == transaction) {
+                return Err("transaction_exists");
+            }
+            let mut expected_stacks = stacks.clone();
+            expected_stacks[slot] = replacement.clone();
+            if scenario == "quarantine" {
+                let failure = backend.credit_for_native_test(
+                    host,
+                    intent(),
+                    CreditFailpoint::RollbackInventory,
+                );
+                let raw_after = host.player_compound(uuid).ok_or("raw_after")?;
+                let Some(Tag::Compound(mut expected_mods)) = mods.clone() else {
+                    return Err("mods_before");
+                };
+                expected_mods.insert(
+                    "allomancy:storage_fault".into(),
+                    Tag::compound([
+                        ("format_version", Tag::Int(1)),
+                        ("reason", Tag::String("rollback_unverified".into())),
+                    ]),
+                );
+                if failure != Err(StorageError::RollbackFailed)
+                    || backend.status(uuid) != Ok(PlayerStatus::Fault)
+                    || backend.native_test_state(uuid).is_some()
+                    || raw_after.get("NeoForgeData") != Some(&Tag::Compound(expected_mods))
+                    || host.player_stacks(uuid) != Some(expected_stacks)
+                {
+                    return Err("quarantine_verification");
+                }
+                return Ok(());
+            }
+            let failpoint = match scenario {
+                "rollback-inventory" => Some(CreditFailpoint::AfterInventory),
+                "rollback-inline" => Some(CreditFailpoint::AfterInline),
+                _ => None,
+            };
+            if let Some(failpoint) = failpoint {
+                if backend.credit_for_native_test(host, intent(), failpoint)
+                    != Err(StorageError::HostRejected)
+                    || backend.status(uuid) != Ok(PlayerStatus::Ready)
+                    || backend.native_test_state(uuid) != Some((before.clone(), generation))
+                    || host.player_stacks(uuid) != Some(stacks.clone())
+                    || host
+                        .player_compound(uuid)
+                        .and_then(|r| r.get("NeoForgeData").cloned())
+                        != mods
+                {
+                    return Err("rollback_verification");
+                }
+            }
             let receipt = backend
                 .credit_for_native_test(host, intent(), CreditFailpoint::None)
                 .map_err(|_| "credit")?;
             let (after, after_generation) = backend
-                .native_test_state(player.uuid)
+                .native_test_state(uuid)
                 .ok_or("state_after_credit")?;
             let revision = before
                 .revision()
@@ -146,33 +264,32 @@ fn roundtrip(backend: &SaveBackend, host: &mut dyn Host) {
                         && e.payload == receipt.payload
                         && e.committed_revision == revision
                 })
-                || host
-                    .player_stacks(player.uuid)
-                    .and_then(|s| s.get(slot).cloned())
-                    != Some(replacement.clone())
+                || host.player_stacks(uuid) != Some(expected_stacks.clone())
             {
                 return Err("credit_verification");
             }
-            let replay = backend
+            let replayed = backend
                 .credit_for_native_test(host, intent(), CreditFailpoint::None)
                 .map_err(|_| "replay")?;
-            if replay != receipt
-                || backend.native_test_state(player.uuid) != Some((after, generation))
-                || host
-                    .player_stacks(player.uuid)
-                    .and_then(|s| s.get(slot).cloned())
-                    != Some(replacement.clone())
+            if replayed != receipt
+                || backend.native_test_state(uuid) != Some((after, generation))
+                || host.player_stacks(uuid) != Some(expected_stacks)
             {
                 return Err("replay_verification");
             }
             Ok(())
         })();
+        let induced = if scenario == "quarantine" || scenario.starts_with("rollback-") {
+            " induced_adapter_failure=true"
+        } else {
+            ""
+        };
         match result {
-            Ok(()) => {
-                eprintln!("ALLOMANCY_NATIVE_TEST scenario=roundtrip result=PASS durable=false")
-            }
+            Ok(()) => eprintln!(
+                "ALLOMANCY_NATIVE_TEST scenario={scenario} result=PASS{induced} durable=false"
+            ),
             Err(reason) => eprintln!(
-                "ALLOMANCY_NATIVE_TEST scenario=roundtrip result=FAIL reason={reason} durable=false"
+                "ALLOMANCY_NATIVE_TEST scenario={scenario} result=FAIL reason={reason}{induced} durable=false"
             ),
         }
         return;

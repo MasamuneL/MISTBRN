@@ -1,16 +1,17 @@
 // Read-only gate injected before WorldRequest::prepare_world's original body.
 // A .dat backup never silently supplies economy over another inventory snapshot.
+use crate::save::{Level, uuid_from_text, uuid_text};
 use allomancy_core::{PlayerId, WorldId, WorldIdentitySource, decode_save, load_world_identity};
-use horizon_client::save::{uuid_from_text, uuid_text};
 use horizon_world::{
     compression::Compression,
     nbt::{self, JavaString, Limits, Tag},
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File},
     io::{ErrorKind, Read},
-    path::Path,
+    path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 type GuardResult<T> = std::result::Result<T, String>;
@@ -29,8 +30,181 @@ fn fail(reason: &str) -> String {
     format!("Allomancy preflight: {reason}")
 }
 
-/// Validation only: no lock acquisition, recovery, migration, directory creation or writer.
-pub fn validate_world(world: &Path) -> GuardResult<()> {
+pub enum OwnerMode {
+    Integrated,
+    Dedicated,
+    Unsupported,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OwnerAdmission {
+    Vanilla,
+    Fresh,
+    Existing,
+    Dedicated,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct OwnerContext {
+    owner: Option<[i32; 4]>,
+    admission: Option<OwnerAdmission>,
+    initialized: bool,
+}
+
+// Startup context only: no economic state, durable identity or automatic reset.
+static OWNERS: Mutex<BTreeMap<PathBuf, OwnerContext>> = Mutex::new(BTreeMap::new());
+
+fn protected(world: &Path) -> bool {
+    ["allomancy/world-identity.json", "allomancy/world-identity.json.bak"]
+        .iter()
+        .any(|name| !matches!(fs::symlink_metadata(world.join(name)), Err(e) if e.kind() == ErrorKind::NotFound))
+}
+
+fn world_key(world: &Path) -> GuardResult<PathBuf> {
+    let root = fs::canonicalize(world).map_err(|_| fail("owner root canonicalization failed"))?;
+    if !fs::metadata(&root)
+        .map_err(|_| fail("owner root metadata failed"))?
+        .is_dir()
+    {
+        return Err(fail("owner root is not a directory"));
+    }
+    Ok(root)
+}
+
+fn context(root: &Path) -> GuardResult<OwnerContext> {
+    OWNERS
+        .lock()
+        .map_err(|_| fail("owner context poisoned"))?
+        .get(root)
+        .copied()
+        .ok_or_else(|| fail("owner context missing"))
+}
+
+pub fn capture_owner(world: &Path, owner: [i32; 4]) -> GuardResult<()> {
+    if !protected(world) {
+        return Ok(());
+    }
+    let root = world_key(world)?;
+    let mut owners = OWNERS.lock().map_err(|_| fail("owner context poisoned"))?;
+    if let Some(current) = owners.get(&root) {
+        if current.owner != Some(owner) {
+            return Err(fail("owner context conflict"));
+        }
+    } else {
+        owners.insert(
+            root,
+            OwnerContext {
+                owner: Some(owner),
+                admission: None,
+                initialized: false,
+            },
+        );
+    }
+    drop(owners);
+    log::info!("Allomancy owner: context captured");
+    Ok(())
+}
+
+// Audit before requiring context: vanilla retains its original owner policy.
+pub fn validate_world(world: &Path, mode: OwnerMode) -> GuardResult<()> {
+    let admission = audit_world(world, None)?;
+    if admission == OwnerAdmission::Vanilla {
+        return Ok(());
+    }
+    let root = world_key(world)?;
+    if matches!(mode, OwnerMode::Dedicated) {
+        let dedicated = OwnerContext {
+            owner: None,
+            admission: Some(OwnerAdmission::Dedicated),
+            initialized: false,
+        };
+        let mut owners = OWNERS.lock().map_err(|_| fail("owner context poisoned"))?;
+        if owners
+            .get(&root)
+            .is_some_and(|current| *current != dedicated)
+        {
+            return Err(fail("owner context mode conflict"));
+        }
+        owners.entry(root).or_insert(dedicated);
+        drop(owners);
+        log::info!("Allomancy owner: dedicated admitted");
+        return Ok(());
+    }
+    if !matches!(mode, OwnerMode::Integrated) {
+        return Err(fail("unsupported protected world role"));
+    }
+    let before = context(&root)?;
+    let expected = before
+        .owner
+        .ok_or_else(|| fail("integrated owner context missing"))?;
+    if admission == OwnerAdmission::Existing
+        && audit_world(world, Some(expected))? != OwnerAdmission::Existing
+    {
+        return Err(fail("owner admission changed during audit"));
+    }
+    let mut owners = OWNERS.lock().map_err(|_| fail("owner context poisoned"))?;
+    let current = owners
+        .get_mut(&root)
+        .ok_or_else(|| fail("owner context missing"))?;
+    if *current != before {
+        return Err(fail("owner context changed during audit"));
+    }
+    match (current.admission, admission, current.initialized) {
+        (None, _, _) | (Some(OwnerAdmission::Fresh), OwnerAdmission::Existing, _) => {
+            current.admission = Some(admission);
+            current.initialized = admission == OwnerAdmission::Existing;
+        }
+        (Some(OwnerAdmission::Fresh), OwnerAdmission::Fresh, false)
+        | (Some(OwnerAdmission::Existing), OwnerAdmission::Existing, _) => {}
+        _ => return Err(fail("owner admission cannot reset")),
+    }
+    drop(owners);
+    log::info!("Allomancy owner: integrated admitted");
+    Ok(())
+}
+
+pub fn before_level_write(world: &Path, level: &mut Level) -> GuardResult<()> {
+    if !protected(world) {
+        return Ok(());
+    }
+    let root = world_key(world)?;
+    let before = context(&root)?;
+    match before.admission {
+        Some(OwnerAdmission::Dedicated) if before.owner.is_none() => return Ok(()),
+        Some(OwnerAdmission::Fresh | OwnerAdmission::Existing) => {}
+        _ => return Err(fail("protected write has no admission")),
+    }
+    let expected = before
+        .owner
+        .ok_or_else(|| fail("integrated owner context missing"))?;
+    if before.initialized || before.admission == Some(OwnerAdmission::Existing) {
+        return if level.player_uuid == Some(expected) {
+            Ok(())
+        } else {
+            Err(fail("owner UUID changed before write"))
+        };
+    }
+    // Only the first Fresh write rereads DAT, before a player writer can exist.
+    if audit_world(world, Some(expected))? != OwnerAdmission::Fresh
+        || level.player_uuid.is_some_and(|id| id != expected)
+    {
+        return Err(fail("owner bootstrap context mismatch"));
+    }
+    let mut owners = OWNERS.lock().map_err(|_| fail("owner context poisoned"))?;
+    let current = owners
+        .get_mut(&root)
+        .ok_or_else(|| fail("owner context missing"))?;
+    if *current != before {
+        return Err(fail("owner context changed before bootstrap"));
+    }
+    level.player_uuid = Some(expected);
+    current.initialized = true;
+    drop(owners);
+    log::info!("Allomancy owner: bootstrap accepted in memory; durable=false");
+    Ok(())
+}
+
+fn audit_world(world: &Path, expected_owner: Option<[i32; 4]>) -> GuardResult<OwnerAdmission> {
     let identity = load_world_identity(world).map_err(|e| fail(&format!("world identity {e}")))?;
     if identity
         .as_ref()
@@ -73,7 +247,7 @@ pub fn validate_world(world: &Path) -> GuardResult<()> {
         Err(e) if e.kind() == ErrorKind::NotFound => None,
         Err(_) => return Err(fail("player directory metadata IO error")),
     };
-    let mut primaries = BTreeSet::new();
+    let mut primaries = BTreeMap::new();
     let mut backups = BTreeSet::new();
     let mut count = 0;
     if let Some(entries) = entries {
@@ -108,11 +282,11 @@ pub fn validate_world(world: &Path) -> GuardResult<()> {
             if old {
                 backups.insert(stem.to_owned());
             } else {
-                primaries.insert(stem.to_owned());
+                primaries.insert(stem.to_owned(), root.get("UUID").map(uuid).transpose()?);
             }
         }
     }
-    if backups.iter().any(|name| !primaries.contains(name)) {
+    if backups.iter().any(|name| !primaries.contains_key(name)) {
         return Err(fail(
             "player primary missing; restore a complete snapshot offline",
         ));
@@ -121,10 +295,24 @@ pub fn validate_world(world: &Path) -> GuardResult<()> {
         return Err(fail("player data exists without level primary"));
     }
     if let Some(owner) = owner {
-        if !primaries.contains(&uuid_text(owner)) && !legacy_owner {
+        if !primaries.contains_key(&uuid_text(owner)) && !legacy_owner {
             return Err(fail("level names a missing owner snapshot"));
         }
     }
+    let admission = if id.is_none() {
+        OwnerAdmission::Vanilla
+    } else if primary.is_none() && backup.is_none() && count == 0 {
+        log::info!("Allomancy owner: fresh snapshots absent");
+        OwnerAdmission::Fresh
+    } else {
+        if let Some(expected) = expected_owner {
+            for root in [primary.as_ref(), backup.as_ref()].into_iter().flatten() {
+                validate_owner(root, &primaries, expected)?;
+            }
+            log::info!("Allomancy owner: existing snapshots accepted");
+        }
+        OwnerAdmission::Existing
+    };
     log::info!(
         "Allomancy preflight: snapshot source Primary; backups audited only; identity {}",
         if id.is_some() {
@@ -133,6 +321,40 @@ pub fn validate_world(world: &Path) -> GuardResult<()> {
             "absent (vanilla only)"
         }
     );
+    Ok(admission)
+}
+
+// Mirror the identity preserved by Level::read, then load_owner's selection.
+// A fallback file for B cannot initialize an existing Level UUID that is None.
+fn validate_owner(
+    root: &Tag,
+    primaries: &BTreeMap<String, Option<[i32; 4]>>,
+    expected: [i32; 4],
+) -> GuardResult<()> {
+    let data = root.get("Data").ok_or_else(|| fail("level Data missing"))?;
+    let named = data.get("singleplayer_uuid").map(uuid).transpose()?;
+    let named_file = named.and_then(|id| primaries.get(&uuid_text(id))).copied();
+    let legacy = data
+        .get("Player")
+        .and_then(|player| player.get("UUID"))
+        .map(uuid)
+        .transpose()?;
+    let level_uuid = match named_file {
+        Some(stored) => stored.or(named),
+        None => legacy.or(named),
+    };
+    let adopted_uuid = if named_file.is_some() || !primaries.contains_key(&uuid_text(expected)) {
+        level_uuid
+    } else {
+        // load_owner prefers the own file when the named file was not loaded.
+        // Its UUID/filename relationship has already passed strict validation.
+        Some(expected)
+    };
+    if level_uuid != Some(expected) || adopted_uuid != Some(expected) {
+        return Err(fail(
+            "integrated owner identity mismatch or missing Level UUID",
+        ));
+    }
     Ok(())
 }
 

@@ -1,0 +1,870 @@
+{
+  "oracle": "PASS",
+  "baseline": "game-p2-owner-econ/saves/credit",
+  "snapshots": [
+    {
+      "world": "game-p2-lifecycle/saves/death-respawn",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "24646FC297BBC54756A3CDFD3C2715C4F3402FB052A22C320A8CD53A11D92798",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 6,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/death-respawn",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "24646FC297BBC54756A3CDFD3C2715C4F3402FB052A22C320A8CD53A11D92798",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 6,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/save-pause2",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 1000,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 5,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/save-pause2",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 1000,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 5,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/dimension",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "665914B09150E655D6105FFFD7B890426670CA44DF20D4729550B85F2EF63F30",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 1000,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 5,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "health": 20,
+      "dimension": "minecraft:the_nether"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/dimension",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "665914B09150E655D6105FFFD7B890426670CA44DF20D4729550B85F2EF63F30",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 1000,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 5,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "health": 20,
+      "dimension": "minecraft:the_nether"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/death-replay",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "DDC324D072A29A4373A6C2D50C9D0F4DF904B49443AFF7CCEEED92AA4EF660C9",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 7,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "world": "game-p2-lifecycle/saves/death-replay",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "DDC324D072A29A4373A6C2D50C9D0F4DF904B49443AFF7CCEEED92AA4EF660C9",
+      "saved": {
+        "state": {
+          "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+          "world_id": "026e465a87434711a6951c07588dc0ee",
+          "last_tick": null,
+          "selected_pair": "IronSteel",
+          "metals": [
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            },
+            {
+              "unlocked": false,
+              "reserve_milli": 0,
+              "burn": "Off"
+            }
+          ]
+        },
+        "accounting": {
+          "remainder": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rules": {
+          "consumption_milli_per_tick": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "base_capacity_milli": [
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000,
+            100000
+          ],
+          "reduction_milli": 0,
+          "capacity_bonus_milli": 0
+        },
+        "revision": 7,
+        "ledger": [
+          {
+            "transaction": "native-roundtrip-3",
+            "payload": {
+              "metal": "Iron",
+              "amount_milli": 1000
+            },
+            "committed_revision": 4
+          }
+        ]
+      },
+      "inventory": [],
+      "health": 20,
+      "dimension": "minecraft:overworld"
+    }
+  ]
+}

@@ -28,3 +28,6 @@ Death/reconnect/loggingout según Astra: no asumir acceso a Host en player_died;
 
 ## Gates
 TDD helper marker→tests significativos, sin mocksSDK. Compilar guard/backend contra SDK exacto; N0 real sin wrapper y N1–N9 conforme informe Astra con hashes previos/reapertura/cortes/rollback/errores. No marcar P2 completa por unit tests ni catálogos. La inyección es parte nativa first-class del bundle fijado, no fork ni modificación permanente upstream; incompatibilidad debe rechazar y preservar datos.
+
+## Estado vigente root 2026-11-15
+Los estados sin compilar anteriores son históricos: build p2-owner1 compilada y33receipts PASS consolidados en evidence/p2-owner1-checks.json; ver CHECKPOINT schema13 y evidence/p2-native-lifecycle.md. Driver7A840D37... probado contraHostreal; source featuredefaultOFF. P2/N0–N9 siguen parciales, sinmerge main ni poderes jugables. No repetir pruebas vigentes sin cambio.

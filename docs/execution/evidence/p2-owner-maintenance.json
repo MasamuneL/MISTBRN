@@ -1,0 +1,38 @@
+{
+  "status": "completed",
+  "target": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\server-builds\\native-fdc87ae-fc09e76b9eed",
+  "reason": "Obsolete native2 launcher cache duplicated by retained frozen native2 export, replaced current engine owner1",
+  "bytes_before": 1353297849.0,
+  "verified_pairs": [
+    {
+      "sha256": "0A51CCBF7D1D695B0467E41842214B9F4E3ABCFF7CD418CE7AE97F391DB9E0BB",
+      "path": "horizon-engine.exe"
+    },
+    {
+      "sha256": "43FFB3D8B3FFFFBA1EB55AF96410F343C3F5FD0D3EB6849FD07146C6AF2A09C6",
+      "path": "native-mods.json"
+    },
+    {
+      "sha256": "71687E7E556281BA0EBE78089152432765B789EE1D5BE88F1A69BEFD6507C97C",
+      "path": ".horizon-game-architecture.json"
+    },
+    {
+      "sha256": "3FA325BB6CF9F673ECD11DB2028FBEE15C22BA9F061EAB4FAB8835D016D86C43",
+      "path": ".local/horizon-client/26.3/horizon-resources.json"
+    }
+  ],
+  "retained": [
+    "p2-native2-engine",
+    "p2-owner1-engine",
+    "p1-bridge2-engine",
+    "probe-engine-v5",
+    "launcher/native/server-builds/native-fdc87ae-250494cffe9b",
+    "launcher/native/server-builds/native-fdc87ae-4d97e1bc9046",
+    "launcher/native/target",
+    "native-builds",
+    "backups",
+    "launcher/rust"
+  ],
+  "bytes_after": 0,
+  "bytes_recovered": 1353297849.0
+}

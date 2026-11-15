@@ -1,0 +1,69 @@
+{
+  "oracle": "PASS",
+  "snapshots": [
+    {
+      "world": "game-p2-active-foreign/saves/credit",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "3327CDB1EB20EE91B1018177BF7A8859DE513024BE3E6B9D08BB74BABFBC2161",
+      "foreign_keep": 7,
+      "nbt_type": "Int",
+      "reserve": 1000,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "revision": 4,
+      "marked": false
+    },
+    {
+      "world": "game-p2-active-foreign/saves/credit",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "3327CDB1EB20EE91B1018177BF7A8859DE513024BE3E6B9D08BB74BABFBC2161",
+      "foreign_keep": 7,
+      "nbt_type": "Int",
+      "reserve": 1000,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "revision": 4,
+      "marked": false
+    },
+    {
+      "world": "game-p2-active-foreign/saves/quarantine",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "E5830E407C1974227ACE5E46947B24BA495912D7F60FB3A189EA32CCC7B61C3E",
+      "foreign_keep": 7,
+      "nbt_type": "Int",
+      "reserve": 0,
+      "ledger": [],
+      "revision": 3,
+      "marked": true
+    },
+    {
+      "world": "game-p2-active-foreign/saves/quarantine",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "E5830E407C1974227ACE5E46947B24BA495912D7F60FB3A189EA32CCC7B61C3E",
+      "foreign_keep": 7,
+      "nbt_type": "Int",
+      "reserve": 0,
+      "ledger": [],
+      "revision": 3,
+      "marked": true
+    }
+  ],
+  "reader_sha256": "9E71CA98964D043A054596C592A4822273F3975A087152C83C42697B78AEAC72",
+  "scope": "active owner NeoForgeData foreign Int7 preserved through real Host credit/quarantine; error induced, no fsync"
+}

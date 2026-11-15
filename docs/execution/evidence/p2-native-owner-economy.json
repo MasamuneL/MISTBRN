@@ -1,0 +1,387 @@
+{
+  "date": "2026-11-15 America/Mexico_City",
+  "oracle": "PASS",
+  "snapshots": 14,
+  "inspector_sha256": "8B395CDDA50322DFA80941AF8C3BF584779793E11EC127CE413220FF2C10DD01",
+  "scope": "native Host + offline snapshots; induced adapter errors; no fsync or N7 claim",
+  "results": [
+    {
+      "world": "backups/p2-owner-after-reopen",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "99060DD10B4E8B21975D5DF57236D6197F4314C4B24A78EC6F39E9DE8BCF8044",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 0,
+      "revision": 2,
+      "ledger": [],
+      "inventory": [],
+      "fault": null
+    },
+    {
+      "world": "backups/p2-owner-after-reopen",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "99060DD10B4E8B21975D5DF57236D6197F4314C4B24A78EC6F39E9DE8BCF8044",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 0,
+      "revision": 2,
+      "ledger": [],
+      "inventory": [],
+      "fault": null
+    },
+    {
+      "world": "game-p2-credit2/saves/CreditP2",
+      "name": "a01e3843-e521-3998-958a-f459800e4d11.dat",
+      "sha256": "620F84A195F6ABB1FB09F419BAC83CA1183FE84052DDD144E8268E83E9069430",
+      "uuid": "a01e3843e5213998958af459800e4d11",
+      "transport": 1,
+      "schema": 1,
+      "player": "a01e3843e5213998958af459800e4d11",
+      "world_id": "e0f1ae8032614d8795371acf11dac6d2",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-credit2/saves/CreditP2",
+      "name": "a01e3843-e521-3998-958a-f459800e4d11.dat_old",
+      "sha256": "620F84A195F6ABB1FB09F419BAC83CA1183FE84052DDD144E8268E83E9069430",
+      "uuid": "a01e3843e5213998958af459800e4d11",
+      "transport": 1,
+      "schema": 1,
+      "player": "a01e3843e5213998958af459800e4d11",
+      "world_id": "e0f1ae8032614d8795371acf11dac6d2",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/credit",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/credit",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/replay-old",
+      "name": "a01e3843-e521-3998-958a-f459800e4d11.dat",
+      "sha256": "636ADC5DC49F8D0B35583BB4AD2516387200F499DF9ECDF9E555664D61D4E826",
+      "uuid": "a01e3843e5213998958af459800e4d11",
+      "transport": 1,
+      "schema": 1,
+      "player": "a01e3843e5213998958af459800e4d11",
+      "world_id": "e0f1ae8032614d8795371acf11dac6d2",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/replay-old",
+      "name": "a01e3843-e521-3998-958a-f459800e4d11.dat_old",
+      "sha256": "636ADC5DC49F8D0B35583BB4AD2516387200F499DF9ECDF9E555664D61D4E826",
+      "uuid": "a01e3843e5213998958af459800e4d11",
+      "transport": 1,
+      "schema": 1,
+      "player": "a01e3843e5213998958af459800e4d11",
+      "world_id": "e0f1ae8032614d8795371acf11dac6d2",
+      "reserve": 1000,
+      "revision": 5,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/rollback-inventory",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/rollback-inventory",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/rollback-inline",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/rollback-inline",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 1000,
+      "revision": 4,
+      "ledger": [
+        {
+          "transaction": "native-roundtrip-3",
+          "payload": {
+            "metal": "Iron",
+            "amount_milli": 1000
+          },
+          "committed_revision": 4
+        }
+      ],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": null
+    },
+    {
+      "world": "game-p2-owner-econ/saves/quarantine",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "1ED9B9B3742CF509C13857E3D2EC0D3AFE5D6EDE9E92E72224E875377BB4B48F",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 0,
+      "revision": 3,
+      "ledger": [],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": {
+        "format_version": 1,
+        "reason": "rollback_unverified"
+      }
+    },
+    {
+      "world": "game-p2-owner-econ/saves/quarantine",
+      "name": "3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "1ED9B9B3742CF509C13857E3D2EC0D3AFE5D6EDE9E92E72224E875377BB4B48F",
+      "uuid": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "transport": 1,
+      "schema": 1,
+      "player": "3efd2c0ef0de3e85b045dec265b3f79c",
+      "world_id": "026e465a87434711a6951c07588dc0ee",
+      "reserve": 0,
+      "revision": 3,
+      "ledger": [],
+      "inventory": [
+        {
+          "Slot": 0,
+          "count": 2,
+          "id": "minecraft:iron_ingot"
+        }
+      ],
+      "fault": {
+        "format_version": 1,
+        "reason": "rollback_unverified"
+      }
+    }
+  ]
+}

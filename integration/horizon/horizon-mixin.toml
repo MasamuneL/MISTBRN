@@ -11,12 +11,22 @@ path = "crates/allomancy-horizon"
 [[crate]]
 id = "core"
 path = "crates/allomancy-core"
+dependent = "horizon-client-lib"
 
 [[module]]
 id = "world_guard"
-file = "crates/horizon-client/src/game/world_loading.rs"
+file = "crates/horizon-client/src/save.rs"
 name = "allomancy_world_guard"
 source = "world_guard.rs"
+visibility = "pub"
+
+[[injection]]
+id = "capture_profile"
+target = "horizon_client::game::integrated::serve"
+kind = "HEAD"
+cancellable = true
+helper = "profile_capture.rs"
+bindings = [{ name = "launch", ty = "&Launch", value = "&launch" }]
 
 [[injection]]
 id = "world_preflight"
@@ -24,4 +34,12 @@ target = "horizon_client::game::world_loading::WorldRequest::prepare_world"
 kind = "HEAD"
 cancellable = true
 helper = "preflight.rs"
-bindings = [{ name = "request", ty = "&WorldRequest", value = "&self" }]
+bindings = [{ name = "request", ty = "&WorldRequest", value = "&self" }, { name = "options", ty = "&Options", value = "options" }]
+
+[[injection]]
+id = "owner_bootstrap"
+target = "horizon_client_lib::save::Level::write"
+kind = "HEAD"
+cancellable = true
+helper = "owner_bootstrap.rs"
+bindings = [{ name = "level", ty = "&mut Level", value = "&mut *self" }, { name = "world", ty = "&std::path::Path", value = "dir" }]

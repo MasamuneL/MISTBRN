@@ -7,7 +7,8 @@ param(
     [Parameter(Mandatory)][ValidateSet('accept','reject')][string]$Expect,
     [ValidateRange(1,180)][int]$TimeoutSeconds = 180,
     [string]$DenyReadRelativePath,
-    [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName
+    [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName,
+    [switch]$BackendDisabled
 )
 $ErrorActionPreference = 'Stop'
 $runtime = (Resolve-Path -LiteralPath $RuntimeRoot).Path
@@ -137,7 +138,7 @@ $inputHashes = @($build.inputs | ForEach-Object {
     [ordered]@{ path = $_.path; recorded_sha256 = $_.sha256; current_sha256 = if (Test-Path -LiteralPath $_.path -PathType Leaf) { (Get-FileHash -LiteralPath $_.path -Algorithm SHA256).Hash } else { $null } }
 })
 $result = [ordered]@{
-    status = 'starting'; pass = $false; expect = $Expect; pid = $null; exit_code = $null
+    status = 'starting'; pass = $false; expect = $Expect; backend_disabled = [bool]$BackendDisabled; pid = $null; exit_code = $null
     termination = $null; timed_out = $false; engine = $engine
     engine_sha256 = (Get-FileHash -LiteralPath $engine -Algorithm SHA256).Hash
     build_receipt = $buildReceipt; build_receipt_sha256 = (Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash
@@ -212,7 +213,11 @@ try {
         $result.pass = $result.termination -eq 'spontaneous' -and $result.exit_code -eq 0 -and
             $log.Contains('Allomancy preflight: accept') -and
             $log.Contains('ALLOMANCY_NATIVE_TEST event=world_lifecycle phase=WorldOpenReady') -and
-            $log.Contains('ALLOMANCY_SAVE event=ready accepted_in_memory=true')
+            $(if ($BackendDisabled) {
+                -not $log.Contains('ALLOMANCY_SAVE event=ready accepted_in_memory=true')
+            } else {
+                $log.Contains('ALLOMANCY_SAVE event=ready accepted_in_memory=true')
+            })
     }
     $result.status = if ($result.pass) { 'passed' } else { 'failed' }
     Save-Result

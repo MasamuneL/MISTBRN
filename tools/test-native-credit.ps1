@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory)][string]$RuntimeRoot,
     [Parameter(Mandatory)][ValidatePattern('\A[a-zA-Z0-9-]+\z')][string]$RunId,
     [Parameter(Mandatory)][string]$WorldRoot,
-    [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName = 'Player'
+    [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName = 'Player',
+    [ValidateSet('roundtrip','replay','rollback-inventory','rollback-inline','quarantine')][string]$Scenario = 'roundtrip'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -55,7 +56,7 @@ $env:HORIZON_NO_AUDIO = '1'
 $env:ALLOMANCY_NATIVE_TEST_RUNTIME = $runtime
 $env:ALLOMANCY_NATIVE_TEST_ROOT = $world
 $env:ALLOMANCY_NATIVE_TEST_WORLD_ID = [string]$identity.world_id
-$env:ALLOMANCY_NATIVE_TEST_SCENARIO = 'roundtrip'
+$env:ALLOMANCY_NATIVE_TEST_SCENARIO = $Scenario
 $options = @('--world',(Split-Path -Leaf $world),'--game-dir',$gameDir,'--resources',$resources,
     '--offscreen','--no-pause','--test-terrain','--creative','--render-distance','2',
     '--name',$PlayerName,'--control-socket',$endpoint)
@@ -63,7 +64,7 @@ $inputs = @($build.inputs | ForEach-Object {
     [ordered]@{ path = $_.path; recorded_sha256 = $_.sha256; current_sha256 = if (Test-Path -LiteralPath $_.path -PathType Leaf) { (Get-FileHash -LiteralPath $_.path -Algorithm SHA256).Hash } else { $null } }
 })
 $result = [ordered]@{
-    status = 'starting'; pass = $false; pid = $null; exit_code = $null; termination = $null; error = $null
+    status = 'starting'; pass = $false; pid = $null; exit_code = $null; termination = $null; error = $null; scenario = $Scenario
     engine = $engine; engine_sha256 = (Get-FileHash -LiteralPath $engine -Algorithm SHA256).Hash
     build_receipt = $buildReceipt; build_receipt_sha256 = (Get-FileHash -LiteralPath $buildReceipt -Algorithm SHA256).Hash
     inputs = $inputs; helper = $helper; helper_sha256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash
@@ -109,13 +110,13 @@ try {
     $result.status = 'running'
     Save-Result
     $timer = [Diagnostics.Stopwatch]::StartNew()
-    $gave = $false
+    $gave = $Scenario -eq 'replay'
     $quit = $false
     while ($timer.Elapsed.TotalSeconds -lt 120) {
         $process.Refresh()
         $log = Logs
-        if ($log -match 'ALLOMANCY_NATIVE_TEST scenario=roundtrip result=FAIL') { throw 'Driver reportó FAIL; ver logs.' }
-        if (-not $gave -and $log -match 'ALLOMANCY_NATIVE_TEST scenario=roundtrip result=PASS') { throw 'Driver actuó antes del comando fixture.' }
+        if ($log -match "ALLOMANCY_NATIVE_TEST scenario=$Scenario result=FAIL") { throw 'Driver reportó FAIL; ver logs.' }
+        if (-not $gave -and $log -match "ALLOMANCY_NATIVE_TEST scenario=$Scenario result=PASS") { throw 'Driver actuó antes del comando fixture.' }
         if (-not $gave -and $log -match 'ALLOMANCY_SAVE event=ready accepted_in_memory=true' -and (Test-Path -LiteralPath $endpoint -PathType Leaf)) {
             $response = Control $giveFile
             $result.give_reply = $response.reply
@@ -124,7 +125,7 @@ try {
             if ($response.exit -ne 0) { throw 'Control give falló; ver receipt.' }
             $gave = $true
         }
-        if ($gave -and -not $quit -and $log -match 'ALLOMANCY_NATIVE_TEST scenario=roundtrip result=PASS') {
+        if ($gave -and -not $quit -and $log -match "ALLOMANCY_NATIVE_TEST scenario=$Scenario result=PASS" -and $log -match 'ALLOMANCY_SAVE event=ready accepted_in_memory=true' -and (Test-Path -LiteralPath $endpoint -PathType Leaf)) {
             $response = Control $quitFile
             $result.quit_reply = $response.reply
             $result.quit_exit = $response.exit
@@ -143,10 +144,15 @@ try {
     $result.termination = 'spontaneous_after_quit'
     $log = Logs
     if (-not $gave -or -not $quit -or $result.exit_code -ne 0 -or
-        $log -notmatch 'ALLOMANCY_NATIVE_TEST scenario=roundtrip result=PASS' -or
+        $log -notmatch "ALLOMANCY_NATIVE_TEST scenario=$Scenario result=PASS" -or
         $log -notmatch 'ALLOMANCY_NATIVE_TEST event=world_lifecycle phase=WorldCloseFinal' -or
-        $log -match 'ALLOMANCY_NATIVE_TEST scenario=roundtrip result=FAIL') {
+        $log -match "ALLOMANCY_NATIVE_TEST scenario=$Scenario result=FAIL") {
         throw 'Faltan criterios de PASS; ver logs.'
+    }
+    if ($Scenario -in @('rollback-inventory','rollback-inline') -and
+        ($log -notmatch 'ALLOMANCY_SAVE event=rollback_verified' -or
+         $log -notmatch 'ALLOMANCY_SAVE event=credit_accepted')) {
+        throw 'Falta evidencia de rollback inducido y crédito posterior.'
     }
     $result.pass = $true
     $result.status = 'passed'

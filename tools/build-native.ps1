@@ -21,7 +21,7 @@ $receiptPath = Join-Path $build 'receipt.json'
 $log = Join-Path $root "docs/execution/evidence/$BuildName-build.log"
 $descriptor = Join-Path $root 'integration/horizon/horizon-mixin.toml'
 $crates = @('allomancy-core', 'allomancy-horizon')
-$helpers = @('preflight.rs', 'world_guard.rs')
+$helpers = @('preflight.rs', 'world_guard.rs', 'profile_capture.rs', 'owner_bootstrap.rs')
 $required = @($helpers | ForEach-Object { Join-Path $root "integration/horizon/$_" })
 $required += @($launcher, (Join-Path $base '.installed'), (Join-Path $base 'horizon-client.exe'), (Join-Path $base '.local/horizon-client/26.3/horizon-resources.json'), $descriptor)
 foreach ($crate in $crates) {
