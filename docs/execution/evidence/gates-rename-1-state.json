@@ -1,0 +1,26 @@
+{
+  "oracle": "PASS",
+  "mode": "reconnect",
+  "baseline": {
+    "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner-econ\\saves\\credit\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+    "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+  },
+  "snapshots": [
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\rename-1-renamed\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "present": true,
+      "sha256": "CE5A0D8BAA26482A871125E106AACCAADDB42F0B43DE375CEFF22415BDE443CA",
+      "expected": "reconnect"
+    },
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\rename-1-renamed\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "present": true,
+      "sha256": "CE5A0D8BAA26482A871125E106AACCAADDB42F0B43DE375CEFF22415BDE443CA",
+      "expected": "same"
+    },
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\rename-1-renamed\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_new",
+      "present": false
+    }
+  ]
+}

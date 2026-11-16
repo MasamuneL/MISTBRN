@@ -1,0 +1,133 @@
+{
+  "build": "p2-gates2",
+  "exit_code": 0,
+  "engine_sha256": "0484F38F4BCF1F24224E046D6D3690C185D148367C6DB1EF01DAC342F2B1A0E8",
+  "input_hashes_match": true,
+  "inputs": [
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\AppData\\Local\\Programs\\Horizon Launcher\\horizon-launcher.exe",
+      "recorded": "B48F491344AB99E98719C74DC7F539D78D4CF0F2C144D1EE6F1E4090E3B22EA1",
+      "actual": "B48F491344AB99E98719C74DC7F539D78D4CF0F2C144D1EE6F1E4090E3B22EA1"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\.installed",
+      "recorded": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "actual": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\horizon-client.exe",
+      "recorded": "43B6335E03C6EB77CEBD76528A7D1489E5714E21F60DC06635D93D8F0C83F71A",
+      "actual": "43B6335E03C6EB77CEBD76528A7D1489E5714E21F60DC06635D93D8F0C83F71A"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\.local\\horizon-client\\26.3\\horizon-resources.json",
+      "recorded": "3FA325BB6CF9F673ECD11DB2028FBEE15C22BA9F061EAB4FAB8835D016D86C43",
+      "actual": "3FA325BB6CF9F673ECD11DB2028FBEE15C22BA9F061EAB4FAB8835D016D86C43"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\horizon-mixin.toml",
+      "recorded": "F60CD9D06859F34B1E8FA56E13D2581EF0C053654ED1D4BC0D1AE6D1AD699CD5",
+      "actual": "F60CD9D06859F34B1E8FA56E13D2581EF0C053654ED1D4BC0D1AE6D1AD699CD5"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\Cargo.toml",
+      "recorded": "D20D7D78E1BA4F57B67D3F5B8C897BCE106B1D8AEA28DFBA8A7E64BFFE7556E2",
+      "actual": "D20D7D78E1BA4F57B67D3F5B8C897BCE106B1D8AEA28DFBA8A7E64BFFE7556E2"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\commands.rs",
+      "recorded": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95",
+      "actual": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\lib.rs",
+      "recorded": "028148DC1C80FBFD30689649C8DB27A29DABCAD7445051B73A58D4FD8525DE73",
+      "actual": "028148DC1C80FBFD30689649C8DB27A29DABCAD7445051B73A58D4FD8525DE73"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\persistence.rs",
+      "recorded": "200A8B6EB1A8ADE154F47E8179DED4A2A395546270B0151D68C4CA406FFA79A7",
+      "actual": "200A8B6EB1A8ADE154F47E8179DED4A2A395546270B0151D68C4CA406FFA79A7"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\reserves.rs",
+      "recorded": "A0207224AE0F8797EB9ADAFF42DF773E6933BE3E063047A6D34A709246CE9B78",
+      "actual": "A0207224AE0F8797EB9ADAFF42DF773E6933BE3E063047A6D34A709246CE9B78"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\state.rs",
+      "recorded": "6436C9F418822284662247C17E141BF592C387B66B373F6DFAFA448C66A13DC2",
+      "actual": "6436C9F418822284662247C17E141BF592C387B66B373F6DFAFA448C66A13DC2"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\types.rs",
+      "recorded": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E",
+      "actual": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\world_identity.rs",
+      "recorded": "A0B1E9ABBCB9A26F528C723ACD578653AA014D6D676B1CFC1DE90DB213422B1A",
+      "actual": "A0B1E9ABBCB9A26F528C723ACD578653AA014D6D676B1CFC1DE90DB213422B1A"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\Cargo.toml",
+      "recorded": "80C9B2AB4E1C487C232AAA5085FFEEDCB9D0406626BD76408B04EF10FD9429A9",
+      "actual": "80C9B2AB4E1C487C232AAA5085FFEEDCB9D0406626BD76408B04EF10FD9429A9"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\lib.rs",
+      "recorded": "C423BCA95377D94DA39E8D2262125E18CDCD204945036282B7C79DA80BB9E434",
+      "actual": "C423BCA95377D94DA39E8D2262125E18CDCD204945036282B7C79DA80BB9E434"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\lib.rs.bak",
+      "recorded": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1",
+      "actual": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\native_test.rs",
+      "recorded": "D1690C04B8CBF39609C722EEE9E6AE1889EC1FD7BBBC1A800A0EC875D65B8595",
+      "actual": "D1690C04B8CBF39609C722EEE9E6AE1889EC1FD7BBBC1A800A0EC875D65B8595"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\save.rs",
+      "recorded": "B4F5973C1081E7496E18DFBD670B8A67EA1CE203D1C820151B19BC5C3F70A95F",
+      "actual": "B4F5973C1081E7496E18DFBD670B8A67EA1CE203D1C820151B19BC5C3F70A95F"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\preflight.rs",
+      "recorded": "BF83AED639E898AFF0391E5BF1B2477518F4B9A05CF39B4F46A18FBD2AF58342",
+      "actual": "BF83AED639E898AFF0391E5BF1B2477518F4B9A05CF39B4F46A18FBD2AF58342"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\world_guard.rs",
+      "recorded": "D42457D1F5DDC664D7C2C8C7A9E5EEC0FD0488D22732453CFDCC884FBB41003C",
+      "actual": "D42457D1F5DDC664D7C2C8C7A9E5EEC0FD0488D22732453CFDCC884FBB41003C"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\profile_capture.rs",
+      "recorded": "B61B830FF878635CB263632E24D9BDDB9D38A97013C16ADF4232547B8EFD7B0B",
+      "actual": "B61B830FF878635CB263632E24D9BDDB9D38A97013C16ADF4232547B8EFD7B0B"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\owner_bootstrap.rs",
+      "recorded": "878A4E2C9115A837AFD8B184F3D115425CA4E881DC88C49AAFF2FEA67B5C0DF0",
+      "actual": "878A4E2C9115A837AFD8B184F3D115425CA4E881DC88C49AAFF2FEA67B5C0DF0"
+    }
+  ],
+  "core_count": 1,
+  "core_manifest": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\stage\\native-crates\\allomancy\\core\\Cargo.toml",
+  "core_references": [
+    {
+      "from": "path+file:///C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime/launcher/native/stage/native-api/allomancy#allomancy-horizon@0.1.0",
+      "to": "path+file:///C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime/launcher/native/stage/native-crates/allomancy/core#allomancy-core@0.1.0"
+    },
+    {
+      "from": "path+file:///C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime/launcher/native/stage/crates/horizon-client-lib#0.1.0",
+      "to": "path+file:///C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime/launcher/native/stage/native-crates/allomancy/core#allomancy-core@0.1.0"
+    }
+  ],
+  "metadata_exit": 0,
+  "parser": "ConvertFrom-Json -AsHashtable (case-sensitive USB/usb keys)",
+  "native_test": true
+}

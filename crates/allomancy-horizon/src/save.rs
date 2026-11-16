@@ -196,6 +196,8 @@ pub struct NativeTestConfig {
     pub world_id: WorldId,
     #[cfg(feature = "native-test")]
     pub(crate) cut_run_token: Option<String>,
+    #[cfg(feature = "native-test")]
+    pub(crate) autosave_run_token: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -204,6 +206,10 @@ pub enum CreditFailpoint {
     AfterInventory,
     AfterInline,
     RollbackInventory,
+    #[cfg(feature = "native-test")]
+    Reentrant,
+    #[cfg(feature = "native-test")]
+    ObserveInventoryCallbacks,
     #[cfg(feature = "native-test")]
     PauseBeforeInventory,
     #[cfg(feature = "native-test")]
@@ -228,6 +234,7 @@ impl CreditFailpoint {
 }
 
 /// Server-resolved intent, never deserialized from client packets.
+#[derive(Clone)]
 pub struct CreditIntent {
     pub player: u128,
     pub generation: u64,
@@ -771,6 +778,28 @@ impl SaveBackend {
         self.test.as_ref()?.cut_run_token.as_deref()
     }
 
+    #[cfg(feature = "native-test")]
+    pub(crate) fn native_autosave_run_token(&self) -> Option<&str> {
+        self.test.as_ref()?.autosave_run_token.as_deref()
+    }
+
+    #[cfg(feature = "native-test")]
+    pub(crate) fn native_autosave_armed(&self) -> bool {
+        let Some(config) = self.test.as_ref() else {
+            return false;
+        };
+        let Some(token) = config.autosave_run_token.as_deref() else {
+            return false;
+        };
+        std::fs::symlink_metadata(
+            config
+                .world_root
+                .join("allomancy")
+                .join(format!("native-autosave-arm-{token}")),
+        )
+        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+    }
+
     pub fn credit_for_native_test(
         &self,
         host: &mut dyn Host,
@@ -779,7 +808,10 @@ impl SaveBackend {
     ) -> Result<CreditReceipt, StorageError> {
         self.test_world(host)?;
         #[cfg(feature = "native-test")]
-        if failpoint.cut_frontier().is_some() && self.native_cut_run_token().is_none() {
+        if (failpoint.cut_frontier().is_some() && self.native_cut_run_token().is_none())
+            || (failpoint == CreditFailpoint::ObserveInventoryCallbacks
+                && !self.native_autosave_armed())
+        {
             return Err(StorageError::TestOnly);
         }
         let uuid = intent.player;
@@ -877,6 +909,23 @@ impl SaveBackend {
             self.fault(uuid, &StorageError::Conflict);
             return Err(StorageError::Conflict);
         }
+        #[cfg(feature = "native-test")]
+        if failpoint == CreditFailpoint::Reentrant {
+            // Induced adapter recursion through the same entry point, outside every
+            // session lock. The outer operation has already reserved Busy.
+            let stacks = host.player_stacks(uuid);
+            let inner = self.credit_for_native_test(host, intent.clone(), CreditFailpoint::None);
+            if inner != Err(StorageError::Busy)
+                || self.status(uuid) != Ok(PlayerStatus::Busy)
+                || raw_player(host, uuid)? != raw
+                || host.player_stacks(uuid) != stacks
+            {
+                return Err(StorageError::Conflict);
+            }
+            eprintln!(
+                "ALLOMANCY_NATIVE_TEST event=reentrant_rejected inner=Busy outer=Busy induced_adapter_recursion=true unchanged=true"
+            );
+        }
         let prepared = match preparation {
             CreditPreparation::Replay(receipt) => {
                 eprintln!("ALLOMANCY_SAVE event=credit_replay");
@@ -910,13 +959,34 @@ impl SaveBackend {
         }
         #[cfg(feature = "native-test")]
         self.pause_for_native_cut(failpoint, CreditFailpoint::PauseBeforeInventory, intent);
-        let old = match host.set_inventory_slot(
+        #[cfg(feature = "native-test")]
+        if failpoint == CreditFailpoint::ObserveInventoryCallbacks {
+            crate::native_test::begin_inventory_observation(
+                uuid,
+                intent.transaction.as_str(),
+                self.native_autosave_run_token()
+                    .ok_or(StorageError::TestOnly)?,
+            );
+        }
+        let inventory_result = host.set_inventory_slot(
             uuid,
             NativeInventoryKind::Player,
             intent.slot,
             intent.expected.as_ref(),
             intent.replacement.clone(),
-        ) {
+        );
+        #[cfg(feature = "native-test")]
+        let inventory_callbacks = if failpoint == CreditFailpoint::ObserveInventoryCallbacks {
+            crate::native_test::end_inventory_observation(
+                uuid,
+                intent.transaction.as_str(),
+                self.native_autosave_run_token()
+                    .ok_or(StorageError::TestOnly)?,
+            )
+        } else {
+            0
+        };
+        let old = match inventory_result {
             Ok(old) => old,
             Err(_) => {
                 if raw_player(host, uuid).is_ok_and(|now| now == raw)
@@ -937,6 +1007,13 @@ impl SaveBackend {
                 || live_slot(host, uuid, intent.slot)? != intent.replacement
             {
                 return Err(StorageError::Conflict);
+            }
+            #[cfg(feature = "native-test")]
+            if failpoint == CreditFailpoint::ObserveInventoryCallbacks && inventory_callbacks == 0 {
+                eprintln!(
+                    "ALLOMANCY_NATIVE_TEST event=autosave_pending_missed callback_count=0 durable=false"
+                );
+                return Err(StorageError::HostRejected);
             }
             if matches!(
                 failpoint,

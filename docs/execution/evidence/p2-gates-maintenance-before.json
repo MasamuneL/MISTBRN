@@ -1,0 +1,10 @@
+{
+  "date": "2026-11-16",
+  "phase": "before-gates1",
+  "bytes": 28051292266.0,
+  "files": 430754,
+  "elapsed_seconds": 21.4572422,
+  "deleted": [],
+  "retained": "cuts1 fixed debugger baseline, owner1, native2 historical failure, P1/P0, SDK/toolchain/target/deps/worlds/backups",
+  "active": []
+}

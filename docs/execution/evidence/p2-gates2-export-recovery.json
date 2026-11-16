@@ -1,0 +1,7 @@
+{
+  "source": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\native\\server-builds\\native-fdc87ae-f9039a39109e\\horizon-engine.exe",
+  "destination": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\p2-gates2-engine\\horizon-engine.exe",
+  "sha256": "0484F38F4BCF1F24224E046D6D3690C185D148367C6DB1EF01DAC342F2B1A0E8",
+  "reason": "Export executable absent after first failed early launch; exact existing build-cache binary, no rebuild or SDK copy",
+  "protection_changed": false
+}

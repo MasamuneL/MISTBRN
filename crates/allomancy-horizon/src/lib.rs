@@ -57,14 +57,15 @@ impl Hooks for Allomancy {
         );
     }
     fn server_tick(&self, host: &mut dyn Host, event: &mut ServerTickEvent<'_>) {
-        if matches!(event.context.authority, NativeAuthority::IntegratedServer)
-            && matches!(
-                event.phase,
-                ServerTickPhase::ServerTickEnd {
-                    world_running: true
-                }
-            )
-        {
+        if matches!(
+            event.context.authority,
+            NativeAuthority::IntegratedServer | NativeAuthority::DedicatedServer
+        ) && matches!(
+            event.phase,
+            ServerTickPhase::ServerTickEnd {
+                world_running: true
+            }
+        ) {
             self.backend
                 .tick(host, event.context.epoch.get(), event.context.tick.get());
             if let Some(driver) = self.driver {
@@ -81,8 +82,12 @@ impl Hooks for Allomancy {
     fn player_logging_out(&self, host: &mut dyn Host, event: &mut PlayerLoggingOutEvent<'_>) {
         self.backend.logging_out(host, event.player);
     }
-    fn player_logged_out(&self, _host: &mut dyn Host, event: &mut PlayerLoggedOutEvent<'_>) {
+    fn player_logged_out(&self, host: &mut dyn Host, event: &mut PlayerLoggedOutEvent<'_>) {
         self.backend.logged_out(event.player);
+        #[cfg(feature = "native-test")]
+        native_test::disconnected(&self.backend, host, event.player);
+        #[cfg(not(feature = "native-test"))]
+        let _ = host;
     }
     fn player_respawned(&self, host: &mut dyn Host, event: &mut PlayerRespawnedEvent<'_>) {
         self.backend.respawned(host, event.player);
@@ -94,8 +99,20 @@ impl Hooks for Allomancy {
     ) {
         self.backend.changed_dimension(event.player);
     }
-    fn player_save_to_file(&self, _host: &mut dyn Host, _event: &mut PlayerSaveToFileEvent<'_>) {
+    #[cfg(feature = "native-test")]
+    fn world_saved(
+        &self,
+        host: &mut dyn Host,
+        event: &mut horizon_client::mod_api::WorldSavedEvent,
+    ) {
+        native_test::world_saved(&self.backend, host, event.wait);
+    }
+    fn player_save_to_file(&self, _host: &mut dyn Host, event: &mut PlayerSaveToFileEvent<'_>) {
         // Reentrant during inventory's FIFO drain: no Host, lock, write or commit.
+        #[cfg(feature = "native-test")]
+        native_test::inventory_save_observed(event.player);
+        #[cfg(not(feature = "native-test"))]
+        let _ = event;
         eprintln!("ALLOMANCY_SAVE event=save_observed durable=false");
     }
 }

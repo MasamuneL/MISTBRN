@@ -1,0 +1,119 @@
+{
+  "review": "PASS",
+  "scope": "P2 dedicated observe infrastructure and identity/logout baseline only; N5/P9 pending",
+  "receipt_sha256": "D297DAFCD3E8847802C72CF0A1F0A3E4E21E7F8CAD6DE1EFF688E573513DA115",
+  "harness_sha256_current": "9A2874790A362D7DDC218C462C38A40229D17488C0252F45B0994B6B3291B185",
+  "harness_sha256_recorded": "9A2874790A362D7DDC218C462C38A40229D17488C0252F45B0994B6B3291B185",
+  "source_backup_clone_initial_equal": true,
+  "source_backup_final_manifests_verified": true,
+  "world_final_manifest_verified": true,
+  "server_event_order": [
+    {
+      "offset": 509,
+      "event": "dedicated admitted"
+    },
+    {
+      "offset": 687,
+      "event": "phase=WorldOpenReady"
+    },
+    {
+      "offset": 751,
+      "event": "event=world_identity source=Primary"
+    },
+    {
+      "offset": 1043,
+      "event": "event=login"
+    },
+    {
+      "offset": 1070,
+      "event": "event=ready accepted_in_memory=true"
+    },
+    {
+      "offset": 1121,
+      "event": "event=logging_out"
+    },
+    {
+      "offset": 1154,
+      "event": "event=save_observed"
+    },
+    {
+      "offset": 1203,
+      "event": "event=logged_out"
+    },
+    {
+      "offset": 1264,
+      "event": "phase=WorldCloseFinal"
+    }
+  ],
+  "guest_backend_events_absent": true,
+  "guest_exit": 0,
+  "server_exit": 0,
+  "offline_oracle": {
+    "oracle": "PASS",
+    "mode": "reconnect",
+    "baseline": {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\backup\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+    },
+    "snapshots": [
+      {
+        "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\game-p2-dedicated\\saves\\world\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+        "present": true,
+        "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+        "expected": "reconnect"
+      },
+      {
+        "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\game-p2-dedicated\\saves\\world\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+        "present": true,
+        "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8",
+        "expected": "baseline"
+      },
+      {
+        "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\game-p2-dedicated\\saves\\world\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_new",
+        "present": false
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\command-001.txt",
+      "sha256": "8577DA2EA54085708B3B851BC50315A36BB740BA5135E747CFB12457B5D3060F"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\command-002.txt",
+      "sha256": "891C5A78621E2910E8E48F3078C5C966FA3F9E2E3C151B5893510CDCD19031BA"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\guest.stderr",
+      "sha256": "BDE77C1F9699B2B1D85DF11ABA94919A816AC03227B8262B00FC546E5F60BC76"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\guest.stdout",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\reply-001.json",
+      "sha256": "4062EDAF750FB8074E7E83E0C9028C94E32468A8B6F1614774328EF045150F93"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\reply-002.json",
+      "sha256": "CE8723B0DCCCFB35A8E323C22B28AFFFA8E0C553A6A9719BF0A36D6573DD15BD"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\result.json",
+      "sha256": "D297DAFCD3E8847802C72CF0A1F0A3E4E21E7F8CAD6DE1EFF688E573513DA115"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\result.json.bak",
+      "sha256": "1836C3CD1A87261EECF4716A6DFDE7E9EFF1F6BFD2C053A26C635D0C6938DFE6"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\server.stderr",
+      "sha256": "F255CE4E7467C0B38179D4C8316FD487220270BF1693D28485F6E347E2DFC806"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-dedicated-runs\\dedicated-observe-4\\server.stdout",
+      "sha256": "8B357303EBFE819E5F2C8F88729AE3641C9F67E4D2F57968983C9AC7BD12AD6F"
+    }
+  ]
+}

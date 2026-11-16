@@ -1,0 +1,12 @@
+{
+  "run": "gates-both-owner-invalid-1",
+  "kind": "both-owner-invalid",
+  "pass": true,
+  "expect": "reject",
+  "exit": -1,
+  "termination": "controlled_after_rejection",
+  "world": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\both-owner-invalid-1",
+  "complete_backup": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\backups\\gates-both-owner-invalid-1-complete",
+  "source_manifest": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\docs\\execution\\evidence\\gates-both-owner-invalid-1-clone.json",
+  "rejected_files_unchanged": true
+}

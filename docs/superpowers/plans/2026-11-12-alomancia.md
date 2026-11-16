@@ -1,5 +1,7 @@
 # Alomancia Horizon Implementation Plan
 
+> **Revisión vigente 2026-11-16:** aplicar primero [adecuaciones de secuencia y seguimiento](../../execution/PLAN-ADJUSTMENTS.md). Introduce bloques de cierre P2 y V1 anterior a C2, sin retirar gates. El checkpoint conserva el estado operativo.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir el mod descrito en el diseño, con ejecución delegada por Sol y recuperación tras interrupciones.

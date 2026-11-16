@@ -1,4 +1,25 @@
+# Relevo vigente — 2026-11-16, recuperación posterior a dedicated-observe-2
+
+La entrada única vigente es CHECKPOINT.md schema17 (45 líneas); su enlace history/ conserva íntegros los anexos anteriores y su SHA256. HEAD 8bbdf739, rama codex/alomancia-p2-gates, WIP preservado. Build vigente gates2 (engine0484F38F...), no cuts1 como indicaba el relevo inferior.
+Dedicated-observe-2 terminó FAILED Guest quit timeout; sus logs registran login/logging_out/logged_out pero harness mató sus procesos. Sin engine/Cargo/rustc/gdb activo al recuperar. Replay-new/reentrant oracle PASS revisado. Dedicated4 guest0/server0+oracle y revisión PASS infraestructura P2. Writer1/2/3 fallidos de harness conservados; ownership GDB en revisión. Diario P2-resume-2026-11-16.md contiene intenciones/resultados; sin builds nuevos. PLAN-ADJUSTMENTS prevalece y P2 sigue parcial.
+
+## Relevo anterior preservado (histórico; estados superados)
+# Relevo vigente gates — 2026-11-16
+
+Leer CHECKPOINT schema16 y especialmente el último bloque RELEVO REAL 2026-11-16, y P2-native-completion.md. HEAD8bbdf7397fecf9ddc8f92d63d66c396bf198fa21, rama codex/alomancia-p2-gates, MISMOworktree. Nuevas fuentes/helpers/evidencias gates SINCOMMIT: no borrar/sobrescribir. Tres diffs ajenos preservados. ProcesoHorizon/Cargo/rustc/gdb count0 al cierre. Ninguna nueva build: actual p2-cuts1 engine8C593D4D...; fuentes posteriores no compiladas.
+
+10 nuevos PASS sobre47previos (9 N1/N8 y rich-reconnect-3), falta consolidación/revisión final. rich-dead-login-3 FALLÓ timeout/frame-limited run; receipt left_running de PID29208 pero ya no hay proceso al relevo. Conservar mundo/log/crash/receipt; no declararlo PASS ni relanzar mismo intento. Rich death-respawn/dimension/save-pause siguen sin ejecutar.
+
+Fuentes actuales lib.rs/save.rs/native_test.rs añaden N3/N4, DedicatedServer y N5 autosave-pending via world_saved(false), tokens y contador de callback dentro inventory helper: rustfmtcheck0, SIN typecheck/build/ejecución/revisión final de los últimos cambios. Hashes reales en CHECKPOINT, los anteriores frozen del taskdoc quedaron superados. Revisar y terminar instrumentación antes de una build gates1; no recompilar por ensayo.
+
+Usuario YA aceptó EULA Minecraft y autorizó eula=true sólo directorio de ensayo/servidor127.0.0.1. No volver preguntar. Dedicated aún no arrancado; tools/test-native-dedicated.ps1 NO existe: Astra cuota antes entrega. tools/native-writer-debug.gdb existe y carga estática pasó, ningún ensayo N7 real ejecutado. N5 FIFO requiere guest dedicado; integrado owner síncrono no tiene cola. Quit/owner-kick no prueba logging_out real. Plan/debugger/launch en P2-native-writer-boundaries.md; root debe acabar controladores, verificar pertenencia de PID/TID y evidencias reales, no SDKfork/fixtures como sustituto.
+
+Autorización original completar gates P2 sigue vigente; el usuario sólo pide cambiar de sesión. Continuar autónomamente tras comprobar estado real, sin repetir pruebas válidas sin motivo ni dar P2 por completa. Mantener conservación/mantenimiento y modelos/archivos exclusivos. Prompt preparado en CONTINUE-PROMPT.md.
+
+## Historial preservado
 # Handoff N6 vigente — 2026-11-15
+
+HEAD_N6 confirmado: 8bbdf7397fecf9ddc8f92d63d66c396bf198fa21 (31 archivos, parent IO650b7b42; revisión independiente aprobada). Este anexo posterior al commit queda vivo sincommit junto con CHECKPOINT, intencionalmente.
 
 CHECKPOINT schema15 y anexos tienen prioridad sobre el historial inferior. Worktree MISMO C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN; rama codex/alomancia-p2-cuts desde IO650b7b42. Consultar HEAD/status real antes de actuar. No otro checkout, reset/clean, SDK copiado ni merge main.
 
@@ -8,7 +29,7 @@ Alcance sólo perfil owner integrado sin snapshotB posterior al armado. No N7/fr
 
 Build21/22inputs idénticos, único drift launcherbuildtool551B→B48F registrado. Ensayos ejecutan engine directamente pin8C59 y toleran únicamente launcherhashB48F explícitoCLI, todosotrosdriftrechazan. No afirmar identidadlauncher durantebuild ni recompilar sólo por cambioherramientaposterior.
 
-Al reanudar: comprobar Git/procesos/artefactos y revisiones finales/commitN6; no repetir8ensayos sin cambio/duda. Siguiente trabajo NUEVO elegir gate pendiente (N7 requiere estudiar captura externa real del writer antes de atribuir frontera; no fixtures/randcuts). Una build sólo por Rust cambiado, un Cargo/build/juego a la vez. Root checkpoint/manifests/Cargo/build/commits; subagentes con archivos exclusivos. Modelos Solhigh/Terramedium/Lunamedium/Astrahigh respondieron en esta sesión; límiteuso posterior detuvo una comprobación, retomada tras continua del usuario.
+Al reanudar: comprobar Git/procesos/artefactos y HEAD_N6 confirmado; no repetir8ensayos sin cambio/duda. Siguiente trabajo NUEVO elegir gate pendiente (N7 requiere estudiar captura externa real del writer antes de atribuir frontera; no fixtures/randcuts). Una build sólo por Rust cambiado, un Cargo/build/juego a la vez. Root checkpoint/manifests/Cargo/build/commits; subagentes con archivos exclusivos. Modelos Solhigh/Terramedium/Lunamedium/Astrahigh respondieron en esta sesión; límiteuso posterior detuvo una comprobación, retomada tras continua del usuario.
 
 Conservar cuts1 actual/cache2cb5cb46119c, owner1 baseline/cache4d97, Native2 export del fallo histórico, P1/P0 necesarios, SDK/toolchain/target/deps, mundos/backups/evidencias. Nueva medición en p2-cuts-maintenance.json; no se eliminó nada porque no se identificó sustituto obsoleto prescindible. No repetir limpieza anterior8.82GiB/cacheNative2fc09 de1353297849bytes.
 

@@ -64,7 +64,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $root "crates/$crate/Cargo.toml") -Destination $destination
         Copy-Item -LiteralPath (Join-Path $root "crates/$crate/src") -Destination $destination -Recurse
     }
-    # Both API and mixin link the single SDK-staged native-crates package.
+    # Keep bundle-relative crate paths for launcher validation and relocation.
     $api = Join-Path $bundle 'crates/allomancy-horizon'
     $manifestPath = Join-Path $api 'Cargo.toml'
     $manifest = [IO.File]::ReadAllText($manifestPath)
@@ -72,7 +72,7 @@ try {
     if ([regex]::Matches($manifest, [regex]::Escape($oldPath)).Count -ne 1) {
         throw 'Expected exactly one sibling core dependency in the adapter manifest.'
     }
-    [IO.File]::WriteAllText($manifestPath, $manifest.Replace($oldPath, 'path = "../../native-crates/allomancy/core"'))
+    # The current launcher resolves this dependency through [[crate]] and stages one core.
     if ($NativeTest) {
         if ([regex]::Matches($manifest, 'default = \[\]').Count -ne 1) { throw 'Expected empty default features in source manifest.' }
         $staged = [IO.File]::ReadAllText($manifestPath).Replace('default = []', 'default = ["native-test"]')
@@ -81,7 +81,7 @@ try {
     $receipt.staged_manifest = @{
         path = $manifestPath
         sha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
-        transformation = 'Single core at native-crates/allomancy/core; API dependency path transformed only in staging; opt-in native-test recorded.'
+        transformation = 'Bundle-relative API dependency retained for launcher validation/relocation via [[crate]]; require single core post-build; opt-in native-test recorded.'
     }
     if ($StageOnly) {
         $receipt.status = 'staged'

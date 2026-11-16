@@ -1,0 +1,357 @@
+{
+  "oracle": "PASS",
+  "scope": "offline owner integrated N3/N4; no durability or global P2 claim",
+  "inspector_sha256": "63DCFC77C5C3E4B096F45BA7DB8251A5D9CBA408E748327933432C66CDA3BC16",
+  "results": [
+    {
+      "name": "gates-replay-new-1",
+      "oracle": "PASS",
+      "receipt": {
+        "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-replay-new-1\\result.json",
+        "sha256": "A421BF3FD91C10D83D9911CDB9A48DCA3F44D694C54054CA5B18E1A6D51FA55C"
+      },
+      "logs": [
+        {
+          "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-replay-new-1\\stderr.log",
+          "sha256": "BAEE74CF5B6771CBD6F3B4FF87F863DEC4B3DE468AB85548A61498A6128D3BA3"
+        },
+        {
+          "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-replay-new-1\\stdout.log",
+          "sha256": "0088E9903D4BCF17295E1D09F93E2B29896B6A39CBD825E50F30297CE782E7FA"
+        }
+      ],
+      "baseline": {
+        "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-replay-new-1\\baseline\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+        "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+      },
+      "snapshots": [
+        {
+          "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\gates-replay-new-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+          "sha256": "70A5386461F113DF2C88E7AAEED5C4AB816C3A25A909FF4C2FCE600FCA9C743F"
+        },
+        {
+          "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\gates-replay-new-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+          "sha256": "70A5386461F113DF2C88E7AAEED5C4AB816C3A25A909FF4C2FCE600FCA9C743F"
+        }
+      ],
+      "expected": {
+        "inventory": {
+          "t": 9,
+          "v": {
+            "child": 10,
+            "items": [
+              {
+                "t": 10,
+                "v": {
+                  "Slot": {
+                    "t": 1,
+                    "v": 0
+                  },
+                  "count": {
+                    "t": 3,
+                    "v": 1
+                  },
+                  "id": {
+                    "t": 8,
+                    "v": "minecraft:iron_ingot"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "saved": {
+          "state": {
+            "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+            "world_id": "026e465a87434711a6951c07588dc0ee",
+            "last_tick": null,
+            "selected_pair": "IronSteel",
+            "metals": [
+              {
+                "unlocked": false,
+                "reserve_milli": 2000,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              }
+            ]
+          },
+          "accounting": {
+            "remainder": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rules": {
+            "consumption_milli_per_tick": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "base_capacity_milli": [
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000
+            ],
+            "reduction_milli": 0,
+            "capacity_bonus_milli": 0
+          },
+          "revision": 6,
+          "ledger": [
+            {
+              "transaction": "native-roundtrip-3",
+              "payload": {
+                "metal": "Iron",
+                "amount_milli": 1000
+              },
+              "committed_revision": 4
+            },
+            {
+              "transaction": "native-roundtrip-5",
+              "payload": {
+                "metal": "Iron",
+                "amount_milli": 1000
+              },
+              "committed_revision": 6
+            }
+          ]
+        },
+        "foreign": {},
+        "stateMetadata": {
+          "format_version": {
+            "t": 3,
+            "v": 1
+          }
+        },
+        "envelopeOther": {
+          "schema_version": 1
+        }
+      },
+      "native_scope": "persisted replay unchanged; subsequent single new credit"
+    },
+    {
+      "name": "gates-reentrant-1",
+      "oracle": "PASS",
+      "receipt": {
+        "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-reentrant-1\\result.json",
+        "sha256": "315B95DB9A6B7B6178E52FA117C14E19201DE32A37158BA12A96740BAA62BAD9"
+      },
+      "logs": [
+        {
+          "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-reentrant-1\\stderr.log",
+          "sha256": "6A419DC99BBAB86DBB8D5AEE61C71700FE08D35E7E424A28809F25CFF878FD27"
+        },
+        {
+          "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-reentrant-1\\stdout.log",
+          "sha256": "5892680102FEE39B4FD7C1289724B6685B13D1C299344DA6E959F8970A31DAB2"
+        }
+      ],
+      "baseline": {
+        "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-gate-credit-runs\\gates-reentrant-1\\baseline\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+        "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+      },
+      "snapshots": [
+        {
+          "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\gates-reentrant-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+          "sha256": "70A5386461F113DF2C88E7AAEED5C4AB816C3A25A909FF4C2FCE600FCA9C743F"
+        },
+        {
+          "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-gates\\saves\\gates-reentrant-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+          "sha256": "70A5386461F113DF2C88E7AAEED5C4AB816C3A25A909FF4C2FCE600FCA9C743F"
+        }
+      ],
+      "expected": {
+        "inventory": {
+          "t": 9,
+          "v": {
+            "child": 10,
+            "items": [
+              {
+                "t": 10,
+                "v": {
+                  "Slot": {
+                    "t": 1,
+                    "v": 0
+                  },
+                  "count": {
+                    "t": 3,
+                    "v": 1
+                  },
+                  "id": {
+                    "t": 8,
+                    "v": "minecraft:iron_ingot"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "saved": {
+          "state": {
+            "player_id": "3efd2c0ef0de3e85b045dec265b3f79c",
+            "world_id": "026e465a87434711a6951c07588dc0ee",
+            "last_tick": null,
+            "selected_pair": "IronSteel",
+            "metals": [
+              {
+                "unlocked": false,
+                "reserve_milli": 2000,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              },
+              {
+                "unlocked": false,
+                "reserve_milli": 0,
+                "burn": "Off"
+              }
+            ]
+          },
+          "accounting": {
+            "remainder": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "rules": {
+            "consumption_milli_per_tick": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "base_capacity_milli": [
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000,
+              100000
+            ],
+            "reduction_milli": 0,
+            "capacity_bonus_milli": 0
+          },
+          "revision": 6,
+          "ledger": [
+            {
+              "transaction": "native-roundtrip-3",
+              "payload": {
+                "metal": "Iron",
+                "amount_milli": 1000
+              },
+              "committed_revision": 4
+            },
+            {
+              "transaction": "native-roundtrip-5",
+              "payload": {
+                "metal": "Iron",
+                "amount_milli": 1000
+              },
+              "committed_revision": 6
+            }
+          ]
+        },
+        "foreign": {},
+        "stateMetadata": {
+          "format_version": {
+            "t": 3,
+            "v": 1
+          }
+        },
+        "envelopeOther": {
+          "schema_version": 1
+        }
+      },
+      "native_scope": "induced adapter recursion Busy; subsequent single credit"
+    }
+  ]
+}

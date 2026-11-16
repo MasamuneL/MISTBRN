@@ -5,8 +5,9 @@ param(
     [Parameter(Mandatory)][ValidatePattern('\A[a-zA-Z0-9-]+\z')][string]$RunId,
     [Parameter(Mandatory)][string]$WorldRoot,
     [ValidatePattern('\A[A-Za-z0-9_]{1,16}\z')][string]$PlayerName = 'AllomancyQA',
-    [ValidateSet('death-respawn','death-logout','save-pause','dimension','io-create-new','io-deny-rename')][string]$Scenario = 'death-respawn',
-    [ValidatePattern('\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z')][string]$OwnerUuid
+    [ValidateSet('dead-login','death-stay','death-respawn','death-logout','save-pause','dimension','io-create-new','io-deny-rename')][string]$Scenario = 'death-respawn',
+    [ValidatePattern('\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z')][string]$OwnerUuid,
+    [string]$BaselineDirectory
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
@@ -173,7 +174,21 @@ try {
     Wait-Phase 'ready' { param($log) $log -match 'ALLOMANCY_NATIVE_TEST event=enabled scenario=observe' -and $log -match 'ALLOMANCY_SAVE event=ready accepted_in_memory=true' -and (Test-Path -LiteralPath $endpoint -PathType Leaf) }
     $initialState = Send-Control 'state'
     if ($initialState.screen -eq 'paused' -or $initialState.paused -eq $true) { $null = Send-Control 'resume' }
-    Wait-Phase 'playing' { State-Is 'playing' $false }
+    if ($Scenario -eq 'dead-login') {
+        Wait-Phase 'dead login screen' { State-Is 'dead' $false }
+    } else { Wait-Phase 'playing' { State-Is 'playing' $false } }
+    if ($BaselineDirectory -and $Scenario -ne 'dead-login') {
+        if (-not $OwnerUuid -or (Test-Path -LiteralPath $BaselineDirectory)) { throw 'Baseline needs owner and fresh destination.' }
+        $null = Send-Control 'save'
+        New-Item -ItemType Directory -Path $BaselineDirectory | Out-Null
+        $primary = Join-Path $world "players/data/$OwnerUuid.dat"
+        foreach ($path in @($primary,"$primary`_old")) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Baseline DAT/old missing.' }
+            Copy-Item -LiteralPath $path -Destination $BaselineDirectory
+        }
+        $result['baseline_directory'] = $BaselineDirectory
+        Save-Result
+    }
     if ($Scenario -like 'io-*') {
         if (-not $OwnerUuid) { throw 'IO requiere OwnerUuid explícito del snapshot cerrado.' }
         $primary = Join-Path $world "players/data/$OwnerUuid.dat"
@@ -226,6 +241,11 @@ try {
         return
     }
     switch ($Scenario) {
+        'death-stay' {
+            $null = Send-Control 'command kill @s'
+            Wait-Phase 'death applied' { param($log) $log -match 'event=death_queued' -and $log -match 'event=death_applied' }
+            Wait-Phase 'saved death screen' { State-Is 'dead' $false }
+        }
         'death-respawn' {
             $null = Send-Control 'command kill @s'
             Wait-Phase 'death applied' { param($log) $log -match 'event=death_queued' -and $log -match 'event=death_applied' }

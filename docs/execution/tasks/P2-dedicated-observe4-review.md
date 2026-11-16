@@ -1,0 +1,15 @@
+# Revisión dedicated-observe-4 — 2026-11-16
+
+Resultado: PASS de infraestructura P2 dedicada, admisión/identidad y logout observado; N5/FIFO y P9 permanecen pendientes. Receipt original observed_review_required/pass=false preservado sin editar. Esta ficha y evidence/p2-dedicated-observe4-review.json son entrega adicional para integración del principal.
+
+Revisión sólo lectura: helper tools/test-native-dedicated.ps1 actual SHA256 9A2874790A362D7DDC218C462C38A40229D17488C0252F45B0994B6B3291B185 coincide con el registrado. Guest --headless evita dependencia del renderer; no transforma al guest en autoridad. lib.rs sólo procesa server_tick en IntegratedServer o DedicatedServer y ServerTickEnd/world_running. Server.stderr acredita dedicated admitted, WorldOpenReady, world_identity Primary, login, Ready, logging_out, save_observed, logged_out y WorldCloseFinal en ese orden dentro del mismo archivo. Guest.stderr no contiene eventos ALLOMANCY_SAVE. No se construye orden artificial combinando archivos.
+
+El helper permite guest exit únicamente en la espera de server logged_out, después de quit, comprobación explícita de HasExited y guest_exit==0. Las esperas de arranque/Ready siguen rechazando exit prematuro. Server debe seguir vivo durante esa espera; console stop se envía sólo después y su cierre exige exit0. El receipt acredita guest_exit=0/server_exit=0, error=null y no kills. Quit reply {ok:true}; stop reply contiene Stopping the server. Listener registrado exactamente IPv4 127.0.0.1 y PID del server propio. Server stdout registra login local de AllomancyQA y salida antes de stop.
+
+Manifests: source/backup/clone iniciales iguales; se recalcularon todos los archivos de source, backup y mundo final contra sus manifests registrados, sin diferencias. Fuente y backup completos permanecen cerrados y conservados. No se hizo juego/build.
+
+Oráculo independiente ejecutado: node tools/inspect-native-gate-state.cjs --baseline <run>/backup/players/data/3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat --world <run>/game-p2-dedicated/saves/world --mode reconnect --owner 3efd2c0e-f0de-3e85-b045-dec265b3f79c --world-id 026e465a87434711a6951c07588dc0ee --old-expect baseline; exit0/PASS. Primary corresponde al login (rev+1, burns Off); old conserva baseline exacto. Se comparan inventario y SavedPlayer completo, incluyendo ledger/reglas/restos/selección/identity/namespace/formato. --old-expect same habría sido una expectativa incorrecta; no se cambian archivos para ajustarlos.
+
+Run: runtime/native-dedicated-runs/dedicated-observe-4. Evidencia JSON conserva huellas de receipt/logs/comandos/replies y offsets del orden server, más oráculo con hashes de snapshots. Receipt SHA256 D297DAFCD3E8847802C72CF0A1F0A3E4E21E7F8CAD6DE1EFF688E573513DA115.
+
+Límites: este observe no ejerce transacciones FIFO, callbacks con writer bloqueado, muerte/logging_out antes de tick, colas antiguas, dos clientes ni abuso/latencia. No cierra N5, N9 completo, P2 ni cooperativo P9. No hay afirmación fsync/durabilidad por save_observed.
