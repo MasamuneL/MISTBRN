@@ -1,0 +1,186 @@
+{
+  "source": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner-econ\\saves\\credit",
+  "destination": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-cuts\\saves\\after-inventory-1",
+  "closed": true,
+  "source_files": [
+    {
+      "path": "allomancy\\world-identity.json",
+      "sha256": "DC3FAF1372DF71A5FCE81327AD0809B2FC023F0D0C8EBE2A15AAF276A1D0F7ED"
+    },
+    {
+      "path": "allomancy\\world-identity.json.bak",
+      "sha256": "DC3FAF1372DF71A5FCE81327AD0809B2FC023F0D0C8EBE2A15AAF276A1D0F7ED"
+    },
+    {
+      "path": "data\\minecraft\\game_rules.dat",
+      "sha256": "E246682B56DA904E279F8FECBC81A0147D39953A9F276BC54183383817E4815F"
+    },
+    {
+      "path": "data\\minecraft\\game_rules.dat_old",
+      "sha256": "E246682B56DA904E279F8FECBC81A0147D39953A9F276BC54183383817E4815F"
+    },
+    {
+      "path": "data\\minecraft\\weather.dat",
+      "sha256": "9319D0CFE2AA6EEF7AAA1C7AF9647A09A3D882B030208A664DE63E07C262B072"
+    },
+    {
+      "path": "data\\minecraft\\weather.dat_old",
+      "sha256": "D3FC812787CFEBE818DE2F730685EF4E81A246453CEC2DD5FA5B583DC4D6F084"
+    },
+    {
+      "path": "data\\minecraft\\world_clocks.dat",
+      "sha256": "1136F48E275F93236826065C01FA01BFBE45D364B86E286019FD32A3ACE32E5D"
+    },
+    {
+      "path": "data\\minecraft\\world_clocks.dat_old",
+      "sha256": "1136F48E275F93236826065C01FA01BFBE45D364B86E286019FD32A3ACE32E5D"
+    },
+    {
+      "path": "data\\minecraft\\world_gen_settings.dat",
+      "sha256": "6C50E488BD7E2771978031F1E3895575EE9AD6BBB78B89A26E4C0FCEE6B7729F"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\data\\minecraft\\raids.dat",
+      "sha256": "BD230E9C680D24F6C98C5C38D1204A7D0256621C70880F6DA98FFC609A298C20"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.-1.-1.mca",
+      "sha256": "70EAB1C4D969EC0C2FFFFD3FBDB350896DC46544F467D417D6C2CFE14C96BC3E"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.-1.0.mca",
+      "sha256": "652C0376617893C6249192C6B6E2D5F1FD48BBCB9731127D48996C75E138A4DB"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.0.-1.mca",
+      "sha256": "C665C546249B5A2C58754B37E0A4A12024550504334C3028409DDE10DF9BA62A"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.0.0.mca",
+      "sha256": "B54C88A22DCA5D6D63BEB1282A8454498A04CA147492FDFBBB5AE24DB9307CD8"
+    },
+    {
+      "path": "icon.png",
+      "sha256": "83EEB4579B4FE4F6FB7DEAF30C56F01507E5D2F5A390C1351C050BD67732C76F"
+    },
+    {
+      "path": "level.dat",
+      "sha256": "C88504C553637FB6C805A811CA753B93E28F9E9445ECAE282B7B19E7DB32CCBF"
+    },
+    {
+      "path": "level.dat_old",
+      "sha256": "6F5C6B508741178D156C01CA03FE78DED51E9E79DA1A5F569F7EF5A6A60FADE4"
+    },
+    {
+      "path": "players\\advancements\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.json",
+      "sha256": "B273C89C3EE06657229DF721910392682DB067F9AB845D2DD7829BC184D77344"
+    },
+    {
+      "path": "players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+    },
+    {
+      "path": "players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+    },
+    {
+      "path": "players\\stats\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.json",
+      "sha256": "C3711ACCF7E15CD7265E554F81411AE258892436F4C2CC7CB02920423B243DE8"
+    },
+    {
+      "path": "session.lock",
+      "sha256": "57A4271799BDE11D01FE95AA56B8FB3BC2E4C5DBDBAB9F58B91EBFFDC47A4321"
+    }
+  ],
+  "copied_files": [
+    {
+      "path": "allomancy\\world-identity.json",
+      "sha256": "DC3FAF1372DF71A5FCE81327AD0809B2FC023F0D0C8EBE2A15AAF276A1D0F7ED"
+    },
+    {
+      "path": "allomancy\\world-identity.json.bak",
+      "sha256": "DC3FAF1372DF71A5FCE81327AD0809B2FC023F0D0C8EBE2A15AAF276A1D0F7ED"
+    },
+    {
+      "path": "data\\minecraft\\game_rules.dat",
+      "sha256": "E246682B56DA904E279F8FECBC81A0147D39953A9F276BC54183383817E4815F"
+    },
+    {
+      "path": "data\\minecraft\\game_rules.dat_old",
+      "sha256": "E246682B56DA904E279F8FECBC81A0147D39953A9F276BC54183383817E4815F"
+    },
+    {
+      "path": "data\\minecraft\\weather.dat",
+      "sha256": "9319D0CFE2AA6EEF7AAA1C7AF9647A09A3D882B030208A664DE63E07C262B072"
+    },
+    {
+      "path": "data\\minecraft\\weather.dat_old",
+      "sha256": "D3FC812787CFEBE818DE2F730685EF4E81A246453CEC2DD5FA5B583DC4D6F084"
+    },
+    {
+      "path": "data\\minecraft\\world_clocks.dat",
+      "sha256": "1136F48E275F93236826065C01FA01BFBE45D364B86E286019FD32A3ACE32E5D"
+    },
+    {
+      "path": "data\\minecraft\\world_clocks.dat_old",
+      "sha256": "1136F48E275F93236826065C01FA01BFBE45D364B86E286019FD32A3ACE32E5D"
+    },
+    {
+      "path": "data\\minecraft\\world_gen_settings.dat",
+      "sha256": "6C50E488BD7E2771978031F1E3895575EE9AD6BBB78B89A26E4C0FCEE6B7729F"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\data\\minecraft\\raids.dat",
+      "sha256": "BD230E9C680D24F6C98C5C38D1204A7D0256621C70880F6DA98FFC609A298C20"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.-1.-1.mca",
+      "sha256": "70EAB1C4D969EC0C2FFFFD3FBDB350896DC46544F467D417D6C2CFE14C96BC3E"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.-1.0.mca",
+      "sha256": "652C0376617893C6249192C6B6E2D5F1FD48BBCB9731127D48996C75E138A4DB"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.0.-1.mca",
+      "sha256": "C665C546249B5A2C58754B37E0A4A12024550504334C3028409DDE10DF9BA62A"
+    },
+    {
+      "path": "dimensions\\minecraft\\overworld\\region\\r.0.0.mca",
+      "sha256": "B54C88A22DCA5D6D63BEB1282A8454498A04CA147492FDFBBB5AE24DB9307CD8"
+    },
+    {
+      "path": "icon.png",
+      "sha256": "83EEB4579B4FE4F6FB7DEAF30C56F01507E5D2F5A390C1351C050BD67732C76F"
+    },
+    {
+      "path": "level.dat",
+      "sha256": "C88504C553637FB6C805A811CA753B93E28F9E9445ECAE282B7B19E7DB32CCBF"
+    },
+    {
+      "path": "level.dat_old",
+      "sha256": "6F5C6B508741178D156C01CA03FE78DED51E9E79DA1A5F569F7EF5A6A60FADE4"
+    },
+    {
+      "path": "players\\advancements\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.json",
+      "sha256": "B273C89C3EE06657229DF721910392682DB067F9AB845D2DD7829BC184D77344"
+    },
+    {
+      "path": "players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+    },
+    {
+      "path": "players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "sha256": "9905021B7846588B19641B6D486971E30613EFE40427F25362A858B8FE3BEAC8"
+    },
+    {
+      "path": "players\\stats\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.json",
+      "sha256": "C3711ACCF7E15CD7265E554F81411AE258892436F4C2CC7CB02920423B243DE8"
+    },
+    {
+      "path": "session.lock",
+      "sha256": "57A4271799BDE11D01FE95AA56B8FB3BC2E4C5DBDBAB9F58B91EBFFDC47A4321"
+    }
+  ],
+  "equal": true
+}

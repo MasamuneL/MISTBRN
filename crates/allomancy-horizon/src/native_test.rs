@@ -22,6 +22,10 @@ pub fn make_hooks() -> Box<dyn Hooks> {
                 "rollback-inventory" => rollback_inventory,
                 "rollback-inline" => rollback_inline,
                 "quarantine" => quarantine,
+                "cut-before-inventory" => cut_before_inventory,
+                "cut-after-inventory" => cut_after_inventory,
+                "cut-after-inline" => cut_after_inline,
+                "cut-after-core-commit" => cut_after_core_commit,
                 _ => unreachable!(),
             };
             crate::hooks_with_native_test(config, driver).0
@@ -45,6 +49,10 @@ fn config() -> Result<(NativeTestConfig, String), &'static str> {
         "rollback-inventory",
         "rollback-inline",
         "quarantine",
+        "cut-before-inventory",
+        "cut-after-inventory",
+        "cut-after-inline",
+        "cut-after-core-commit",
     ]
     .contains(&scenario.as_str())
     {
@@ -76,13 +84,39 @@ fn config() -> Result<(NativeTestConfig, String), &'static str> {
     if marker.world_id != world_id {
         return Err("world_id_mismatch");
     }
+    let cut_run_token = if scenario.starts_with("cut-") {
+        let token = env::var("ALLOMANCY_NATIVE_TEST_RUN_TOKEN").map_err(|_| "run_token_missing")?;
+        if !valid_run_token(&token) {
+            return Err("run_token_invalid");
+        }
+        let arm = root
+            .join("allomancy")
+            .join(format!("native-cut-arm-{token}"));
+        match fs::symlink_metadata(arm) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => return Err("cut_arm_stale"),
+            Err(_) => return Err("cut_arm_unreadable"),
+        }
+        Some(token)
+    } else {
+        None
+    };
     Ok((
         NativeTestConfig {
             world_root: root,
             world_id,
+            cut_run_token,
         },
         scenario,
     ))
+}
+
+fn valid_run_token(token: &str) -> bool {
+    !token.is_empty()
+        && token.len() <= 64
+        && token
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
 }
 
 fn observe(_: &SaveBackend, _: &mut dyn Host) {}
@@ -102,10 +136,27 @@ fn quarantine(b: &SaveBackend, h: &mut dyn Host) {
     run(b, h, "quarantine");
 }
 
+fn cut_before_inventory(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "cut-before-inventory");
+}
+fn cut_after_inventory(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "cut-after-inventory");
+}
+fn cut_after_inline(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "cut-after-inline");
+}
+fn cut_after_core_commit(b: &SaveBackend, h: &mut dyn Host) {
+    run(b, h, "cut-after-core-commit");
+}
+
 fn run(backend: &SaveBackend, host: &mut dyn Host, scenario: &str) {
     if ATTEMPTED.load(Ordering::Acquire) {
         return;
     }
+    let cut_token = scenario
+        .starts_with("cut-")
+        .then(|| backend.native_cut_run_token())
+        .flatten();
     for player in host.server_players() {
         let uuid = player.uuid;
         let Some((before, generation)) = backend.native_test_state(uuid) else {
@@ -118,11 +169,14 @@ fn run(backend: &SaveBackend, host: &mut dyn Host, scenario: &str) {
         if scenario == "replay" && entry.is_none() {
             continue;
         }
-        let slot_stack = stacks
-            .iter()
-            .take(36)
-            .enumerate()
-            .find_map(|(i, s)| s.as_ref().filter(|s| s.count >= 1).map(|s| (i, s.clone())));
+        let slot_stack = stacks.iter().take(36).enumerate().find_map(|(i, s)| {
+            s.as_ref()
+                .filter(|s| {
+                    s.count >= 1
+                        && (cut_token.is_none() || s.item.as_ref() == "minecraft:iron_ingot")
+                })
+                .map(|s| (i, s.clone()))
+        });
         if scenario != "replay" && slot_stack.is_none() {
             continue;
         }
@@ -153,7 +207,10 @@ fn run(backend: &SaveBackend, host: &mut dyn Host, scenario: &str) {
                     slot,
                     Some(stack),
                     replacement,
-                    TransactionId::new(format!("native-roundtrip-{}", before.revision())),
+                    TransactionId::new(match cut_token {
+                        Some(token) => format!("native-cut-{token}"),
+                        None => format!("native-roundtrip-{}", before.revision()),
+                    }),
                     Metal::Iron,
                     1000,
                 )
@@ -188,6 +245,19 @@ fn run(backend: &SaveBackend, host: &mut dyn Host, scenario: &str) {
             }
             if before.ledger().iter().any(|e| e.transaction == transaction) {
                 return Err("transaction_exists");
+            }
+            let cut_failpoint = match scenario {
+                "cut-before-inventory" => Some(CreditFailpoint::PauseBeforeInventory),
+                "cut-after-inventory" => Some(CreditFailpoint::PauseAfterInventory),
+                "cut-after-inline" => Some(CreditFailpoint::PauseAfterInline),
+                "cut-after-core-commit" => Some(CreditFailpoint::PauseAfterCoreCommit),
+                _ => None,
+            };
+            if let Some(failpoint) = cut_failpoint {
+                backend
+                    .credit_for_native_test(host, intent(), failpoint)
+                    .map_err(|_| "cut_credit")?;
+                return Err("cut_not_reached");
             }
             let mut expected_stacks = stacks.clone();
             expected_stacks[slot] = replacement.clone();

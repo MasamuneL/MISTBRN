@@ -1,0 +1,35 @@
+{
+  "oracle": "PASS",
+  "mode": "cut",
+  "expect": "A",
+  "baseline": {
+    "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-cut-runs\\cuts-after-core-commit-1\\baseline\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+    "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+    "old_sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D"
+  },
+  "transaction": "native-cut-aecc6b606bc34a318ccc363c299863ac",
+  "slot": 0,
+  "snapshots": [
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-cuts\\saves\\after-core-commit-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat",
+      "present": true,
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "matches": [
+        "A"
+      ]
+    },
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-cuts\\saves\\after-core-commit-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_old",
+      "present": true,
+      "sha256": "E209538FCBD6F3E1E47022D27780341B4AF6E85041C62602B85AE0E67B43216D",
+      "matches": [
+        "A",
+        "baseline-old"
+      ]
+    },
+    {
+      "file": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-cuts\\saves\\after-core-commit-1\\players\\data\\3efd2c0e-f0de-3e85-b045-dec265b3f79c.dat_new",
+      "present": false
+    }
+  ]
+}

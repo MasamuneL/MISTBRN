@@ -194,6 +194,8 @@ fn live_slot(host: &dyn Host, uuid: u128, slot: usize) -> Result<Option<ItemStac
 pub struct NativeTestConfig {
     pub world_root: PathBuf,
     pub world_id: WorldId,
+    #[cfg(feature = "native-test")]
+    pub(crate) cut_run_token: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -202,6 +204,27 @@ pub enum CreditFailpoint {
     AfterInventory,
     AfterInline,
     RollbackInventory,
+    #[cfg(feature = "native-test")]
+    PauseBeforeInventory,
+    #[cfg(feature = "native-test")]
+    PauseAfterInventory,
+    #[cfg(feature = "native-test")]
+    PauseAfterInline,
+    #[cfg(feature = "native-test")]
+    PauseAfterCoreCommit,
+}
+
+#[cfg(feature = "native-test")]
+impl CreditFailpoint {
+    fn cut_frontier(self) -> Option<&'static str> {
+        match self {
+            Self::PauseBeforeInventory => Some("before-inventory"),
+            Self::PauseAfterInventory => Some("after-inventory"),
+            Self::PauseAfterInline => Some("after-inline"),
+            Self::PauseAfterCoreCommit => Some("after-core-commit"),
+            _ => None,
+        }
+    }
 }
 
 /// Server-resolved intent, never deserialized from client packets.
@@ -722,9 +745,30 @@ impl SaveBackend {
         host: &mut dyn Host,
         driver: fn(&SaveBackend, &mut dyn Host),
     ) {
+        // Arming happens only after the external controller saved/copied A.
+        // Do not observe Host or attempt a credit while a cut run is unarmed.
+        #[cfg(feature = "native-test")]
+        if let Some(token) = self.native_cut_run_token() {
+            let Some(config) = self.test.as_ref() else {
+                return;
+            };
+            if !config
+                .world_root
+                .join("allomancy")
+                .join(format!("native-cut-arm-{token}"))
+                .is_file()
+            {
+                return;
+            }
+        }
         if self.test_world(host).is_ok() {
             driver(self, host);
         }
+    }
+
+    #[cfg(feature = "native-test")]
+    pub(crate) fn native_cut_run_token(&self) -> Option<&str> {
+        self.test.as_ref()?.cut_run_token.as_deref()
     }
 
     pub fn credit_for_native_test(
@@ -734,6 +778,10 @@ impl SaveBackend {
         failpoint: CreditFailpoint,
     ) -> Result<CreditReceipt, StorageError> {
         self.test_world(host)?;
+        #[cfg(feature = "native-test")]
+        if failpoint.cut_frontier().is_some() && self.native_cut_run_token().is_none() {
+            return Err(StorageError::TestOnly);
+        }
         let uuid = intent.player;
         let (before, namespace, prepared) = {
             let mut session = self.session.lock().map_err(|_| StorageError::Fault)?;
@@ -771,6 +819,41 @@ impl SaveBackend {
             }
         }
         result
+    }
+
+    /// N6 only: never return to the server callback after the selected frontier.
+    /// The external controller must terminate this process without quit/save.
+    #[cfg(feature = "native-test")]
+    fn pause_for_native_cut(
+        &self,
+        failpoint: CreditFailpoint,
+        frontier: CreditFailpoint,
+        intent: &CreditIntent,
+    ) {
+        if failpoint != frontier {
+            return;
+        }
+        let Some(token) = self.native_cut_run_token() else {
+            return;
+        };
+        {
+            use std::io::Write;
+            let mut stderr = std::io::stderr().lock();
+            // A missing/failed trace is a controller timeout, never a passed cut.
+            let _ = writeln!(
+                stderr,
+                "ALLOMANCY_NATIVE_CUT event=paused pid={} frontier={} transaction={} run_token={} durable=false",
+                std::process::id(),
+                frontier.cut_frontier().expect("cut frontier"),
+                intent.transaction.as_str(),
+                token,
+            )
+            .and_then(|_| stderr.flush());
+        }
+        // No Host, save, session lock or tick dispatch; also ignore spurious unpark.
+        loop {
+            std::thread::park();
+        }
     }
 
     fn apply_credit(
@@ -825,6 +908,8 @@ impl SaveBackend {
         if live_slot(host, uuid, intent.slot)? != intent.expected {
             return Err(StorageError::Slot);
         }
+        #[cfg(feature = "native-test")]
+        self.pause_for_native_cut(failpoint, CreditFailpoint::PauseBeforeInventory, intent);
         let old = match host.set_inventory_slot(
             uuid,
             NativeInventoryKind::Player,
@@ -843,6 +928,8 @@ impl SaveBackend {
                 return Err(StorageError::Conflict);
             }
         };
+        #[cfg(feature = "native-test")]
+        self.pause_for_native_cut(failpoint, CreditFailpoint::PauseAfterInventory, intent);
         let mut inline_applied = false;
         let applied = (|| {
             if old != intent.expected
@@ -861,6 +948,8 @@ impl SaveBackend {
                 return Err(StorageError::HostRejected);
             }
             inline_applied = true;
+            #[cfg(feature = "native-test")]
+            self.pause_for_native_cut(failpoint, CreditFailpoint::PauseAfterInline, intent);
             if failpoint == CreditFailpoint::AfterInline {
                 return Err(StorageError::HostRejected);
             }
@@ -869,21 +958,26 @@ impl SaveBackend {
             {
                 return Err(StorageError::Conflict);
             }
-            let mut session = self.session.lock().map_err(|_| StorageError::Fault)?;
-            let entry = session
-                .players
-                .get_mut(&uuid)
-                .ok_or(StorageError::Unavailable)?;
-            if entry.status != PlayerStatus::Busy
-                || entry.generation != intent.generation
-                || entry.pending_death
-                || entry.saved != *before
-            {
-                return Err(StorageError::StaleConnection);
-            }
-            let receipt = commit_credit(&mut entry.saved, prepared)?;
-            entry.namespace = next_namespace;
-            entry.status = PlayerStatus::Ready;
+            let receipt = {
+                let mut session = self.session.lock().map_err(|_| StorageError::Fault)?;
+                let entry = session
+                    .players
+                    .get_mut(&uuid)
+                    .ok_or(StorageError::Unavailable)?;
+                if entry.status != PlayerStatus::Busy
+                    || entry.generation != intent.generation
+                    || entry.pending_death
+                    || entry.saved != *before
+                {
+                    return Err(StorageError::StaleConnection);
+                }
+                let receipt = commit_credit(&mut entry.saved, prepared)?;
+                entry.namespace = next_namespace;
+                entry.status = PlayerStatus::Ready;
+                receipt
+            };
+            #[cfg(feature = "native-test")]
+            self.pause_for_native_cut(failpoint, CreditFailpoint::PauseAfterCoreCommit, intent);
             eprintln!(
                 "ALLOMANCY_SAVE event=credit_accepted revision={} durable=false",
                 receipt.committed_revision

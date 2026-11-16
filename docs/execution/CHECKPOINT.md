@@ -1,13 +1,18 @@
 # Checkpoint de ejecución — Alomancia Horizon
-schema_version: 14
+schema_version: 15
 fecha: 2026-11-15 America/Mexico_City
-estado: P0/P1 integrated; corrección owner P2 compilada y verificada; P2/N0–N9 parciales
-rama: codex/alomancia-p2-io
-HEAD_base: 02644603f91751a90f6ab2474c7f984b70e7572a (owner probado; consultar HEAD real para commit IO)
+estado: P0/P1 integrated; N6 cuatro cortes owner integrado y reaperturas verificados; P2/N0–N9 parciales
+rama: codex/alomancia-p2-cuts
+HEAD_base: 650b7b42fbc75e40745ce316a3899223322c1d59 (IO; consultar HEAD real para commit N6)
 worktree: C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN
 original_runtime: C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/experiments/horizon-probe/runtime
 
-## Estado real vigente
+## N6 vigente — sustituye pendientes N6 de la historia inferior
+Build actual p2-cuts1 succeeded exit0, engine8C593D4DFBFDDF5054C8FC94DE860A27B945542584488BF42E5412E5766CFA70, coreúnico/native-testoptin. Cuatro pausas exactas antesinventario/despuésinventario/despuésinline/despuéscorecommit, fuera mutex, sinHost/save/ticks al esperar; killúnicoProcess propio trastracePID/T/token. Cuatroclonescerrados completos+hashes y cuatroreopencopias separadas PASS: A íntegro y reconnect(A), originalescut intactos. Suite0/consolidador0,8nuevosreceipts/47observados; evidencia p2-native-cuts.md/p2-cuts-checks.json y oráculosporcaso. Sinrepeat39/coretests, SDKintacto. Sol/Astra/Terra/Luna respondieron en esta sesión; revisiónfinalSol independiente código/evidencia sinbloqueantes; revisiónfinalaprobada; commitlocalacontinuación. No merge main ni P2completo.
+21/22inputsiguales, launcherbuildtool drift551B→B48F registrado; engine directo pin8C59 no invoca launcher. Excepción sólohashlauncherexactoCLI, otrosdriftrechazan. Buildtool duranteintervalo no atribuible. Ver checkpointanexos/evidencia, nobuildrepetida.
+Siguiente: cerrarrevisión/commitN6, mantenerpendientes N1/N3/N4/N5/N7/N8/N9. N7 exige captura fronterarealwriter, nunca random/fixture/ACK. Guardprimary estricto/restauraciónmundocompleto, dedicated/EULApendientes y limitaciónlogoutintegrado intactas. Conservarcuts1 actual+owner1baseline+Native2fallohistórico+P1/P0/SDK/target/deps/mundos/backup; mantenimiento medido sin nueva eliminación justificada.
+
+## Estado previo owner/IO — histórico preservado
 - N8 adicional sobre la MISMA build owner1: seis receipts nuevos PASS (2 errorOS32 real/2reopen/2rechazos ownerprimary), total39observados. Evidencias p2-io-checks.json y p2-native-io.md/json/oráculos reproducibles. Principal/old conservan A, temporal B nunca adoptado. Bloqueos liberados después killpropio; sin proceso vivo. No N8global, N7 ni fsync. IO harness ampliado revisado Sol y ensayado, default de escenarios previos conserva checks.
 - P1 integrado main; reservas/codec P2 y catálogo P3 tienen revisiones previas. No repetir71+doctest sin cambio. P2/P3 no completos, sin poderes jugables, sin merge de P2 a main.
 - Corrección de owner: tres HEAD cancellable (integrated::serve, WorldRequest::prepare_world, Level::write) y módulo único público allomancy_world_guard en horizon-client-lib. Captura Launch.owner exacto, admisión previa y bootstrap Fresh en RAM, sin modificar SDK/fork. Existing owner exige UUID metadata/archivo/perfil coherentes; no migración. Planner2 exit0 y revisión estática Sol aprobada.
@@ -16,7 +21,7 @@ original_runtime: C:/Users/alanj.VIKINGO/OneDrive/Documents/ChatGPT/MISTBRN/expe
 - Lifecycle parcial: muerte→respawn vacía reservas; ledger/reglas/identidad retenidos; repetir T tras reinicio con inventario vacío no reacredita. Guardado directo y pausa/resume conservan saldo; cambio Nether conserva WorldId y saldo. Ocho snapshots principal/old independientes PASS. Fracciones eran0/desbloqueosfalse: esos valores no acreditan conservación de otros valores.
 - Fallo owner original Native2 y backup intactos (no reparación). owner-save-pause1 falló por comando dedicado erróneo del harness; corregido a control directo save-all y revisión Sol. Fallos y sus receipts conservados.
 
-## Próxima acción y gates pendientes
+## Próxima acción anterior y gates — histórico preservado
 Commit local IO desde owner0264460, sólo harness/evidencias/checkpoints y sin los3diffs preexistentes; verificar HEAD/status real. No merge main ni P2 completo. Siguiente trabajo NUEVO: rama codex/alomancia-p2-cuts desde commitIO en MISMO worktree, leer N6 de evidence/p2-storage-architecture.md y contratosnative-test. Implementar4pausas opt-in antesinventario/despuésinventario/despuésinline/despuéscorecommit antes save; sin Host/save/ticks mientras pausa y fuera mutex, registro de frontera y control externo killPID exacto. Una build nueva sólo si cambia Rust; revisar/medir runtime primero y limpiar únicamente cache/export obsoleto tras sustituto verificado. Copias cerradas + hashes/A-B + reopen de otra copia; no afirmar durabilidad por ACK.
 Pendientes N1variantes, N3conflictos/límites, N4reentrada, N5writerFIFO, N6cortesadaptador, N7fronteraswriter reales, N8restauracióncompleta/otrosIO y N9fracciones/reiniciomuerto/logout antes tick. Quit integrado omite logging_out; no ejecutar harness death-logout como gate temporal sin ruta/barrera real. Dedicated runtime pendiente, plataforma inicial individual. N6/N7 no se reemplazan por las fixturesN8.
 ## Seguridad y mantenimiento
@@ -240,3 +245,43 @@ Primerconsolidado buscó propiedad snapshots_unchanged inexistente en receipt; f
 Sol releyó receipts/logs: confirma OS32ambos/hashA/temporalB/reopenA/rechazosíntegros. Señaló asserts incompletos para payloadledger y formato reopen, aunque datos JSON actuales correctos. Root añadió comparaciónliteral MetalIron/amount1000 y transport/schema1 enreopen; ejecutó SOLOinspectoresofflineactualizados, ambosPASS. Ningúnjuego/testprevio repetido. Revisiónsinbloqueantes restantes; siguiente verificacionesAST/diff/inputshash ycommitlocalIO, no merge niP2completo.
 
 ANTEScommitIOlocal: revisiónSolaprobóscoped; ASTlifecycle0errors/Nodeparse2/inputshash22iguales/gitdiffcheckPASS, ningúnprocesoHorizon/Cargo/rustc vivo. Seescenifican12archivos explícitosIOdocs/harness, excluidos3diffspreexistentes. Commitdepruebasinducidas/recuperaciónparcial, NOmerge/P2complete. SiguienteN6documentadoHANDOFFschema14.
+## Después commit IO confirmado
+Commit650b7b42fbc75e40745ce316a3899223322c1d59 creado en codex/alomancia-p2-io (parent0264460owner),12archivos. Gitstatus inmediatamente después: EXACTAMENTE los3diffspreexistentes sinstage; código/harness/evidenciasIO ya guardados. Sinmerge main niP2complete,39receiptsobservados. Esteanexo posterior y actualizaciónHANDOFF quedan como checkpointdocumental vivo sincommit, intencional para reanudación. Siguienteacción N6 nueva rama desde650b7b4, protocolo y ownership descritos arriba; antes volver a comprobar status/HEAD/procesos/artefactos, no repetir39tests ni limpieza1353297849bytes.
+## Reanudación N6 — 2026-11-15
+Preflight elevado: HEAD650b7b42/ramaIO confirmados; cinco diffs: CHECKPOINT/HANDOFF posteriores al commit y tres preexistentes preservados. Sin Horizon/Cargo/rustc vivo. Antes: crear rama codex/alomancia-p2-cuts desde HEAD en MISMO worktree, sin reset/clean ni SDK duplicado. Después: delegar exclusivamente save.rs/native_test.rs y ficha N6 a Sol high; root harness/manifests/build/checkpoints. Verificación por cortes nuevos, sin repetir39ensayos/core intacto. Acceso al worktree requiere ejecución elevada por sandbox; aprobado en preflight.
+
+## N6 antes de helpers/harness
+Rama cuts creada correctamente desde650b7b4. Solhigh implementa dos fuentes y ficha exclusiva; Terra medium inspectoroffline; Luna medium y Astra high revisiónsólolectura respondieron, disponibilidad actual confirmada para los4modelos (cuota anterior ya no bloquea). Root controla nuevo tools/test-native-cuts.ps1, builds/manifests/checkpoints. Contrato cut-frontier + token UUID + txnative-cut-token, señalarm world/allomancy/native-cut-arm-token ausente inicialmente. Ready→save control real→copiar owner DAT/old baseline→arm→sólolectura stderr→kill Process propio después traceexacta. N6parcial sinN7/fsync. Primer comando largo para crear harness aborted_before_dispatch, archivo inexistente verificado, sin cambios; siguiente creación acotada.
+
+## N6 antes build p2-cuts1
+Sol/Astra revisión fuentes sinbloqueantes (4pausas fuera mutex/Host/ticks); Terra oracle --expectA vincula corte/reopen, selftestPASS; harness AST0, rechaza inputsdrift y valida baselineA antesarm. Runtime medido25315921108bytes/free134849945600, evidencia p2-cuts-space-before.json. Rustfmt devtools falló dos veces -1073741515 (faltan DLL: devtools conserva rustdoc únicamente); localizados binarios completos launcher/rust/1.99.1...; rustfmtactivo exit0. No reinstalación/copia. Antesuna build JUSTIFICADA por2fuentesRust nuevas, BuildNamep2-cuts1, NativeTest, runtimeoriginal. Unsolo build, log evidence/p2-cuts1-build.log/receipt nativo. Preservarowner1/Native2/P1/P0; no cleanup antes sustituto. Siguiente verificar build receipt+hashinputs+coreúnico y clonescerradosN6; no repetir39ensayos/core.
+
+## N6 build terminada; reanudación tras límiteuso
+p2-cuts1 succeeded exit0, engine8C593D4DFBFDDF5054C8FC94DE860A27B945542584488BF42E5412E5766CFA70; API staged native-testdefault sólo staging/coreúnico. 21/22 inputs idénticos, ÚNICA diferencia launcher.exe551B2681→B48F4913 posterior/entorno; no fuenteSDK/mod/core/recurso difiere. Ruling: no rebuild, launcher es herramienta de build no ejecutada por harness(engine directo); conservar ambos hashes y excepción sólo build.launcher en guard, resto driftrechaza. Riesgo: atribución del ejecutable buildtool durante build no demostrada por hashpre/post; no atribuirla. Límiteuso automático bloqueó comprobación sin ejecutarla; usuario pidiócontinua, acceso recuperado, build NO repetida. Sinengine/Cargo vivo. Siguiente revisiónsuite y cuatrocortes nuevos.
+
+N6 suite: ANTES cuts-before-inventory-1 clonecerrado nuevo desde ownercredit; baseline save antesarm, traceexacta y killPIDpropio, oracleA/reopen pendientes.
+
+N6 suite: DESPUES cuts-before-inventory-1 exacttracePID=27384 killconfirmado; offlineA PASS. Antesreopen OTRA copia completa, originalcut intacto.
+
+N6 suite: DESPUES cuts-before-inventory-1 reopen PASS exit0 oracle reconnectA completo; originalcut hashesinalterados. N6 caso acreditado, no N7/fsync/P2global.
+
+N6 suite: ANTES cuts-after-inventory-1 clonecerrado nuevo desde ownercredit; baseline save antesarm, traceexacta y killPIDpropio, oracleA/reopen pendientes.
+
+N6 suite: DESPUES cuts-after-inventory-1 exacttracePID=30896 killconfirmado; offlineA PASS. Antesreopen OTRA copia completa, originalcut intacto.
+
+N6 suite: DESPUES cuts-after-inventory-1 reopen PASS exit0 oracle reconnectA completo; originalcut hashesinalterados. N6 caso acreditado, no N7/fsync/P2global.
+
+N6 suite: ANTES cuts-after-inline-1 clonecerrado nuevo desde ownercredit; baseline save antesarm, traceexacta y killPIDpropio, oracleA/reopen pendientes.
+
+N6 suite: DESPUES cuts-after-inline-1 exacttracePID=34056 killconfirmado; offlineA PASS. Antesreopen OTRA copia completa, originalcut intacto.
+
+N6 suite: DESPUES cuts-after-inline-1 reopen PASS exit0 oracle reconnectA completo; originalcut hashesinalterados. N6 caso acreditado, no N7/fsync/P2global.
+
+N6 suite: ANTES cuts-after-core-commit-1 clonecerrado nuevo desde ownercredit; baseline save antesarm, traceexacta y killPIDpropio, oracleA/reopen pendientes.
+
+N6 suite: DESPUES cuts-after-core-commit-1 exacttracePID=12544 killconfirmado; offlineA PASS. Antesreopen OTRA copia completa, originalcut intacto.
+
+N6 suite: DESPUES cuts-after-core-commit-1 reopen PASS exit0 oracle reconnectA completo; originalcut hashesinalterados. N6 caso acreditado, no N7/fsync/P2global.
+
+## N6 cierre antes commit
+Ochoensayosnuevos PASS suiteexit0/consolidadorexit0, evidenciareproducida independienteSol. Fmtcheck0/AST0/Nodeparse0/selftestPASS/contratoestáticoPASS y diffcheck0. Mantenimientoantes25315921108→después28039350935bytes; sineliminación/noobsoleto identificado; owner1/Native2/P1/P0 y cache/exportcuts1 retenidos. Antesstage archivosN6 explícitos y CHECKPOINT/HANDOFF conservados, excluir3diffsajenos. Revisiónfinaltexto en curso, luego commitlocalN6 sinmerge main, P2parcial.

@@ -1,0 +1,201 @@
+{
+  "before_bytes": 25315921108,
+  "after_bytes": 28039350935.0,
+  "free_bytes": 140684656640,
+  "deleted": [],
+  "reclaimed_bytes": 0,
+  "reason": "No obsolete unneeded substitute identified. Keep cuts1 current + owner1 validated baseline + Native2 historical failure + P1/P0 required; retain SDK/toolchain/target/dependencies/worlds/backups/evidence.",
+  "retained_cache": "native-fdc87ae-2cb5cb46119c",
+  "directories": [
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\backups",
+      "bytes": 1174977,
+      "files": 68
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\clipboard",
+      "bytes": 0,
+      "files": 0
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\config",
+      "bytes": 0,
+      "files": 0
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\data",
+      "bytes": 0,
+      "files": 0
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\desktop",
+      "bytes": 0,
+      "files": 0
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\devtools",
+      "bytes": 198628919,
+      "files": 39
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p1-bridge2",
+      "bytes": 1192199,
+      "files": 30
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-active-foreign",
+      "bytes": 1593514,
+      "files": 52
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-aligned",
+      "bytes": 1206320,
+      "files": 25
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-base",
+      "bytes": 1117971,
+      "files": 28
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-credit",
+      "bytes": 1214968,
+      "files": 26
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-credit2",
+      "bytes": 1219267,
+      "files": 26
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-cuts",
+      "bytes": 3924245,
+      "files": 188
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-io",
+      "bytes": 3151483,
+      "files": 139
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-lifecycle",
+      "bytes": 3664545,
+      "files": 123
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-n0aligned",
+      "bytes": 6616214,
+      "files": 332
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-n0cases",
+      "bytes": 3577450,
+      "files": 289
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner",
+      "bytes": 1190387,
+      "files": 25
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner-cases",
+      "bytes": 1577329,
+      "files": 48
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner-econ",
+      "bytes": 2762946,
+      "files": 114
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-p2-owner-vanilla",
+      "bytes": 1192095,
+      "files": 27
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-probe-v2",
+      "bytes": 1877490570,
+      "files": 84598
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\game-smoke",
+      "bytes": 822191,
+      "files": 12
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\home",
+      "bytes": 1755,
+      "files": 2
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\home-v2",
+      "bytes": 9536,
+      "files": 9
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\homes",
+      "bytes": 40404,
+      "files": 34
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher",
+      "bytes": 19158499746,
+      "files": 192961
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-builds",
+      "bytes": 661496,
+      "files": 119
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-credit-runs",
+      "bytes": 210164,
+      "files": 58
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-cut-runs",
+      "bytes": 138496,
+      "files": 44
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-lifecycle-runs",
+      "bytes": 263442,
+      "files": 93
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\native-open-runs",
+      "bytes": 1150247,
+      "files": 244
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\p1-bridge2-engine",
+      "bytes": 1352713479,
+      "files": 30055
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\p2-cuts1-engine",
+      "bytes": 1353151492,
+      "files": 30055
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\p2-native2-engine",
+      "bytes": 1353297849,
+      "files": 30055
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\p2-owner1-engine",
+      "bytes": 1353143454,
+      "files": 30055
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\probe-engine-v5",
+      "bytes": 1352751785,
+      "files": 30055
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\trash",
+      "bytes": 0,
+      "files": 0
+    }
+  ]
+}

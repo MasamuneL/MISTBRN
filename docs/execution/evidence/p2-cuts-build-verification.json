@@ -1,0 +1,134 @@
+{
+  "build": "p2-cuts1",
+  "status": "succeeded",
+  "exit_code": 0,
+  "receipt_sha256": "FE2804414BDF0D7FBDDD889993F9650E5152FD4DEDEC1892A3BC69452FF39DB7",
+  "engine_sha256": "8C593D4DFBFDDF5054C8FC94DE860A27B945542584488BF42E5412E5766CFA70",
+  "native_test": true,
+  "unchanged_input_count": 21,
+  "input_count": 22,
+  "launcher_drift_exception": "Exact recorded/current pair preserved; only build tool; direct engine runs. Do not assert buildtool identity throughout compilation.",
+  "inputs": [
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\AppData\\Local\\Programs\\Horizon Launcher\\horizon-launcher.exe",
+      "recorded": "551B2681785D7AC0D12CABA11A266C3A9C602CBBEBC2A76072FAEB5E5F658B30",
+      "actual": "B48F491344AB99E98719C74DC7F539D78D4CF0F2C144D1EE6F1E4090E3B22EA1"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\.installed",
+      "recorded": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "actual": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\horizon-client.exe",
+      "recorded": "43B6335E03C6EB77CEBD76528A7D1489E5714E21F60DC06635D93D8F0C83F71A",
+      "actual": "43B6335E03C6EB77CEBD76528A7D1489E5714E21F60DC06635D93D8F0C83F71A"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\OneDrive\\Documents\\ChatGPT\\MISTBRN\\experiments\\horizon-probe\\runtime\\launcher\\versions\\nightly-2026-11-08-fdc87ae\\.local\\horizon-client\\26.3\\horizon-resources.json",
+      "recorded": "3FA325BB6CF9F673ECD11DB2028FBEE15C22BA9F061EAB4FAB8835D016D86C43",
+      "actual": "3FA325BB6CF9F673ECD11DB2028FBEE15C22BA9F061EAB4FAB8835D016D86C43"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\horizon-mixin.toml",
+      "recorded": "F60CD9D06859F34B1E8FA56E13D2581EF0C053654ED1D4BC0D1AE6D1AD699CD5",
+      "actual": "F60CD9D06859F34B1E8FA56E13D2581EF0C053654ED1D4BC0D1AE6D1AD699CD5"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\Cargo.toml",
+      "recorded": "D20D7D78E1BA4F57B67D3F5B8C897BCE106B1D8AEA28DFBA8A7E64BFFE7556E2",
+      "actual": "D20D7D78E1BA4F57B67D3F5B8C897BCE106B1D8AEA28DFBA8A7E64BFFE7556E2"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\commands.rs",
+      "recorded": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95",
+      "actual": "85E0F60EFB5E756902301A0476C972E187E89F9B205B6FB68764F7E874491B95"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\lib.rs",
+      "recorded": "028148DC1C80FBFD30689649C8DB27A29DABCAD7445051B73A58D4FD8525DE73",
+      "actual": "028148DC1C80FBFD30689649C8DB27A29DABCAD7445051B73A58D4FD8525DE73"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\persistence.rs",
+      "recorded": "200A8B6EB1A8ADE154F47E8179DED4A2A395546270B0151D68C4CA406FFA79A7",
+      "actual": "200A8B6EB1A8ADE154F47E8179DED4A2A395546270B0151D68C4CA406FFA79A7"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\reserves.rs",
+      "recorded": "A0207224AE0F8797EB9ADAFF42DF773E6933BE3E063047A6D34A709246CE9B78",
+      "actual": "A0207224AE0F8797EB9ADAFF42DF773E6933BE3E063047A6D34A709246CE9B78"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\state.rs",
+      "recorded": "6436C9F418822284662247C17E141BF592C387B66B373F6DFAFA448C66A13DC2",
+      "actual": "6436C9F418822284662247C17E141BF592C387B66B373F6DFAFA448C66A13DC2"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\types.rs",
+      "recorded": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E",
+      "actual": "88A855816A280A11779326112F6AF21DF7F01EE12281DF2167926D64FA08564E"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-core\\src\\world_identity.rs",
+      "recorded": "A0B1E9ABBCB9A26F528C723ACD578653AA014D6D676B1CFC1DE90DB213422B1A",
+      "actual": "A0B1E9ABBCB9A26F528C723ACD578653AA014D6D676B1CFC1DE90DB213422B1A"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\Cargo.toml",
+      "recorded": "80C9B2AB4E1C487C232AAA5085FFEEDCB9D0406626BD76408B04EF10FD9429A9",
+      "actual": "80C9B2AB4E1C487C232AAA5085FFEEDCB9D0406626BD76408B04EF10FD9429A9"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\lib.rs",
+      "recorded": "C941C68CCE781BBAB9FE4023CE73F505EE545C329392A4FC3642BEFD7A372F52",
+      "actual": "C941C68CCE781BBAB9FE4023CE73F505EE545C329392A4FC3642BEFD7A372F52"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\lib.rs.bak",
+      "recorded": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1",
+      "actual": "06280289BF11BBC2687C0E2495D98D11CBCD53261B8B03E666800D5220D0EAC1"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\native_test.rs",
+      "recorded": "658729D6640816E3C57454C255734D7AAD1A6629E64635FA41808294C64E72B1",
+      "actual": "658729D6640816E3C57454C255734D7AAD1A6629E64635FA41808294C64E72B1"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\save.rs",
+      "recorded": "6A54C50921DE554BBD2269CD639701AAF63BB9BDB87E7F8CFF8BEBBA268EEA45",
+      "actual": "6A54C50921DE554BBD2269CD639701AAF63BB9BDB87E7F8CFF8BEBBA268EEA45"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\preflight.rs",
+      "recorded": "BF83AED639E898AFF0391E5BF1B2477518F4B9A05CF39B4F46A18FBD2AF58342",
+      "actual": "BF83AED639E898AFF0391E5BF1B2477518F4B9A05CF39B4F46A18FBD2AF58342"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\world_guard.rs",
+      "recorded": "D42457D1F5DDC664D7C2C8C7A9E5EEC0FD0488D22732453CFDCC884FBB41003C",
+      "actual": "D42457D1F5DDC664D7C2C8C7A9E5EEC0FD0488D22732453CFDCC884FBB41003C"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\profile_capture.rs",
+      "recorded": "B61B830FF878635CB263632E24D9BDDB9D38A97013C16ADF4232547B8EFD7B0B",
+      "actual": "B61B830FF878635CB263632E24D9BDDB9D38A97013C16ADF4232547B8EFD7B0B"
+    },
+    {
+      "path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\integration\\horizon\\owner_bootstrap.rs",
+      "recorded": "878A4E2C9115A837AFD8B184F3D115425CA4E881DC88C49AAFF2FEA67B5C0DF0",
+      "actual": "878A4E2C9115A837AFD8B184F3D115425CA4E881DC88C49AAFF2FEA67B5C0DF0"
+    }
+  ],
+  "rust_sources": [
+    {
+      "Path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\save.rs",
+      "Hash": "6A54C50921DE554BBD2269CD639701AAF63BB9BDB87E7F8CFF8BEBBA268EEA45"
+    },
+    {
+      "Path": "C:\\Users\\alanj.VIKINGO\\.codex\\worktrees\\mistbrn-p1\\MISTBRN\\crates\\allomancy-horizon\\src\\native_test.rs",
+      "Hash": "658729D6640816E3C57454C255734D7AAD1A6629E64635FA41808294C64E72B1"
+    }
+  ],
+  "single_core": "all retained patched locks each contain exactly one allomancy-core; staged adapter uses native-crates/allomancy/core"
+}

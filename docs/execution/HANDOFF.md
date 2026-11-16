@@ -1,6 +1,24 @@
+# Handoff N6 vigente — 2026-11-15
+
+CHECKPOINT schema15 y anexos tienen prioridad sobre el historial inferior. Worktree MISMO C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN; rama codex/alomancia-p2-cuts desde IO650b7b42. Consultar HEAD/status real antes de actuar. No otro checkout, reset/clean, SDK copiado ni merge main.
+
+N6 implementado y ensayado: build p2-cuts1 succeeded exit0, engine8C593D4DFBFDDF5054C8FC94DE860A27B945542584488BF42E5412E5766CFA70. Cuatro fronteras opt-in nativas fuera mutex y sin Host/save/ticks mientras esperan. Control externo arma después de baseline save real+oráculo, espera traceexactaPID/T/token y mata sólo su Process. Cuatro cortes + cuatro reaperturas en otras copias PASS (A/reconnectA completos),8receipts nuevos/47observados, suite0/consolidador0. Fuentes/evidencias en p2-native-cuts.md, p2-cuts-checks.json, tools/{test-native-cuts,test-native-cuts-suite}.ps1 y {inspect-native-cuts,check-native-cuts}.cjs. Preservados todos los clones, baselines, logs, receipts y manifests originales; no39games/core repetidos.
+
+Alcance sólo perfil owner integrado sin snapshotB posterior al armado. No N7/fronteraswriter/fsync/energía/FIFO/dedicated ni P2completo. N1variantes/N3límites-conflictos/N4reentrada/N5FIFO/N7corteswriter/N8restauracióncompleta-otrosIO/N9fracciones-deadrestart-logout siguen pendientes. Mantener guardprincipal estricto aun oldválido y restauración COMPLETA offline; quit/disconnectintegrado no acredita logoutantesdelsiguientetick. Dedicated/EULA pendiente.
+
+Build21/22inputs idénticos, único drift launcherbuildtool551B→B48F registrado. Ensayos ejecutan engine directamente pin8C59 y toleran únicamente launcherhashB48F explícitoCLI, todosotrosdriftrechazan. No afirmar identidadlauncher durantebuild ni recompilar sólo por cambioherramientaposterior.
+
+Al reanudar: comprobar Git/procesos/artefactos y revisiones finales/commitN6; no repetir8ensayos sin cambio/duda. Siguiente trabajo NUEVO elegir gate pendiente (N7 requiere estudiar captura externa real del writer antes de atribuir frontera; no fixtures/randcuts). Una build sólo por Rust cambiado, un Cargo/build/juego a la vez. Root checkpoint/manifests/Cargo/build/commits; subagentes con archivos exclusivos. Modelos Solhigh/Terramedium/Lunamedium/Astrahigh respondieron en esta sesión; límiteuso posterior detuvo una comprobación, retomada tras continua del usuario.
+
+Conservar cuts1 actual/cache2cb5cb46119c, owner1 baseline/cache4d97, Native2 export del fallo histórico, P1/P0 necesarios, SDK/toolchain/target/deps, mundos/backups/evidencias. Nueva medición en p2-cuts-maintenance.json; no se eliminó nada porque no se identificó sustituto obsoleto prescindible. No repetir limpieza anterior8.82GiB/cacheNative2fc09 de1353297849bytes.
+
+Tres cambios ajenos siempre excluidos: evidence/p0-initial-probe.rs, evidence/p2-horizon-preflight.md, experiments/horizon-probe/bundle/api/src/lib.rs. Conservarlos sinstage en commitN6.
+
+## Historial preservado del relevo IO
+
 # Handoff vigente — 2026-11-15
 
-Continuar desde CHECKPOINT schema14; diseño y plan aprobados. Worktree C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN, rama codex/alomancia-p2-io. Consultar git status/branch/HEAD y procesos antes de actuar; owner commit local02644603f91751a90f6ab2474c7f984b70e7572a confirmado; N8 seisensayos/oráculos revisados, commit local de IO en preparación, no merge main. Runtime compartido en carpeta original experiments/horizon-probe/runtime, SDK pin API411/fdc87ae/Rust1.99.1. No crear otro checkout ni reinstalar/copiar SDK.
+Continuar desde CHECKPOINT schema14; diseño y plan aprobados. Worktree C:/Users/alanj.VIKINGO/.codex/worktrees/mistbrn-p1/MISTBRN, rama codex/alomancia-p2-io. Consultar git status/branch/HEAD y procesos antes de actuar; owner commit local02644603f91751a90f6ab2474c7f984b70e7572a confirmado; IO commit650b7b42fbc75e40745ce316a3899223322c1d59 confirmado;39receipts observados, P2 parcial, no merge main. Runtime compartido en carpeta original experiments/horizon-probe/runtime, SDK pin API411/fdc87ae/Rust1.99.1. No crear otro checkout ni reinstalar/copiar SDK.
 
 Corrección owner actual: tres HEAD cancellable (serve/prepare_world/Level::write) y módulo público único en horizon-client-lib; contrato P2-native-owner-heads.md y revisión P2-native-owner-implementation-review.md. No Options ni inyecciones interiores: alternativa interior falló realmente y está conservada. Existing nunca reasigna owner, Fresh sólo bootstrap antes primer snapshot. Native2 original defectuoso intacto. No reparar archivos ni relajar identidad.
 
