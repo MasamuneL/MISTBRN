@@ -106,6 +106,22 @@ give3() { ctl give iron_nugget 3 >/dev/null; }
 report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
 
 case "$scenario" in
+  vial-smoke)
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl give glass 2 >/dev/null
+    ctl open-inventory >/dev/null
+    ctl click-slot 0 >/dev/null
+    ctl click-slot 100 right >/dev/null
+    ctl click-slot 102 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl screen > "$dir/craft-screen.json"
+    ctl click-slot 200 shift >/dev/null
+    ctl close >/dev/null
+    ctl inventory > "$dir/craft-inventory.json"
+    quit_game
+    jq -e '.counts["mistbrn:vial_empty"] == 2 and (.counts["minecraft:glass"] // 0) == 0' \
+      "$dir/craft-inventory.json" >/dev/null || die "expected two crafted vials and no glass" ;;
   pd-roundtrip)
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
