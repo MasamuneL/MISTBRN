@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:iron_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:iron_flakes",
+    "count": 2
+  }
+}

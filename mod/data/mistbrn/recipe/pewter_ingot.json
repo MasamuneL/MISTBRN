@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:tin_ingot",
+    "mistbrn:tin_ingot",
+    "mistbrn:tin_ingot",
+    "minecraft:copper_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:pewter_ingot",
+    "count": 4
+  }
+}

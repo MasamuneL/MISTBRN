@@ -4,19 +4,20 @@
 //! per process, on the first server tick where its precondition holds, and reports
 //! `MISTBRN_TEST scenario=<name> key=value ...` for `tools/native-test.sh`.
 //!
-//! The P2 "drink" stands in for P3's vial: one `minecraft:iron_nugget` from hotbar slot 0 credits
-//! 25 000 milli of iron through the real transaction path (`Session::credit_from_slot`).
+//! The P2 regression scenarios drive the same vial transaction as normal item use.
 use crate::bridge::{Session, Slot, metal_name};
+use crate::content::Drink;
 use crate::save::{self, Blocked};
-use allomancy_core::{BurnState, Metal, SaveError, encode_save, update_player};
-use mod_api::{Compound, Host, HostTransaction, Identifier, ItemKey, PlayerRef, ServerHost, Tag};
+use allomancy_core::{
+    BurnState, EMPTY_VIAL, Metal, SaveError, VIAL_MILLI, encode_save, update_player,
+};
+use mod_api::{Compound, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Tag};
 
 const PERSISTED: &str = "PlayerPersisted";
 const PROBE_KEY: &str = "mistbrn_probe";
 const ABORT_KEY: &str = "mistbrn_abort_probe";
 const PROBE_BYTES: [u8; 3] = [1, 2, 3];
-const NUGGET: &str = "minecraft:iron_nugget";
-const DRINK_MILLI: i64 = 25_000;
+const IRON_VIAL: &str = "mistbrn:vial_iron";
 const SMALL_MILLI: i64 = 1_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,13 +30,13 @@ enum Scenario {
     RawRoot,
     /// Report the loaded save and inventory, change nothing.
     Report,
-    /// Unlock iron, then drink one nugget from slot 0 (25 000 milli).
+    /// Unlock iron, then drink one vial from slot 0 (25 000 milli).
     Drink,
     /// As Drink, with a failure injected inside the transaction after both writes.
     DrinkFail,
     /// Drink, then burn iron.
     Burn,
-    /// Unlock iron, credit 1 000 milli for one nugget, then burn it to exhaustion.
+    /// Unlock iron, credit 1 000 milli for one vial, then burn it to exhaustion.
     BurnSmall,
     /// Overwrite the save with its checksum broken, then stop writing for this session.
     CorruptCrc,
@@ -77,7 +78,7 @@ impl Scenario {
     fn needs_session(self) -> bool {
         !matches!(self, Self::PdRoundtrip | Self::TxAbort | Self::RawRoot)
     }
-    fn needs_nugget(self) -> bool {
+    fn needs_vial(self) -> bool {
         matches!(
             self,
             Self::Drink | Self::DrinkFail | Self::Burn | Self::BurnSmall
@@ -87,6 +88,7 @@ impl Scenario {
 
 pub(crate) struct Runner {
     pending: Option<Scenario>,
+    fail_vial: bool,
 }
 
 impl Runner {
@@ -101,7 +103,14 @@ impl Runner {
                 }
                 parsed
             });
-        Self { pending }
+        Self {
+            pending,
+            fail_vial: std::env::var("MISTBRN_TEST_FAIL_VIAL").as_deref() == Ok("1"),
+        }
+    }
+
+    pub(crate) fn fail_vial(&self) -> bool {
+        self.fail_vial
     }
 
     pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, session: &mut Session) {
@@ -114,7 +123,7 @@ impl Runner {
         if scenario.needs_session() && session.slot(player.uuid()).is_none() {
             return;
         }
-        if scenario.needs_nugget() && nugget_in_slot0(host, player).is_none() {
+        if scenario.needs_vial() && vial_in_slot0(host, player).is_none() {
             return;
         }
         self.pending = None;
@@ -123,9 +132,9 @@ impl Runner {
             Scenario::TxAbort => tx_abort(host, player),
             Scenario::RawRoot => raw_root(host, player),
             Scenario::Report => report(host, session, player),
-            Scenario::Drink => drink(host, session, player, DRINK_MILLI, false, false),
-            Scenario::DrinkFail => drink(host, session, player, DRINK_MILLI, true, false),
-            Scenario::Burn => drink(host, session, player, DRINK_MILLI, false, true),
+            Scenario::Drink => drink(host, session, player, VIAL_MILLI, false, false),
+            Scenario::DrinkFail => drink(host, session, player, VIAL_MILLI, true, false),
+            Scenario::Burn => drink(host, session, player, VIAL_MILLI, false, true),
             Scenario::BurnSmall => drink(host, session, player, SMALL_MILLI, false, true),
             Scenario::CorruptCrc => corrupt(host, session, player, Corruption::Crc),
             Scenario::FutureSchema => corrupt(host, session, player, Corruption::Schema2),
@@ -134,21 +143,17 @@ impl Runner {
     }
 }
 
-fn nugget_key(host: &dyn Host) -> Option<ItemKey> {
-    host.item_key(&Identifier::parse(NUGGET).ok()?)
-}
-
-fn nugget_in_slot0(host: &dyn Host, player: PlayerRef) -> Option<ItemKey> {
-    let key = nugget_key(host)?;
+fn vial_in_slot0(host: &dyn Host, player: PlayerRef) -> Option<ItemStack> {
+    let key = host.item_key(&Identifier::parse(IRON_VIAL).ok()?)?;
     player
         .inventory_slots(host)?
         .into_iter()
-        .any(|(slot, stack)| slot == 0 && stack.item() == key)
-        .then_some(key)
+        .find(|(slot, stack)| *slot == 0 && stack.item() == key)
+        .map(|(_, stack)| stack)
 }
 
-fn nuggets(host: &dyn Host, player: PlayerRef) -> u32 {
-    let Some(key) = nugget_key(host) else {
+fn item_count(host: &dyn Host, player: PlayerRef, id: &str) -> u32 {
+    let Some(key) = Identifier::parse(id).ok().and_then(|id| host.item_key(&id)) else {
         return 0;
     };
     player.inventory_slots(host).map_or(0, |slots| {
@@ -196,9 +201,10 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         .dimension(read)
         .map_or("none".into(), |d| d.to_string());
     let common = format!(
-        "uuid={} nuggets={} dimension={dimension} raw_hash={raw}",
+        "uuid={} vials={} empty_vials={} dimension={dimension} raw_hash={raw}",
         dashed_uuid(player.uuid()),
-        nuggets(read, player)
+        item_count(read, player, IRON_VIAL),
+        item_count(read, player, EMPTY_VIAL)
     );
     match session.slot(player.uuid()) {
         Some(Slot::Blocked(blocked)) => {
@@ -229,8 +235,8 @@ fn drink(
     burn_after: bool,
 ) -> String {
     let read: &dyn Host = host;
-    let Some(key) = nugget_in_slot0(read, player) else {
-        return "error=no_nugget".into();
+    let Some(stack) = vial_in_slot0(read, player) else {
+        return "error=no_vial".into();
     };
     let uuid = player.uuid();
     if let Err(error) = session.change(uuid, true, |saved| {
@@ -242,11 +248,20 @@ fn drink(
         return format!("error=unlock:{error}");
     }
     session.flush(host, player);
-    let result =
-        match session.credit_from_slot(host, player, 0, key, Metal::Iron, amount, fail_inside) {
-            Ok(seq) => format!("result=ok seq={}", seq.0),
-            Err(error) => format!("result=err:{error}"),
-        };
+    let result = match session.credit_from_slot(
+        host,
+        Drink {
+            player,
+            slot: 0,
+            stack,
+            metal: Metal::Iron,
+        },
+        amount,
+        fail_inside,
+    ) {
+        Ok(seq) => format!("result=ok seq={}", seq.0),
+        Err(error) => format!("result=err:{error}"),
+    };
     if burn_after && result.starts_with("result=ok") {
         let burned = session.change(uuid, true, |saved| {
             update_player(saved, |state, _| {

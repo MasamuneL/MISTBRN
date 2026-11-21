@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:zinc_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:zinc_flakes",
+    "count": 2
+  }
+}

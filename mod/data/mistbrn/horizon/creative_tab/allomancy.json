@@ -1,0 +1,31 @@
+{
+  "title": "itemGroup.mistbrn.allomancy",
+  "icon": "mistbrn:vial_iron",
+  "items": [
+    "mistbrn:vial_empty",
+    "mistbrn:vial_iron",
+    "mistbrn:iron_flakes",
+    "mistbrn:vial_steel",
+    "mistbrn:steel_flakes",
+    "mistbrn:steel_ingot",
+    "mistbrn:vial_tin",
+    "mistbrn:tin_flakes",
+    "mistbrn:tin_ingot",
+    "mistbrn:vial_pewter",
+    "mistbrn:pewter_flakes",
+    "mistbrn:pewter_ingot",
+    "mistbrn:vial_zinc",
+    "mistbrn:zinc_flakes",
+    "mistbrn:zinc_ingot",
+    "mistbrn:vial_brass",
+    "mistbrn:brass_flakes",
+    "mistbrn:brass_ingot",
+    "mistbrn:vial_copper",
+    "mistbrn:copper_flakes",
+    "mistbrn:vial_bronze",
+    "mistbrn:bronze_flakes",
+    "mistbrn:bronze_ingot",
+    "mistbrn:raw_tin",
+    "mistbrn:raw_zinc"
+  ]
+}
