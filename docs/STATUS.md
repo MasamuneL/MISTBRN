@@ -4,15 +4,15 @@ Actualizado: 2026-11-21.
 
 - Plan vigente: `docs/plan.md`. Legacy congelado: rama `legacy/windows-fdc87ae` (`930b96d`).
 - Pin: Horizon `0a875da91dbb0fdcb7ba8c42c11341aa229af51a` (`nightly-2026-11-20-0a875da`), Rust 1.99.1.
-- Rama activa: `feat/p2-native` (worktree `~/Library/Application Support/MISTBRN-dev/wt-p2-core`), sobre `feat/p2-core`; `main` = `db93ca0` (P0b mergeado, PR #2).
-- Fase: **P2** — P2-core en PR #3 (revisión independiente en curso). P2-native verificado: S1–S11 PASS en `8e91fd5` (`docs/evidence/p2.md`); pendiente PR y revisión.
+- Rama activa: `feat/p2-native` (worktree `~/Library/Application Support/MISTBRN-dev/wt-p2-core`); `main` = `6b981ab`.
+- Fase: **P2** — P2-core mergeado (PR #3, `6b981ab`). P2-native PR #4: revisión ronda 1 changes requested (B1 salir muerto) corregida; S1–S11 + S5b PASS en `70308f9` (`docs/evidence/p2.md`). Pendiente: revisión ronda 2 y merge.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build instalado `native-0a875da-0720e215dcea`.
+- Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build instalado `native-0a875da-482083add929`.
 
 ## Siguiente acción exacta
 
-1. Resolver la revisión de PR #3 (P2-core) y hacer merge.
-2. Rebasar `feat/p2-native` sobre `main`, abrir su PR, revisión independiente y merge.
+1. Revisión ronda 2 de PR #4 y merge con `--match-head-commit`.
+2. Borrar ramas `feat/p0b-repin`, `feat/p2-core`, `feat/p2-native` en remoto y el worktree.
 3. Siguiente fase: P3 (contenido: metales, viales, recetas) en `feat/p3-content`.
 
 ## Gates abiertos
@@ -20,6 +20,6 @@ Actualizado: 2026-11-21.
 | Gate | Estado |
 |---|---|
 | P0b | mergeado (PR #2) |
-| P2-core | PR #3, revisión en curso |
-| P2-native S1–S11 | PASS; PR pendiente |
+| P2-core | mergeado (PR #3) |
+| P2-native S1–S11 + S5b | PASS; PR #4 en revisión ronda 2 |
 | Windows x64 / Linux x64 | P10 |
