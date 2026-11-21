@@ -13,7 +13,7 @@ El plan de 2026-11-12 y todo lo ejecutado (P0, P1 en main; P2 parcial en `codex/
 
 Decisiones del usuario: congelar gates como legacy y borrar `codex/*`; desarrollo en macOS arm64; portar núcleo P2 legacy, reescribir adaptador. Nombre del mod **Masamune's MISTBRN**, id `mistbrn`.
 
-**Objetivo multiplataforma.** El mod debe funcionar en macOS arm64, Windows x64 y Linux x64 con el SDK fijado. El código del mod y del núcleo evita APIs y comportamiento específicos de un SO. Cualquier `cfg(target_os)` requiere una justificación en la PR. El mod accede a rutas mediante la API del juego y prescinde de dependencias nativas propias. Los scripts usan Bash y resuelven las rutas del launcher por SO en `tools/lib.sh`. Cada fase se verifica primero en macOS arm64. Windows x64 y Linux x64 son gates obligatorios de P10 (build + S1/S4/S5).
+**Multiplataforma (requisito):** el mod funciona en todo SO que soporte el SDK fijado (macOS arm64, Windows x64, Linux x64). Reglas: el código del mod y del núcleo no usa APIs, rutas ni comportamiento específicos de un SO; sin `cfg(target_os)` salvo justificación escrita en la PR; sin dependencias nativas; rutas solo vía la API del juego. Las herramientas (`tools/*.sh`) son bash portable (macOS, Linux, Git Bash en Windows) y resuelven rutas del launcher por SO en `tools/lib.sh`. Verificación: macOS arm64 en cada fase con build nativo; Windows x64 y Linux x64 son gates obligatorios de P10 (build + S1/S4/S5).
 
 ---
 
@@ -167,7 +167,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | Fase | Rama | Depende | Entrega | Criterio de cierre |
 |---|---|---|---|---|
 | P3a contenido | `feat/p3-content` | P2 | metales, viales, recetas, muestras en mundos existentes, arte original y traducciones | Integrado en `7f1d159` con 24 corridas y dos revisiones. [Evidencia](evidence/p3.md) |
-| P3b accesorios | Por definir | P3a | monedas, capa de bruma y accesorios | Por definir |
+| P3b accesorios | `feat/p3b-accessories` | P3a | monedas, capa de bruma y accesorios (ver abajo) | Validador de contenido; en juego: fabricar cada accesorio y equipar la capa; pendientes de la revisión de P3a cerrados |
 | P4 hierro/acero | `feat/p4-iron-steel` | P2, P3a | tirón/empujón sobre metales y anclajes, límites de velocidad, colisión del motor, cancelación por muerte/dimensión/objetivo inválido | Escenarios horizon-ctl con posiciones medidas: sin atravesar bloques, velocidad ≤ tope, apagado al agotarse |
 | P7a controles/HUD mínimo | `feat/p7a-hud` | P4 | V selecciona pareja, Z/X activa, R aviva, G apaga; HUD de reservas; sin activación con chat/menú | Escenario con chat e inventario abiertos sin activación; captura local revisada (no versionada) |
 | V1 demo | — (validación) | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |

@@ -26,7 +26,7 @@ P3a ya permite extraer muestras en mundos existentes, fabricar viales para los o
 
 Multiplataforma: el mod debe funcionar en todo sistema operativo que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64); desarrollo y pruebas primero en macOS arm64, verificación Windows x64 y Linux x64 antes de publicar. Supervivencia individual primero; cooperativo después de verificar soporte autoritativo del servidor. No prometer compatibilidad en servidores vanilla con estos poderes. Ocho metales iniciales. Diario personal con notas encontradas como pistas; esta elección narrativa puede cambiar sin alterar el motor.
 
-Tras la demo de hierro y acero, P5 añadirá investigación y árboles. Para los desbloqueos, se propone un tutorial para hierro y acero, un bastión para estaño y peltre, un guardián anciano para zinc y latón y un desafío en una ciudad antigua para cobre y bronce. La dragona habilitaría la maestría final. El desafío de la ciudad antigua puede completarse sin matar al Warden. Cada jugador puede reclamar un hito una sola vez.
+La demo V1 es una validación interna de hierro y acero. La primera entrega vertical añade combustible, una investigación, un árbol y guardado (P5). Para los desbloqueos, se propone un tutorial para hierro y acero, un bastión para estaño y peltre, un guardián anciano para zinc y latón y un desafío en una ciudad antigua para cobre y bronce. La dragona habilitaría la maestría final; este reparto es una propuesta de balance, no una decisión previa del usuario. No exige matar al Warden. Todo hito se reclama una sola vez por jugador; duplicados no desbloquean más parejas.
 
 ## Arquitectura
 
@@ -54,7 +54,7 @@ Investigación: indicio → evidencias → conclusión en mesa. Aceptar varias m
 
 ## Recursos e interfaz
 
-La cadena actual usa hierro, cobre, estaño y zinc, además de las aleaciones acero, peltre, latón y bronce. Las muestras se obtienen al minar menas del juego base y están disponibles en chunks ya generados. P3b propone monedas, una capa de bruma y accesorios con arte propio. El cuaderno, la mesa de investigación y los fragmentos ligados a hitos forman parte del recorrido de progresión. La publicación incluye una revisión de recursos y licencias.
+La cadena actual usa hierro, cobre, estaño y zinc, además de las aleaciones acero, peltre, latón y bronce. Las muestras se obtienen al minar menas del juego base y están disponibles en chunks ya generados. P3b propone monedas, una capa de bruma y accesorios con arte propio. El cuaderno, la mesa de investigación y los fragmentos ligados a hitos forman parte del recorrido de progresión. Los recursos gráficos son originales y provisionales; antes de publicar se sustituyen por los finales y se registra la licencia de cada recurso.
 
 Libro abre árboles, pistas y reservas. V selecciona pareja; Z/X activa cada metal; R modifica para avivar; G apaga todo. Reasignables; HUD indica reservas y combustiones que continúan al cambiar pareja. Menús/chat capturan entrada; no disparar poderes al escribir. Reducir destellos y señales visuales configurables.
 

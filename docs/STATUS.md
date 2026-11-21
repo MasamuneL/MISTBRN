@@ -19,13 +19,13 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 - Rama activa: `fix/docs-p3` desde `main` (`7f1d159`): documentación posterior a P3a y este estado.
 - Fase y paso: P3a cerrada; P3b sin empezar.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: PR #5 integrada; `tools/check.sh` exit 0 en `7f1d159`.
+- Último resultado: PR #5 integrada en `7f1d159` (mismo árbol que su head `d82d1b8`, donde pasó `tools/check.sh`); `tools/check.sh` exit 0 también en `fix/docs-p3`.
 
 ## Siguiente acción exacta
 
-1. P3b en `feat/p3b-accessories` desde `main`: comprobar en `surface.json` los hooks de equipamiento (capa) y luego `clip`, `boxing`, `glass_dagger`, `dueling_cane`, `mistcloak`, `bronze_earring`, con receta, arte y traducciones.
+1. Tras integrar la PR #6, P3b en `feat/p3b-accessories` desde `main` actualizado: comprobar en `surface.json` los hooks de equipamiento (capa) y luego `clip`, `boxing`, `glass_dagger`, `dueling_cane`, `mistcloak`, `bronze_earring`, con receta, arte y traducciones.
 2. Pendientes de la revisión post-merge de P3a, a cerrar en P3b:
-   - Deduplicar la cola de bebidas por jugador y slot: `living_entity_use_item_finish` puede dispararse una vez por jugador del mundo y, con dos o más jugadores, los duplicados se rechazan con un aviso técnico en el chat.
+   - Deduplicar la cola de bebidas por jugador y slot. Hipótesis sin probar: la doc del hook dice que en el servidor `living_entity_use_item_finish` se dispara para cada jugador del mundo; si es así, con dos o más jugadores los duplicados se rechazarían con un aviso técnico en el chat. Confirmar con dos clientes.
    - Mensajes de chat con claves de idioma en lugar de códigos (`item_not_in_slot`, `CapacityExceeded`).
    - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones "afortunadas" garantiza la muestra.
 

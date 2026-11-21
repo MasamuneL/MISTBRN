@@ -2,6 +2,8 @@
 
 MISTBRN lleva la alomancia a [Horizon](https://playhorizon.dev). Es un mod nativo en Rust inspirado en Mistborn, pensado para que el metal que encuentras, preparas y llevas contigo determine cómo exploras y te mueves por el mundo.
 
+**Multiplataforma:** el mod funciona en todo sistema que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64). El desarrollo y las pruebas en juego se hacen primero en macOS arm64.
+
 ## Qué puedes probar hoy
 
 P3a incorpora **25 ítems y 25 recetas**, con texturas originales, nombres en español e inglés y la pestaña creativa **Alomancia**. Puedes empezar en un mundo existente.
@@ -36,4 +38,4 @@ Usa nombres nuevos para cada build y corrida. C1 prueba la fabricación y C2 pru
 - `mod/data/` y `mod/assets/` contienen ítems, recetas, modelos, texturas e idiomas del paquete `.hmod`.
 - [Estado y siguiente fase](docs/STATUS.md) · [Contrato de guardado](docs/persistence.md) · [Historial](docs/history.md)
 
-La distribución prevista es el mod con código y recursos propios. Minecraft, el launcher y sus recursos se obtienen por separado.
+La distribución prevista es el mod con código y recursos propios. No incluye Minecraft, recursos del juego, binarios ni material de las novelas; Minecraft y el launcher se obtienen por separado.
