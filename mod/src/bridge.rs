@@ -230,12 +230,21 @@ impl Session {
             }
             Ok(())
         })?;
-        let seq = commit_credit(saved, prepared).map_err(|e| format!("commit:{e:?}"))?;
-        // The candidate is already in the game; nothing left to write.
-        *dirty = false;
-        *urgent = false;
-        *since_write = 0;
-        Ok(seq)
+        match commit_credit(saved, prepared) {
+            Ok(seq) => {
+                // The candidate is already in the game; nothing left to write.
+                *dirty = false;
+                *urgent = false;
+                *since_write = 0;
+                Ok(seq)
+            }
+            Err(error) => {
+                // The game already holds the candidate: writing the older in-memory state would
+                // erase the credit (docs/persistence.md). Stop writing this player instead.
+                self.block(uuid, Blocked::Decode(error));
+                Err(format!("commit_after_host:{error:?}"))
+            }
+        }
     }
 
     pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, epoch: u64, tick: u64) {
