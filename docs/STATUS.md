@@ -19,7 +19,7 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 - Rama activa: `fix/docs-p3` desde `main` (`7f1d159`): documentación posterior a P3a y este estado.
 - Fase y paso: P3a cerrada; P3b sin empezar.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: PR #5 integrada en `7f1d159` (mismo árbol que su head `d82d1b8`, donde pasó `tools/check.sh`); `tools/check.sh` exit 0 también en `fix/docs-p3`.
+- Último resultado: PR #5 integrada en `7f1d159` (mismo árbol que su head `d82d1b8`, donde pasó `tools/check.sh`); `tools/check.sh` exit 0 en cada head de `fix/docs-p3` (SHA en la PR #6).
 
 ## Siguiente acción exacta
 
@@ -27,7 +27,7 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 2. Pendientes de la revisión post-merge de P3a, a cerrar en P3b:
    - Deduplicar la cola de bebidas por jugador y slot. Hipótesis sin probar: la doc del hook dice que en el servidor `living_entity_use_item_finish` se dispara para cada jugador del mundo; si es así, con dos o más jugadores los duplicados se rechazarían con un aviso técnico en el chat. Confirmar con dos clientes.
    - Mensajes de chat con claves de idioma en lugar de códigos (`item_not_in_slot`, `CapacityExceeded`).
-   - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones "afortunadas" garantiza la muestra.
+   - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas sin Toque de Seda garantiza la muestra.
 
 ## Próximos hitos
 

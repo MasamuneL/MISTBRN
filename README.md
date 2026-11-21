@@ -2,7 +2,7 @@
 
 MISTBRN lleva la alomancia a [Horizon](https://playhorizon.dev). Es un mod nativo en Rust inspirado en Mistborn, pensado para que el metal que encuentras, preparas y llevas contigo determine cómo exploras y te mueves por el mundo.
 
-**Multiplataforma:** el mod funciona en todo sistema que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64). El desarrollo y las pruebas en juego se hacen primero en macOS arm64.
+**Multiplataforma:** el mod debe funcionar en todo sistema que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64). Hoy solo está verificado en macOS arm64; Windows x64 y Linux x64 se verifican en P10.
 
 ## Qué puedes probar hoy
 
@@ -16,7 +16,7 @@ La fase actual permite probar el ciclo de obtención, fabricación, consumo y gu
 
 ## Hacia dónde va
 
-La primera demo gira en torno a **hierro y acero**. Atraer metal, empujar una moneda o usar un anclaje debería cambiar cómo cruzas un terreno, frenas una caída o eliges una ruta. La reserva limita cuánto puedes hacer antes de preparar otro vial. Monedas, capa de bruma y otros accesorios están previstos en P3b.
+La primera demo gira en torno a **hierro y acero**. Atraer o empujar metal y usar un anclaje debería cambiar cómo cruzas un terreno, frenas una caída o eliges una ruta. La reserva limita cuánto puedes hacer antes de preparar otro vial. Monedas, capa de bruma y otros accesorios están previstos en P3b.
 
 La versión completa aspira a cuatro parejas y ocho metales. Estaño y peltre mejorarán los sentidos y el cuerpo. Zinc y latón influirán en criaturas compatibles. Cobre y bronce servirán para ocultar y detectar actividad alomántica. La práctica y la investigación abrirán técnicas, con pistas opcionales, un árbol por pareja y mejoras generales de eficiencia. Los hitos de exploración y los jefes darán acceso a nuevas parejas. El cooperativo se evaluará después de validar la autoridad del servidor con dos clientes. [Diseño](docs/design.md) · [Plan de ejecución](docs/plan.md)
 
