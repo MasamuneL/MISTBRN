@@ -3,7 +3,7 @@
   "category": "misc",
   "ingredients": [
     "mistbrn:tin_ingot",
-    "minecraft:flint"
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:tin_flakes",

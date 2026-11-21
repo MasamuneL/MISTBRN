@@ -219,14 +219,14 @@ case "$scenario" in
       "$dir/messages.json" >/dev/null || die "missing reserve-full translation key in chat"
     grep -q "that reserve is full" "$dir/messages.json" || die "reserve-full key did not resolve to its text"
     expect 2 report state=active reserve_iron=100000 last_transaction=4 vials=1 empty_vials=4 ;;
-  c1)  # vial chain in the 2x2 grid: glass -> empty vials, ingot + flint -> flakes, vial + flakes
+  c1)  # vial chain in the 2x2 grid: glass -> empty vials, ingot + stone -> flakes, vial + flakes
     launch
     ctl command "gamemode survival" >/dev/null
-    for i in glass glass iron_ingot flint; do ctl give "$i" 1 >/dev/null; done
+    for i in glass glass iron_ingot cobblestone; do ctl give "$i" 1 >/dev/null; done
     ctl wait 10 >/dev/null
     ctl open-inventory >/dev/null
     put minecraft:glass 100; put minecraft:glass 102; take
-    put minecraft:iron_ingot 100; put minecraft:flint 101; take
+    put minecraft:iron_ingot 100; put minecraft:cobblestone 101; take
     put mistbrn:vial_empty 100; put mistbrn:iron_flakes 101; take
     ctl close >/dev/null
     ctl inventory > "$dir/craft-inventory.json"

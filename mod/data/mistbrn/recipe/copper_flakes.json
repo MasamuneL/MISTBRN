@@ -3,7 +3,7 @@
   "category": "misc",
   "ingredients": [
     "minecraft:copper_ingot",
-    "minecraft:flint"
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:copper_flakes",

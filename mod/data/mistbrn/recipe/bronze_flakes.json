@@ -3,7 +3,7 @@
   "category": "misc",
   "ingredients": [
     "mistbrn:bronze_ingot",
-    "minecraft:flint"
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:bronze_flakes",

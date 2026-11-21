@@ -3,7 +3,7 @@
   "category": "misc",
   "ingredients": [
     "mistbrn:zinc_ingot",
-    "minecraft:flint"
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:zinc_flakes",
