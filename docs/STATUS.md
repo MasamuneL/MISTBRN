@@ -1,26 +1,38 @@
 # Estado — Masamune's MISTBRN
 
-Actualizado: 2026-11-21.
+Actualizado el 2026-11-21.
 
-- Plan vigente: `docs/plan.md`. Legacy congelado: rama `legacy/windows-fdc87ae` (`930b96d`).
-- Pin: Horizon `0a875da91dbb0fdcb7ba8c42c11341aa229af51a` (`nightly-2026-11-20-0a875da`), Rust 1.99.1.
-- Rama activa: `feat/p3-content` desde `314df92`.
-- Fase: **P2** cerrado — P2-core (PR #3) y P2-native (PR #4: revisión ronda 2 approve; S1–S11 + S5b PASS en `70308f9`, `docs/evidence/p2.md`).
-- P3a: prueba de contenido aprobada. `p3-vial-smoke-1` fabricó dos `mistbrn:vial_empty` con dos bloques de vidrio en supervivencia.
-- P3a incluye 25 ítems y 25 recetas. Pasaron los escenarios de contenido y la regresión de P2, 24 corridas en total. C7 verifica una sola carga por mundo y cierra R3. Evidencia en `docs/evidence/p3.md`.
-- El runtime vive en `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). La instancia `mistbrn-dev` tiene seleccionado `native-0a875da-9de1682533b2`.
+## Integrado en main
+
+| Fase | Resultado |
+|---|---|
+| P0b | SDK fijado y adaptador nativo. [PR #2](https://github.com/MasamuneL/MISTBRN/pull/2) |
+| P2 | Reservas, guardado versionado y transacciones de jugador. [PR #3](https://github.com/MasamuneL/MISTBRN/pull/3) · [PR #4](https://github.com/MasamuneL/MISTBRN/pull/4) · [Evidencia](evidence/p2.md) |
+| P3a | 25 ítems, 25 recetas, viales para ocho metales, fuentes de estaño y zinc en mundos existentes y traducciones. [PR #5](https://github.com/MasamuneL/MISTBRN/pull/5) · [Evidencia](evidence/p3.md) |
+
+P3a se integró en `7f1d159` después de 24 corridas nativas aprobadas en macOS arm64 y dos revisiones independientes. C7 confirmó una sola carga por mundo y que la reserva de un jugador no se arrastra al cambiar de mundo en el mismo proceso.
+
+El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la batería fue `native-0a875da-9de1682533b2` en `mistbrn-dev`. Sus recibos y corridas se guardaron fuera del repo, en `~/Library/Application Support/MISTBRN-dev/`. Windows x64 y Linux x64 quedan para P10. [Compatibilidad](compatibility.md)
+
+## Reanudación
+
+- Rama activa: `fix/docs-p3` desde `main` (`7f1d159`): documentación posterior a P3a y este estado.
+- Fase y paso: P3a cerrada; P3b sin empezar.
+- Operación en curso: ninguna. No hay juego ni build activo.
+- Último resultado: PR #5 integrada en `7f1d159` (mismo árbol que su head `d82d1b8`, donde pasó `tools/check.sh`); `tools/check.sh` exit 0 en cada head de `fix/docs-p3` (SHA en la PR #6).
 
 ## Siguiente acción exacta
 
-1. Incorporar en la PR los informes de las dos revisiones independientes de P3a.
-2. P3b queda descrito en `docs/plan.md` con monedas, capa y accesorios.
+1. Tras integrar la PR #6, P3b en `feat/p3b-accessories` desde `main` actualizado: comprobar en `surface.json` los hooks de equipamiento (capa) y luego `clip`, `boxing`, `glass_dagger`, `dueling_cane`, `mistcloak`, `bronze_earring`, con receta, arte y traducciones.
+2. Pendientes de la revisión post-merge de P3a, a cerrar en P3b:
+   - Deduplicar la cola de bebidas por jugador y slot. Hipótesis sin probar: la doc del hook dice que en el servidor `living_entity_use_item_finish` se dispara para cada jugador del mundo; si es así, con dos o más jugadores los duplicados se rechazarían con un aviso técnico en el chat. Confirmar con dos clientes.
+   - Mensajes de chat con claves de idioma en lugar de códigos (`item_not_in_slot`, `CapacityExceeded`).
+   - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto (sin Toque de Seda) garantiza la muestra.
 
-## Gates abiertos
+## Próximos hitos
 
-| Gate | Estado |
-|---|---|
-| P0b | mergeado (PR #2) |
-| P2-core | mergeado (PR #3) |
-| P2-native | mergeado (PR #4) |
-| P3a | batería aprobada, revisión en la PR |
-| Windows x64 / Linux x64 | P10 |
+1. **P3b** incorpora los accesorios propuestos, entre ellos monedas y capa de bruma.
+2. **P4 y P7a** incorporan tirones y empujones de hierro y acero, controles y un HUD mínimo. La primera demo debe permitir preparar metal, beber, usar los poderes y retomar la partida.
+3. Las fases posteriores amplían el recorrido con práctica, investigación, árboles de técnicas, hitos y las otras tres parejas. El cooperativo y la publicación tienen sus propias pruebas.
+
+[Diseño](design.md) · [Plan de ejecución](plan.md) · [Historial anterior al re-pin](history.md)

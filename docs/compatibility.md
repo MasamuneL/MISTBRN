@@ -19,7 +19,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 | Plataforma | Estado |
 |---|---|
-| macOS arm64 | Build nativo y escenarios P0b verificados (`docs/evidence/p0b.md`) |
+| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md) y [P3a](evidence/p3.md) |
 | Windows x64 | Pendiente: gate obligatorio de P10 |
 | Linux x64 | Pendiente: gate obligatorio de P10 |
 
@@ -35,10 +35,15 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 | Journal de transacción | `tx-abort` | Inventario (slot 0) y `persistent_data` escritos dentro de `host.transaction` y restaurados al abortar |
 | NBT crudo del jugador | `raw-root`, S11 | `player.entity().nbt()` incluye `NeoForgeData` (caso sano) y también una raíz corrupta escrita en el `.dat` con el juego cerrado (S11: `Int` visible): la guarda del adaptador la detecta y bloquea |
 | Guardado transaccional | S1–S10 (`docs/evidence/p2.md`) | Inventario + `PlayerPersisted.mistbrn` en una `host.transaction`; cortes `kill -9` dan estado viejo o nuevo completo; datos ilegibles bloquean sin sobrescribir |
+| Contenido `.hmod` | C1, C2 y C2b | Registro de ítems y recetas, fabricación y consumo en ambas manos. El crédito de reserva y el retorno del envase se guardan juntos |
+| Fuentes en chunks existentes | C6 | Muestras al minar y vial al abrir un cofre de botín. Toque de Seda devolvió los bloques de mena sin añadir muestras |
+| Cambio de mundo en el mismo proceso | C7 | Una carga por mundo. Al reabrir el segundo, la reserva, la transacción y los viales seguían en cero para el mismo jugador |
 | Jugador sin cuenta | `horizon-ctl launch --game` | Juega offline con nombre generado; no usa la cuenta Microsoft |
 
 ## Límites conocidos
 
+- La batería P3a se ejecutó en el servidor integrado de macOS arm64. El cooperativo y el servidor dedicado corresponden a una fase posterior. [Evidencia de P3a](evidence/p3.md)
+- Las pruebas de corte de P3a cubren el inventario del jugador cuando tiene espacio para el envase. La durabilidad conjunta de la reserva y un envase soltado por desbordamiento sigue por verificar.
 - `player.persistent_data()` convierte un `NeoForgeData` no-compound en vacío y `set_persistent_data` lo sobrescribe (fuente `native_player_persistent_data.rs`). El adaptador lee primero `entity().nbt()`, que sí muestra una raíz corrupta (S11), y bloquea al jugador sin escribir.
 - En muerte y en la primera salida del End solo sobrevive `NeoForgeData.PlayerPersisted`.
 - `tools/fetch-sdk.sh` verifica SHA256 contra `SHA256SUMS` y el de `api-source.tar.xz` contra un valor fijado en `tools/lib.sh`; la firma de la release la verifica el launcher al compilar.
