@@ -312,7 +312,7 @@ fn corrupt(
         return format!("error=write:{error}");
     }
     // From here on this session must not overwrite what it just planted.
-    session.block(player.uuid(), reason);
+    session.block(host, player.uuid(), reason);
     format!("written=true raw_hash={hash}")
 }
 

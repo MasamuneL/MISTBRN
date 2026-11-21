@@ -9,6 +9,7 @@ source "$(dirname "$0")/lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
+[[ "$scenario" == s11 ]] && require python3
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
 [[ ! -e "$dir" ]] || die "run $run exists: $dir"
@@ -29,7 +30,7 @@ lib="$(find "$V" \( -name 'libmistbrn.dylib' -o -name 'libmistbrn.so' -o -name '
 {
   echo "run=$run scenario=$scenario build=$build world=$world"
   echo "mod_library=${lib##*/} sha256=$( [[ -n "$lib" ]] && sha256 "$lib" || echo none)"
-  echo "git_head=$(git -C "$REPO_ROOT" rev-parse HEAD) git_dirty=$([[ -n "$(git -C "$REPO_ROOT" status --porcelain -- mod)" ]] && echo yes || echo no)"
+  echo "git_head=$(git -C "$REPO_ROOT" rev-parse HEAD) git_dirty=$([[ -n "$(git -C "$REPO_ROOT" status --porcelain -- mod tools)" ]] && echo yes || echo no)"
 } | tee "$dir/report.txt"
 # Unix socket paths are limited to ~104 bytes: keep the sockets in a short temp folder and copy
 # each launch's log (written beside its socket) into the run folder.
@@ -86,16 +87,20 @@ expect() {
     if [[ " $line " != *" $pair "* ]]; then echo "  FAIL missing $pair"; fails=$((fails + 1)); fi
   done
 }
-# field LAUNCH MOD_SCENARIO KEY: the value of KEY on that report line.
+# field LAUNCH MOD_SCENARIO KEY: the value of KEY on that report line (empty if absent).
 field() {
-  grep -a "MISTBRN_TEST scenario=$2 " "$(log "$1")" | tail -1 | tr ' ' '\n' | sed -n "s/^$3=//p"
+  { grep -a "MISTBRN_TEST scenario=$2 " "$(log "$1")" || true; } | tail -1 | tr ' ' '\n' | sed -n "s/^$3=//p"
 }
 # expect_log LAUNCH TEXT: TEXT appears in that launch's log.
 expect_log() {
   if grep -aq "$2" "$(log "$1")"; then echo "launch $1: log has '$2'"
   else echo "  FAIL launch $1 log lacks '$2'"; fails=$((fails + 1)); fi
 }
-check() { if eval "$1"; then echo "check: $2"; else echo "  FAIL $2"; fails=$((fails + 1)); fi; }
+# check_range LABEL VALUE MIN MAX: MIN < VALUE < MAX for an integer VALUE (no eval).
+check_range() {
+  if [[ "$2" =~ ^[0-9]+$ ]] && (( $2 > $3 && $2 < $4 )); then echo "check: $1 ($2)"
+  else echo "  FAIL $1 ($2 not in ($3, $4))"; fails=$((fails + 1)); fi
+}
 # The nugget the "drink" scenarios consume; creative give fills hotbar slot 0 first.
 give3() { ctl give iron_nugget 3 >/dev/null; }
 report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
@@ -143,13 +148,20 @@ case "$scenario" in
     expect 1 drink result=ok seq=1
     expect_log 1 "MISTBRN event=death_cleared"
     expect 2 report state=active reserve_iron=0 burn_iron=off unlocked_iron=true last_transaction=1 ;;
+  s5b)  # leaving from the death screen must not keep the reserves
+    launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
+    ctl command "kill @s" >/dev/null; ctl wait 20 >/dev/null; quit_game
+    launch; ctl respawn >/dev/null; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink result=ok seq=1
+    expect_log 2 "MISTBRN event=respawn_death_applied"
+    expect 3 report state=active reserve_iron=0 burn_iron=off unlocked_iron=true last_transaction=1 ;;
   s6)  # reconnect stops burns and keeps the (partly consumed) reserve
     launch MISTBRN_TEST_SCENARIO=burn; give3; ctl wait 60 >/dev/null; ctl save >/dev/null; quit_game
     report; quit_game
     expect 1 burn result=ok seq=1
     expect 2 report state=active burn_iron=off unlocked_iron=true last_transaction=1
-    r="$(field 2 report reserve_iron)"
-    check "[[ -n '$r' ]] && (( r > 0 && r < 25000 ))" "reserve consumed but not empty ($r)" ;;
+    check_range "reserve consumed but not empty" "$(field 2 report reserve_iron)" 0 25000 ;;
   s7)  # a dimension change keeps everything
     launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
     ctl command "execute in minecraft:the_nether run tp @s 0 100 0" >/dev/null; ctl wait 60 >/dev/null

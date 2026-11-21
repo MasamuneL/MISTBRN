@@ -101,13 +101,9 @@ impl Session {
             }
             Ok(Loaded::Blocked(blocked)) => Slot::Blocked(blocked),
         };
-        if let Slot::Blocked(blocked) = &slot {
-            eprintln!("MISTBRN event=save_blocked reason={}", blocked.reason());
-            tell(
-                host,
-                player,
-                "Alomancia: datos guardados ilegibles; no se modificarán.",
-            );
+        if let Slot::Blocked(blocked) = slot {
+            self.block(host, uuid, blocked);
+            return;
         }
         self.players.insert(uuid, slot);
         self.flush(host, player);
@@ -133,8 +129,12 @@ impl Session {
                 *urgent = false;
                 *since_write = 0;
             }
-            // Stale or dead player: keep it dirty and retry on a later tick.
-            Err(error) => eprintln!("MISTBRN event=save_write_failed error={error}"),
+            // Stale or dead player: keep it dirty and retry after a full interval.
+            Err(error) => {
+                *urgent = false;
+                *since_write = 0;
+                eprintln!("MISTBRN event=save_write_failed error={error}");
+            }
         }
     }
 
@@ -175,9 +175,31 @@ impl Session {
         }
     }
 
-    /// Stops all writes for this player for the rest of the session.
-    pub(crate) fn block(&mut self, uuid: u128, reason: Blocked) {
+    /// Respawn after a death (`player_clone` with `was_death`). The dying player usually cannot be
+    /// written (`Dead`), and a player who leaves from the death screen takes no write with them,
+    /// so the death is applied here, on the new player, from whatever save it carried over
+    /// (`PlayerPersisted` survives the respawn). `on_death` is idempotent in state.
+    pub(crate) fn respawned_after_death(&mut self, host: &mut dyn ServerHost, uuid: u128) {
+        let Some(player) = host.player(uuid) else {
+            return;
+        };
+        self.ensure_loaded(host, player);
+        if self.change(uuid, true, on_death).is_ok() {
+            eprintln!("MISTBRN event=respawn_death_applied");
+            self.flush(host, player);
+        }
+    }
+
+    /// Stops all writes for this player for the rest of the session and tells them.
+    pub(crate) fn block(&mut self, host: &mut dyn ServerHost, uuid: u128, reason: Blocked) {
         eprintln!("MISTBRN event=save_blocked reason={}", reason.reason());
+        if let Some(player) = host.player(uuid) {
+            tell(
+                host,
+                player,
+                "Alomancia: datos guardados ilegibles; no se modificarán.",
+            );
+        }
         self.players.insert(uuid, Slot::Blocked(reason));
     }
 
@@ -203,6 +225,11 @@ impl Session {
         fail_inside: bool,
     ) -> Result<TransactionSeq, String> {
         let uuid = player.uuid();
+        // Only an outermost transaction makes its writes final; inside another one, an outer
+        // abort could undo the game's writes after the core committed.
+        if host.transaction_current().is_some() {
+            return Err("nested_transaction".into());
+        }
         let Some(Slot::Active {
             saved,
             dirty,
@@ -241,7 +268,7 @@ impl Session {
             Err(error) => {
                 // The game already holds the candidate: writing the older in-memory state would
                 // erase the credit (docs/persistence.md). Stop writing this player instead.
-                self.block(uuid, Blocked::Decode(error));
+                self.block(host, uuid, Blocked::Decode(error));
                 Err(format!("commit_after_host:{error:?}"))
             }
         }
@@ -249,9 +276,12 @@ impl Session {
 
     pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, epoch: u64, tick: u64) {
         if self.epoch != Some(epoch) {
-            // A new world open: in-memory state never crosses world opens.
+            // A new world open: in-memory state never crosses world opens. The first epoch of
+            // the process keeps players loaded at login, which belong to this world.
+            if self.epoch.is_some() {
+                self.players.clear();
+            }
             self.epoch = Some(epoch);
-            self.players.clear();
             self.reports = 0;
         }
         let mut online = host.players().server_players();

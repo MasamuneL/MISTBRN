@@ -9,8 +9,8 @@ mod save;
 mod scenario;
 
 use mod_api::{
-    self, Authority as HostAuthority, Hooks, PlayerDiedEvent, PlayerLoggedInEvent,
-    PlayerLoggedOutEvent, ServerHost, ServerTickEvent, ServerTickPhase,
+    self, Authority as HostAuthority, Hooks, PlayerCloneEvent, PlayerDiedEvent,
+    PlayerLoggedInEvent, PlayerLoggedOutEvent, ServerHost, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -65,6 +65,12 @@ impl Hooks for Allomancy {
 
     fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
         self.session().died(host, event.player);
+    }
+
+    fn player_clone(&self, host: &mut dyn ServerHost, event: &mut PlayerCloneEvent<'_>) {
+        if event.was_death {
+            self.session().respawned_after_death(host, event.player);
+        }
     }
 }
 

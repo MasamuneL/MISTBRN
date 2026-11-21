@@ -129,3 +129,64 @@ pub(crate) fn write(
     let bytes = encode_save(saved).map_err(|error| format!("encode:{error:?}"))?;
     write_bytes(host, player, bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The compound's key type, whatever the SDK names it.
+    type K = <Compound as KeyType>::Key;
+    trait KeyType {
+        type Key;
+    }
+    impl<K, V> KeyType for std::collections::BTreeMap<K, V> {
+        type Key = K;
+    }
+
+    // Catches a write that drops other mods' keys or the rest of PlayerPersisted.
+    #[test]
+    fn writing_keeps_every_other_key() {
+        let mut persisted = Compound::new();
+        persisted.insert(K::from("other_mod"), Tag::Int(7));
+        let mut data = Compound::new();
+        data.insert(K::from("Foreign"), Tag::Byte(1));
+        data.insert(K::from(PLAYER_PERSISTED), Tag::Compound(persisted));
+        let next = with_save_bytes(data, vec![1, 2]).expect("compound PlayerPersisted");
+        assert_eq!(next.get(&K::from("Foreign")), Some(&Tag::Byte(1)));
+        let Some(Tag::Compound(sub)) = next.get(&K::from(PLAYER_PERSISTED)) else {
+            panic!("PlayerPersisted kept as a compound");
+        };
+        assert_eq!(sub.get(&K::from("other_mod")), Some(&Tag::Int(7)));
+        assert_eq!(
+            sub.get(&K::from(SAVE_KEY)),
+            Some(&Tag::ByteArray(vec![1, 2]))
+        );
+    }
+
+    #[test]
+    fn writing_creates_player_persisted_when_absent() {
+        let next = with_save_bytes(Compound::new(), vec![9]).expect("absent is fine");
+        let Some(Tag::Compound(sub)) = next.get(&K::from(PLAYER_PERSISTED)) else {
+            panic!("created");
+        };
+        assert_eq!(sub.get(&K::from(SAVE_KEY)), Some(&Tag::ByteArray(vec![9])));
+    }
+
+    // Catches overwriting a PlayerPersisted of the wrong type (someone else's data).
+    #[test]
+    fn writing_refuses_a_non_compound_player_persisted() {
+        let mut data = Compound::new();
+        data.insert(K::from(PLAYER_PERSISTED), Tag::Int(3));
+        assert!(with_save_bytes(data, vec![1]).is_none());
+    }
+
+    #[test]
+    fn block_reasons_are_stable_for_logs_and_tests() {
+        assert_eq!(Blocked::RootNotCompound.reason(), "root_not_compound");
+        assert_eq!(Blocked::Decode(SaveError::ChecksumMismatch).reason(), "crc");
+        assert_eq!(
+            Blocked::Decode(SaveError::UnsupportedVersion(2)).reason(),
+            "unsupported_version:2"
+        );
+    }
+}

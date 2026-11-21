@@ -104,12 +104,16 @@ def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     path, key, value = sys.argv[1], sys.argv[2].encode(), int(sys.argv[3])
+    if not -(2**31) <= value < 2**31:
+        sys.exit("VALUE must fit a signed 32-bit Int")
     with gzip.open(path, "rb") as f:
         reader = Reader(f.read())
     root_kind, root_name = reader.unpack("b"), reader.name()
     if root_kind != COMPOUND:
         sys.exit("root is not a compound")
     root = reader.payload(COMPOUND)
+    if reader.pos != len(reader.data):
+        sys.exit(f"{len(reader.data) - reader.pos} trailing bytes after the root compound")
     before = [entry for entry in root if entry[1] == key]
     root = [entry for entry in root if entry[1] != key] + [(INT, key, value)]
     out = bytearray(struct.pack(">bH", COMPOUND, len(root_name)) + root_name)
