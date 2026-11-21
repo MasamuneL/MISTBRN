@@ -92,10 +92,7 @@ fn every_truncation_is_rejected() {
     for len in 0..bytes.len() {
         let result = decode(&bytes[..len]);
         assert!(
-            matches!(
-                result,
-                Err(SaveError::Truncated | SaveError::BadMagic | SaveError::LengthMismatch)
-            ),
+            matches!(result, Err(SaveError::Truncated | SaveError::BadMagic)),
             "len {len}: {result:?}"
         );
     }
@@ -375,6 +372,64 @@ fn rejected_updates_and_rule_changes_leave_the_save_untouched() {
     smaller.base_capacity_milli = [1; 8];
     assert!(replace_rules(&mut saved, smaller).is_err());
     assert_eq!(saved, before);
+}
+
+/// Rewrites the payload (bytes after the 10-byte header, before the CRC) and re-seals it with a
+/// consistent declared length, so only the field-level decoding is under test.
+fn with_payload(bytes: &[u8], edit: impl FnOnce(&mut Vec<u8>)) -> Vec<u8> {
+    let mut payload = bytes[10..bytes.len() - 4].to_vec();
+    edit(&mut payload);
+    let mut out = bytes[..6].to_vec();
+    out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+    out.extend_from_slice(&payload);
+    out.extend_from_slice(&[0; 4]);
+    reseal(out)
+}
+
+// Catches field decoding that ignores leftover payload or reads past it.
+#[test]
+fn payload_longer_or_shorter_than_its_fields_is_rejected() {
+    let bytes = encode_save(&rich()).unwrap();
+    assert_eq!(
+        decode(&with_payload(&bytes, |p| p.push(0))),
+        Err(SaveError::LengthMismatch)
+    );
+    assert_eq!(
+        decode(&with_payload(&bytes, |p| {
+            p.pop();
+        })),
+        Err(SaveError::Truncated)
+    );
+}
+
+// Catches lossy identity decoding (invalid UTF-8 or control characters accepted).
+#[test]
+fn malformed_identity_bytes_are_rejected_on_decode() {
+    let bytes = encode_save(&fresh()).unwrap();
+    // Player id text starts after its 2-byte length.
+    let bad_utf8 = with_payload(&bytes, |p| p[2] = 0xFF);
+    assert_eq!(decode(&bad_utf8), Err(SaveError::InvalidIdentity));
+    let control = with_payload(&bytes, |p| p[2] = b'\n');
+    assert_eq!(decode(&control), Err(SaveError::InvalidIdentity));
+}
+
+// Catches committing one player's preparation into another player's save.
+#[test]
+fn a_preparation_for_another_identity_is_stale() {
+    let mine = fresh();
+    let mut other = SavedPlayer::new(
+        PlayerId::new("ffffffffffffffffffffffffffffffff"),
+        world(),
+        rules(),
+    )
+    .unwrap();
+    let prepared = prepare_credit(&mine, Metal::Iron, 1).unwrap();
+    let before = other.clone();
+    assert_eq!(
+        commit_credit(&mut other, prepared),
+        Err(SaveError::StalePreparation)
+    );
+    assert_eq!(other, before);
 }
 
 // Fixture for future migrations (P5 adds schema 2 and must load this file).
