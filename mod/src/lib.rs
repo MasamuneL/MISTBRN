@@ -5,12 +5,14 @@
 #![deny(unsafe_code)]
 
 mod bridge;
+mod save;
 mod scenario;
 
 use mod_api::{
-    self, Authority as HostAuthority, Hooks, ServerHost, ServerTickEvent, ServerTickPhase,
+    self, Authority as HostAuthority, Hooks, PlayerDiedEvent, PlayerLoggedInEvent,
+    PlayerLoggedOutEvent, ServerHost, ServerTickEvent, ServerTickPhase,
 };
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 pub(crate) const MOD_VERSION: &str = "0.2.0";
 
@@ -45,9 +47,29 @@ impl Hooks for Allomancy {
             return;
         }
         // A panic in an earlier tick must not silently stop every later one: keep the data.
-        let mut session = self.session.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut session = self.session();
         session.tick(host, event.context.epoch.get(), event.context.tick.get());
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
-        runner.tick(host);
+        runner.tick(host, &mut session);
+    }
+
+    fn player_logged_in(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedInEvent<'_>) {
+        if let Some(player) = host.player(event.player) {
+            self.session().ensure_loaded(host, player);
+        }
+    }
+
+    fn player_logged_out(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedOutEvent<'_>) {
+        self.session().logged_out(host, event.player);
+    }
+
+    fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
+        self.session().died(host, event.player);
+    }
+}
+
+impl Allomancy {
+    fn session(&self) -> MutexGuard<'_, bridge::Session> {
+        self.session.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
