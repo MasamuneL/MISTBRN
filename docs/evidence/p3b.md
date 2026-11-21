@@ -24,7 +24,7 @@ El pin expone lo necesario sin fork: `minecraft:equippable` y `minecraft:attribu
 | C2, C2b | `p3b6-c2`, `p3b6-c2b` | Regresión de beber en ambas manos | PASS |
 | C3, C4 | `p3b6-c3`, `p3b6-c4` | Cortes antes y después de guardar | PASS |
 | C5 | `p3b6-c5` | Fallo inyectado revierte inventario y guardado | PASS |
-| S9 | `p3b6-s9` | Guardado ilegible bloquea con la clave `message.mistbrn.save_blocked` | PASS |
+| S9 | `p3b6-s9` | Guardado con CRC roto bloquea al jugador y los bytes siguen intactos. El mensaje con la clave `message.mistbrn.save_blocked` no se comprueba en esta corrida | PASS |
 
 10/10 en el build final. Builds anteriores (`p3b-1` … `p3b-5`) encontraron el choque de recetas, el formato real del error de capacidad (`InvalidReserves(CapacityExceeded(Iron))`) y el pendiente flotando sobre la cabeza; sus corridas se descartaron.
 

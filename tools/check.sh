@@ -42,10 +42,18 @@ for definition in "$data"/horizon/item/*.json; do
 done
 
 # Every item that names a mod equipment asset has that asset file.
-while IFS= read -r asset; do
-  [[ -z "$asset" || -f "$assets/equipment/${asset#mistbrn:}.json" ]] || die "missing equipment asset $asset"
-done < <(jq -r '.components["minecraft:equippable"].asset_id? // empty | select(startswith("mistbrn:"))' \
-  "$data"/horizon/item/*.json; echo)
+for definition in "$data"/horizon/item/*.json; do
+  asset="$(jq -er '.components["minecraft:equippable"].asset_id? // "" |
+    if type == "string" then . else error("asset_id must be a string") end' "$definition")" ||
+    die "invalid equipment asset_id in $definition"
+  case "$asset" in
+    "" | minecraft:*) ;;
+    mistbrn:*)
+      [[ "$asset" =~ ^mistbrn:[a-z0-9_]+$ ]] || die "malformed equipment asset $asset in $definition"
+      [[ -f "$assets/equipment/${asset#mistbrn:}.json" ]] || die "missing equipment asset $asset" ;;
+    *) die "equipment asset $asset outside mistbrn/minecraft in $definition" ;;
+  esac
+done
 
 for equipment in "$assets"/equipment/*.json; do
   [[ -f "$equipment" ]] || continue

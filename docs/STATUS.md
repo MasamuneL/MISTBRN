@@ -17,6 +17,8 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## Reanudación
 
+Estado previsto tras integrar la PR #7 (escrito en la propia PR).
+
 - Rama activa: ninguna tras integrar la PR #7 (`feat/p3b-accessories`); `main` incluye P0b, P2, P3a y P3b.
 - Fase y paso: P3 cerrada (P3a y P3b); P4 sin empezar.
 - Operación en curso: ninguna. No hay juego ni build activo.

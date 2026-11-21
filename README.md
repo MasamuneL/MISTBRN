@@ -9,7 +9,7 @@ MISTBRN lleva la alomancia a [Horizon](https://playhorizon.dev). Es un mod nativ
 P3a incorpora **25 ítems y 25 recetas**, con texturas originales, nombres en español e inglés y la pestaña creativa **Alomancia**. Puedes empezar en un mundo existente.
 
 1. Mina cobre para encontrar muestras de estaño y hierro para encontrar zinc. Algunos cofres de estructuras que sigan cerrados también pueden contener un vial.
-2. Coloca dos bloques de vidrio en vertical para fabricar dos viales vacíos. Muele un lingote contra piedra (adoquín, pizarra profunda o piedra negra) para obtener dos virutas y combina una viruta con un vial vacío. El hierro y el cobre usan lingotes del juego base.
+2. Coloca dos bloques de vidrio en vertical para fabricar dos viales vacíos. Muele un lingote contra piedra (adoquín, pizarra profunda adoquinada o piedra negra) para obtener dos virutas y combina una viruta con un vial vacío. El hierro y el cobre usan lingotes del juego base.
 3. Mantén pulsado el botón de uso durante 32 ticks en supervivencia o aventura. Si hay capacidad, beber añade **25 000 milésimas** a la reserva del metal y devuelve el envase. El servidor guarda los cambios de inventario y reserva en una misma transacción.
 
 La fase actual permite probar el ciclo de obtención, fabricación, consumo y guardado. P4 incorporará los primeros poderes alománticos. P3a se verificó en **macOS arm64** con 24 corridas nativas aprobadas. Windows x64 y Linux x64 son objetivos de publicación con verificación pendiente. [Evidencia de P3a](docs/evidence/p3.md) · [Compatibilidad](docs/compatibility.md)
