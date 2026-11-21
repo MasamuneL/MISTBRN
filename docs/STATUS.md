@@ -4,22 +4,21 @@ Actualizado: 2026-11-21.
 
 - Plan vigente: `docs/plan.md`. Legacy congelado: rama `legacy/windows-fdc87ae` (`930b96d`).
 - Pin: Horizon `0a875da91dbb0fdcb7ba8c42c11341aa229af51a` (`nightly-2026-11-20-0a875da`), Rust 1.99.1.
-- Rama activa: `feat/p0b-repin`; base `main` `24b4b2c`.
-- Fase: **P0b** — verificada (G1–G8 PASS en `c35d891`, `docs/evidence/p0b.md`); revisión ronda 1 changes requested (B1, B2) corregida; ronda 2 **approved**. Merge a `main` en curso. P2-core implementado en `feat/p2-core` (`a6fe3b8`, 16 + 17 pruebas); P2-native en curso en `feat/p2-native` (worktree `MISTBRN-dev/wt-p2-core`).
+- Rama activa: ninguna; `main` incluye P0b y P2.
+- Fase: **P2** cerrado — P2-core (PR #3) y P2-native (PR #4: revisión ronda 2 approve; S1–S11 + S5b PASS en `70308f9`, `docs/evidence/p2.md`).
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build instalado `native-0a875da-e93082d7c828`.
+- Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build instalado `native-0a875da-482083add929`.
 
 ## Siguiente acción exacta
 
-1. Push de `feat/p0b-repin`, PR a `main`, revisión independiente (Herdr `hc run`, modelo opus), merge con `--match-head-commit`.
-2. Rama `feat/p2-core` desde el merge: portar `reserves` (legacy sin serde) y nuevo `persistence` (codec MBRN v1, `TransactionSeq`), pruebas `--test reserves` y `--test persistence`.
+1. P3 (contenido) en `feat/p3-content` desde `main`: metales, viales vacío/lleno, recetas, fuentes de muestra, assets originales, `es_es`/`en_us`; beber vial con `Session::credit_from_slot` (sustituye la pepita de prueba). Antes: comprobar en `surface.json` los hooks de uso de item.
+2. Pendiente menor de la revisión P2 (R3): doble carga al abrir un segundo mundo en el mismo proceso (inocua); cerrar en P3.
 
 ## Gates abiertos
 
 | Gate | Estado |
 |---|---|
-| P0b G1–G8 | PASS (macOS arm64) |
-| P0b revisión | pendiente |
-| P2-core | no iniciado |
-| P2-native S1–S10 | no iniciado |
+| P0b | mergeado (PR #2) |
+| P2-core | mergeado (PR #3) |
+| P2-native | mergeado (PR #4) |
 | Windows x64 / Linux x64 | P10 |

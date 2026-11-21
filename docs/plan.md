@@ -82,7 +82,7 @@ docs/{design.md,plan.md,contracts.md,compatibility.md,STATUS.md,history.md,evide
 |---|---|
 | G1 build | `build-native.sh` exit 0; log contiene compilación de `mistbrn`; SHA256 del ejecutable registrado |
 | G2 carga | Log del juego contiene `MISTBRN event=loaded version=0.2.0` |
-| G3 tick | ≥ 3 líneas `MISTBRN event=player_tick` por lanzamiento (en P0b con `accepted=true tick_recorded=true`), comprobado por `native-test.sh` |
+| G3 tick | ≥ 3 líneas `MISTBRN event=player_tick` por lanzamiento, comprobado por `native-test.sh` (en P0b `accepted=true tick_recorded=true`; desde P2-native `state=active` o `state=blocked`) |
 | G4 aislamiento | `runs/<run>/saves/` contiene exactamente `mistbrn-<escenario>` (comprobado por `native-test.sh`), y la home propia de Horizon (`horizon-launcher --json instance list`, instancia `horizon`) no gana carpetas de mundos (comprobado a mano antes/después y anotado en la evidencia) |
 | G5 persistent_data | Escenario `pd-roundtrip`: escribe `NeoForgeData.PlayerPersisted.mistbrn_probe = ByteArray[1,2,3]`, `quit`, relanzar, lee mismo valor |
 | G6 journal | Escenario `tx-abort`: dentro de `host.transaction`, quita 1 `minecraft:iron_nugget` del slot 0 y escribe persistent_data, y lee ambos (`inside_count=2 inside_pd=1`); devuelve `Err`; tras el cierre inventario y persistent_data idénticos a antes |
@@ -136,7 +136,7 @@ Reglas de lectura/escritura en `mod/src/save.rs`:
 - Ausencia real de `mistbrn` → `SavedPlayer::new` y escritura inicial.
 - Toda mutación económica = `host.transaction { modificar inventario (si aplica) + set_persistent_data }`; `Err` en cualquier paso aborta ambos; el estado en memoria se actualiza solo tras `Ok` del commit.
 - Consumo por ticks: `elapsed = 1` por cada `ServerTickEnd{world_running:true}`; no se cobra tiempo offline ni pausado. Estado sucio se persiste cada 20 ticks, al agotarse un metal, en muerte y tras cada transacción. En `player_logged_out` se intenta escribir solo si el handle del jugador sigue resolviendo (al cerrar el servidor sí; en una desconexión normal el jugador ya salió de la lista). Pérdida máxima ante corte o desconexión: 20 ticks de consumo (a favor del jugador).
-- Muerte: en `player_died` → `on_death` en memoria e intento de escritura inmediato; si el juego la rechaza (`Dead`), queda pendiente y se escribe al jugador reaparecido en el siguiente tick. Reconexión: en `player_logged_in` (o en el primer tick con el jugador presente) → leer, `on_reconnect`, escribir. Un corte entre la muerte y esa escritura puede dejar las reservas anteriores a la muerte (a favor del jugador; documentado).
+- Muerte: en `player_died` → `on_death` en memoria e intento de escritura (el juego suele rechazarla con `Dead`; se reintenta cada 20 ticks). La garantía la da `player_clone` con `was_death`: al reaparecer, también tras salir desde la pantalla de muerte o reiniciar el servidor, se carga el guardado que `PlayerPersisted` trajo, se aplica `on_death` (idempotente) y se escribe en el jugador nuevo. Reconexión: en `player_logged_in` (o en el primer tick con el jugador presente) → leer, `on_reconnect`, escribir. Un corte del proceso entre la muerte y esa escritura devuelve al jugador al último guardado del juego: posterior a la muerte → reaparece muerto y se reaplica; anterior → todo el jugador, inventario y reservas, vuelve a ese momento.
 
 ### Escenarios nativos (via `tools/native-test.sh`; cada uno en mundo nuevo)
 Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO=drink`, en el primer tick con el jugador cargado y una `minecraft:iron_nugget` en el slot 0, desbloquear hierro y acreditar 25 000 milli de hierro por esa pepita en una transacción (sustituto del vial de P3, solo en escenarios). `MISTBRN_TEST_SCENARIO=report` registra el estado cargado, las pepitas y un hash de los bytes guardados. Invariante comprobada en todos: `pepitas × 25 000 + reserva_hierro` constante salvo consumo por quema, y `revision`/`last_transaction` coherentes con ella.
@@ -148,14 +148,15 @@ Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO=drink`, en el primer ti
 | S3 corte antes de guardar | lanzamiento 1: give 3, `save`, `quit` (estado A en disco); lanzamiento 2: beber y `kill -9` < 30 s tras abrir (antes del autosave de 6000 ticks); lanzamiento 3: report | estado A completo: 3 pepitas, reserva 0, last_transaction 0 (nunca mezcla) |
 | S4 corte después de guardar | como S3 pero `save` antes del `kill -9` | estado nuevo completo: 2 pepitas, 25 000, last_transaction 1 |
 | S5 muerte | beber, `command kill @s`, `respawn` | reserva 0, metales desbloqueados intactos, last_transaction 1 |
+| S5b salir muerto | beber, `kill @s`, `quit` sin reaparecer; relanzar, `respawn`, `save`, `quit`; report | `event=respawn_death_applied`; reserva 0, desbloqueos intactos, last_transaction 1 |
 | S6 reconexión | escenario fija hierro Burning, `quit`, relanzar | combustión Off, reserva y resto conservados |
 | S7 dimensión | beber, `command execute in minecraft:the_nether run tp @s 0 100 0` | datos idénticos |
 | S8 agotamiento | crédito 1 000, Burning, esperar 100 ticks (`wait 100`) | reserva 0, Off, `event=exhausted metal=iron` |
 | S9 corrupto | escenario escribe `mistbrn` con CRC inválido, `quit`, relanzar, `save`, `quit` | `save_blocked reason=crc`; bytes idénticos tras el segundo guardado |
 | S10 esquema futuro | igual con `schema=2` | `save_blocked reason=unsupported_version:2`; bytes intactos |
-| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | resultado registrado: `state=blocked reason=root_not_compound` (guarda efectiva) o `state=active` (el juego normaliza: límite aceptado, ver regla de raíz) |
+| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` (Python 3, solo biblioteca estándar, versionado, < 8 KiB; única dependencia de pruebas fuera de bash/jq) reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | `state=blocked reason=root_not_compound` para el UUID que `report` registró (el fichero editado es exactamente `players/data/<uuid>.dat` de ese jugador) |
 
-S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 PASS, S11 ejecutado con su resultado documentado, G8 y revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
+S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 y S5b PASS, S11 ejecutado con su resultado documentado, G8 y revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
 
 ---
 

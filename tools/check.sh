@@ -25,7 +25,7 @@ export CARGO_TARGET_DIR
 # drop the copy: the mod has no registry dependencies of its own and versions no lock.
 cp mod/.horizon/sdk/api/Cargo.lock mod/Cargo.lock
 trap 'rm -f "$REPO_ROOT/mod/Cargo.lock"' EXIT
-( cd mod && cargo fmt -- --check && cargo clippy --all-targets -- -D warnings )
+( cd mod && cargo fmt -- --check && cargo clippy --all-targets -- -D warnings && cargo test )
 
 echo "== repository weight (tracked + staged files)"
 files="$(git ls-files --cached)"

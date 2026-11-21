@@ -9,6 +9,7 @@ source "$(dirname "$0")/lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
+[[ "$scenario" == s11 ]] && require python3
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
 [[ ! -e "$dir" ]] || die "run $run exists: $dir"
@@ -29,7 +30,7 @@ lib="$(find "$V" \( -name 'libmistbrn.dylib' -o -name 'libmistbrn.so' -o -name '
 {
   echo "run=$run scenario=$scenario build=$build world=$world"
   echo "mod_library=${lib##*/} sha256=$( [[ -n "$lib" ]] && sha256 "$lib" || echo none)"
-  echo "git_head=$(git -C "$REPO_ROOT" rev-parse HEAD) git_dirty=$([[ -n "$(git -C "$REPO_ROOT" status --porcelain -- mod)" ]] && echo yes || echo no)"
+  echo "git_head=$(git -C "$REPO_ROOT" rev-parse HEAD) git_dirty=$([[ -n "$(git -C "$REPO_ROOT" status --porcelain -- mod tools)" ]] && echo yes || echo no)"
 } | tee "$dir/report.txt"
 # Unix socket paths are limited to ~104 bytes: keep the sockets in a short temp folder and copy
 # each launch's log (written beside its socket) into the run folder.
@@ -60,7 +61,7 @@ wait_exit() {
 }
 log() { echo "$dir/l$1.log"; }
 # G3 line the adapter prints for its first three ticks per world open.
-TICK_LINE="MISTBRN event=player_tick accepted=true tick_recorded=true"
+TICK_LINE="MISTBRN event=player_tick state="
 # check_load N: G2 (mod loaded) and G3 (three server ticks reached the core) for launch N.
 check_load() {
   local f; f="$(log "$1")"
@@ -77,29 +78,125 @@ check_isolation() {
   else echo "  FAIL isolation saves='$worlds'"; fails=$((fails + 1)); fi
 }
 fails=0
-# expect LAUNCH "key=value ..." : every pair must appear on this scenario's report line.
+# expect LAUNCH MOD_SCENARIO key=value... : every pair must appear on that scenario's report line.
 expect() {
-  local n="$1"; shift
-  local line; line="$(grep -a "MISTBRN_TEST scenario=$scenario " "$(log "$n")" | tail -1 || true)"
-  echo "launch $n: ${line:-<no report>}"
+  local n="$1" name="$2"; shift 2
+  local line; line="$(grep -a "MISTBRN_TEST scenario=$name " "$(log "$n")" | tail -1 || true)"
+  echo "launch $n: ${line:-<no $name report>}"
   for pair in "$@"; do
     if [[ " $line " != *" $pair "* ]]; then echo "  FAIL missing $pair"; fails=$((fails + 1)); fi
   done
 }
+# field LAUNCH MOD_SCENARIO KEY: the value of KEY on that report line (empty if absent).
+field() {
+  { grep -a "MISTBRN_TEST scenario=$2 " "$(log "$1")" || true; } | tail -1 | tr ' ' '\n' | sed -n "s/^$3=//p"
+}
+# expect_log LAUNCH TEXT: TEXT appears in that launch's log.
+expect_log() {
+  if grep -aq "$2" "$(log "$1")"; then echo "launch $1: log has '$2'"
+  else echo "  FAIL launch $1 log lacks '$2'"; fails=$((fails + 1)); fi
+}
+# check_range LABEL VALUE MIN MAX: MIN < VALUE < MAX for an integer VALUE (no eval).
+check_range() {
+  if [[ "$2" =~ ^[0-9]+$ ]] && (( $2 > $3 && $2 < $4 )); then echo "check: $1 ($2)"
+  else echo "  FAIL $1 ($2 not in ($3, $4))"; fails=$((fails + 1)); fi
+}
+# The nugget the "drink" scenarios consume; creative give fills hotbar slot 0 first.
+give3() { ctl give iron_nugget 3 >/dev/null; }
+report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
 
 case "$scenario" in
   pd-roundtrip)
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
-    expect 1 phase=write ok=true
-    expect 2 phase=read value=1,2,3 ;;
+    expect 1 pd-roundtrip phase=write ok=true
+    expect 2 pd-roundtrip phase=read value=1,2,3 ;;
   tx-abort)
-    launch; ctl give iron_nugget 3 >/dev/null; ctl wait 20 >/dev/null; quit_game
+    launch; give3; ctl wait 20 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=tx-abort; ctl wait 40 >/dev/null; quit_game
-    expect 2 result=deliberate_abort count_before=3 inside_count=2 inside_pd=1 count_after=3 pd_unchanged=true ;;
+    expect 2 tx-abort result=deliberate_abort count_before=3 inside_count=2 inside_pd=1 count_after=3 pd_unchanged=true ;;
   raw-root)
     launch MISTBRN_TEST_SCENARIO=raw-root; ctl wait 40 >/dev/null; quit_game
-    expect 1 raw_nbt=some ;;
+    expect 1 raw-root raw_nbt=some ;;
+  s1)  # round trip of one transactional credit
+    launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink result=ok seq=1
+    expect 2 report state=active reserve_iron=25000 unlocked_iron=true last_transaction=1 nuggets=2 ;;
+  s2)  # failure inside the transaction rolls back inventory and save together
+    launch MISTBRN_TEST_SCENARIO=drink-fail; give3; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink-fail result=err:injected_failure reserve_iron=0 last_transaction=0 nuggets=3
+    expect 2 report state=active reserve_iron=0 last_transaction=0 nuggets=3 ;;
+  s3)  # hard cut after the credit, before any save: the old state, whole
+    launch; give3; ctl wait 20 >/dev/null; ctl save >/dev/null; quit_game
+    launch MISTBRN_TEST_SCENARIO=drink; ctl wait 40 >/dev/null; kill_game
+    report; quit_game
+    expect 2 drink result=ok seq=1
+    expect 3 report state=active reserve_iron=0 last_transaction=0 nuggets=3 ;;
+  s4)  # hard cut after a save: the new state, whole
+    launch; give3; ctl wait 20 >/dev/null; ctl save >/dev/null; quit_game
+    launch MISTBRN_TEST_SCENARIO=drink; ctl wait 40 >/dev/null; ctl save >/dev/null; kill_game
+    report; quit_game
+    expect 2 drink result=ok seq=1
+    expect 3 report state=active reserve_iron=25000 last_transaction=1 nuggets=2 ;;
+  s5)  # death clears reserves, keeps unlocks and the transaction counter
+    launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
+    ctl command "kill @s" >/dev/null; ctl wait 20 >/dev/null; ctl respawn >/dev/null; ctl wait 40 >/dev/null
+    ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink result=ok seq=1
+    expect_log 1 "MISTBRN event=death_cleared"
+    expect 2 report state=active reserve_iron=0 burn_iron=off unlocked_iron=true last_transaction=1 ;;
+  s5b)  # leaving from the death screen must not keep the reserves
+    launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
+    ctl command "kill @s" >/dev/null; ctl wait 20 >/dev/null; quit_game
+    launch; ctl respawn >/dev/null; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink result=ok seq=1
+    expect_log 2 "MISTBRN event=respawn_death_applied"
+    expect 3 report state=active reserve_iron=0 burn_iron=off unlocked_iron=true last_transaction=1 ;;
+  s6)  # reconnect stops burns and keeps the (partly consumed) reserve
+    launch MISTBRN_TEST_SCENARIO=burn; give3; ctl wait 60 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 burn result=ok seq=1
+    expect 2 report state=active burn_iron=off unlocked_iron=true last_transaction=1
+    check_range "reserve consumed but not empty" "$(field 2 report reserve_iron)" 0 25000 ;;
+  s7)  # a dimension change keeps everything
+    launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
+    ctl command "execute in minecraft:the_nether run tp @s 0 100 0" >/dev/null; ctl wait 60 >/dev/null
+    ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 drink result=ok seq=1
+    expect 2 report state=active reserve_iron=25000 last_transaction=1 dimension=minecraft:the_nether ;;
+  s8)  # burning to exhaustion turns the metal off and empties it exactly
+    launch MISTBRN_TEST_SCENARIO=burn-small; give3; ctl wait 160 >/dev/null; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 burn-small result=ok seq=1 reserve_iron=1000
+    expect_log 1 "MISTBRN event=exhausted metal=iron"
+    expect 2 report state=active reserve_iron=0 burn_iron=off remainder_iron=0 last_transaction=1 ;;
+  s9|s10)  # an unreadable save blocks the player and is never overwritten
+    plant=corrupt-crc; reason=crc
+    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:2; }
+    launch MISTBRN_TEST_SCENARIO=$plant; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
+    report; ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 1 $plant written=true
+    h="$(field 1 $plant raw_hash)"
+    expect_log 2 "MISTBRN event=save_blocked reason=$reason"
+    expect 2 report state=blocked reason=$reason raw_hash=$h
+    expect 3 report state=blocked reason=$reason raw_hash=$h ;;
+  s11)  # a non-compound NeoForgeData root on disk (edited with the game closed)
+    report; ctl save >/dev/null; quit_game
+    # Edit exactly the controlled player's file: a world can hold other player files.
+    uuid="$(field 1 report uuid)"
+    file="$dir/saves/$world/players/data/$uuid.dat"
+    [[ -n "$uuid" && -f "$file" ]] || die "player file for uuid '$uuid' not found in $world"
+    python3 "$REPO_ROOT/tools/nbt-poke.py" "$file" NeoForgeData 7 | tee -a "$dir/report.txt"
+    report; quit_game
+    state="$(field 2 report state)"; why="$(field 2 report reason)"
+    echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
+    expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

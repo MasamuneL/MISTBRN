@@ -33,12 +33,13 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 | Aislamiento de pruebas | `horizon-ctl launch` con cwd por corrida | Saves, logs y cachés en la carpeta de la corrida; instancia propia de Horizon intacta |
 | `persistent_data` entre procesos | `pd-roundtrip` | `PlayerPersisted.mistbrn_probe` escrito, juego cerrado, leído igual tras relanzar |
 | Journal de transacción | `tx-abort` | Inventario (slot 0) y `persistent_data` escritos dentro de `host.transaction` y restaurados al abortar |
-| NBT crudo del jugador | `raw-root` | `player.entity().nbt()` incluye `NeoForgeData` (compound) en el caso sano. **No probado** que una raíz corrupta sea visible: `nbt()` serializa el estado en memoria; lo decide S11 en P2-native |
+| NBT crudo del jugador | `raw-root`, S11 | `player.entity().nbt()` incluye `NeoForgeData` (caso sano) y también una raíz corrupta escrita en el `.dat` con el juego cerrado (S11: `Int` visible): la guarda del adaptador la detecta y bloquea |
+| Guardado transaccional | S1–S10 (`docs/evidence/p2.md`) | Inventario + `PlayerPersisted.mistbrn` en una `host.transaction`; cortes `kill -9` dan estado viejo o nuevo completo; datos ilegibles bloquean sin sobrescribir |
 | Jugador sin cuenta | `horizon-ctl launch --game` | Juega offline con nombre generado; no usa la cuenta Microsoft |
 
 ## Límites conocidos
 
-- `player.persistent_data()` convierte un `NeoForgeData` no-compound en vacío y `set_persistent_data` lo sobrescribe (fuente `native_player_persistent_data.rs`). P2 lee primero `entity().nbt()` y bloquea al jugador si la raíz no es compound; si esa lectura detecta de verdad una raíz corrupta está pendiente de S11.
+- `player.persistent_data()` convierte un `NeoForgeData` no-compound en vacío y `set_persistent_data` lo sobrescribe (fuente `native_player_persistent_data.rs`). El adaptador lee primero `entity().nbt()`, que sí muestra una raíz corrupta (S11), y bloquea al jugador sin escribir.
 - En muerte y en la primera salida del End solo sobrevive `NeoForgeData.PlayerPersisted`.
 - `tools/fetch-sdk.sh` verifica SHA256 contra `SHA256SUMS` y el de `api-source.tar.xz` contra un valor fijado en `tools/lib.sh`; la firma de la release la verifica el launcher al compilar.
 - El empaquetado nativo solo admite `Cargo.toml`/`Cargo.lock` raíz, `build.rs` y `src/**` como fuentes (`horizon-mod-package/src/manifest.rs::source_file`); por eso el núcleo vive en `mod/src/core/`.
