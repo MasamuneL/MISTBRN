@@ -1,42 +1,45 @@
 # Evidencia P0b — re-pin a Horizon 0a875da (macOS arm64)
 
-Fecha: 2026-11-21. Commit probado: `60318a3df63dfcab1d41fb7eb0a6a25840d28a57` (`git_dirty=no` en el receipt).
+Fecha: 2026-11-21. Commit probado: `c35d89144dc9a94fd34dbdc58ab9fe5dba526654` (`git_dirty=no` en receipt y report). Primera pasada en `60318a3`; se repitió completa tras corregir la revisión.
 Equipo: macOS arm64 (Apple M3 Max), launcher 0.2.93, Rust del launcher 1.99.1. Instancia `mistbrn-dev` fijada a `nightly-2026-11-20-0a875da`.
 
 ## Build (G1)
 
-`tools/build-native.sh p0b-4` → exit 0, `native-0a875da-d0e4f2016bd4 built and selected for its instance` (20 s; el primer build, `p0b-3`, tardó 137 s porque descargó 186 MB de herramientas del SDK; `p0b-2` falló por timeout de esa descarga, sin relación con el código).
+`tools/build-native.sh p0b-5` → exit 0, `native-0a875da-e93082d7c828 built and selected for its instance`. Historial: `p0b-1` rechazado por layout (`unexpected package path: crates/allomancy-core/Cargo.toml`: el packager solo acepta `Cargo.toml`/`Cargo.lock` raíz, `build.rs` y `src/**`; el núcleo pasó a `mod/src/core/`); `p0b-2` falló por timeout de la descarga de 186 MB de herramientas del SDK (red, no código); `p0b-3`/`p0b-4` exit 0.
 
-| Artefacto | SHA256 |
+| Artefacto (p0b-5) | SHA256 |
 |---|---|
-| paquete `mistbrn` 0.2.0 (según `native-mods.json`) | `f70501eb50d171a4cf08168b1019671130c1a7916666c61ae42c3b66741cd2b2` |
-| `libmistbrn.dylib` | `f6d6a8f78b62288623e5825e04e9d306261b33a19adbb0185eb70a4b39d2e0fc` |
+| `libmistbrn.dylib` | `8218e4349655e1c2c6547f6136c94542debd9d1c43b8119cd378840c9571c382` |
 | `horizon-client` (SDK sin cambios) | `012bf6dbfecb095bfb27f9b84452105639501cc5444aca15517360cd90547935` |
-
-Hallazgo de empaquetado: el launcher solo acepta como fuentes `Cargo.toml`/`Cargo.lock` raíz, `build.rs` y `src/**` (`p0b-1`: `unexpected package path: crates/allomancy-core/Cargo.toml`). El núcleo se movió a `mod/src/core/`.
 
 ## Escenarios en juego
 
-Lanzados con `tools/native-test.sh <escenario> <escenario>-p0b4`; cada corrida usa su propia carpeta de juego bajo `~/Library/Application Support/MISTBRN-dev/runs/`.
+`tools/native-test.sh <escenario> <escenario>-p0b5`. Cada corrida usa `runs/<run>/` como carpeta de juego; `report.txt` registra build, SHA256 de la librería y commit. G2–G4 los comprueba el script en cada lanzamiento.
 
-| Gate | Corrida | Línea observada | Resultado |
+| Gate | Corrida | Observado | Resultado |
 |---|---|---|---|
-| G2 carga | pd-roundtrip-p0b4 l1 | `MISTBRN event=loaded version=0.2.0` | PASS |
-| G3 tick | pd-roundtrip-p0b4 l1 | 3 × `MISTBRN event=player_tick accepted=true tick_recorded=true` | PASS |
-| G4 aislamiento | todas | saves solo en `runs/<run>/saves/mistbrn-*`; la home propia de Horizon no tiene carpeta `saves` antes ni después | PASS |
-| G5 persistent_data | pd-roundtrip-p0b4 | l1 `phase=write ok=true`; l2 (tras `quit` y relanzar) `phase=read value=1,2,3` | PASS |
-| G6 journal | tx-abort-p0b4 | `result=deliberate_abort count_before=3 inside_count=2 count_after=3 pd_unchanged=true` | PASS |
-| G7 raíz cruda | raw-root-p0b4 | `raw_nbt=some has_neoforgedata=true type=compound` | PASS → **sí**: P2 valida la raíz con `entity().nbt()` |
-| G8 core | `tools/check.sh` | fmt, clippy `-D warnings` (núcleo y adaptador), 13 pruebas + 1 doctest, peso | PASS |
+| G2 carga | las 3 corridas, cada lanzamiento | `MISTBRN event=loaded version=0.2.0` | PASS |
+| G3 tick | las 3 corridas, cada lanzamiento | 3 × `MISTBRN event=player_tick accepted=true tick_recorded=true` | PASS |
+| G4 aislamiento | las 3 corridas | `runs/<run>/saves` = solo `mistbrn-<escenario>`; listado de la home propia de Horizon idéntico antes y después (`diff` vacío) | PASS |
+| G5 persistent_data | pd-roundtrip-p0b5 | l1 `phase=write ok=true`; l2 (tras `quit` y relanzar) `phase=read value=1,2,3` | PASS |
+| G6 journal | tx-abort-p0b5 | `result=deliberate_abort count_before=3 inside_count=2 inside_pd=1 count_after=3 pd_unchanged=true` | PASS |
+| G7 raíz visible | raw-root-p0b5 | `raw_nbt=some has_neoforgedata=true type=compound` | PASS (alcance abajo) |
+| G8 calidad | `tools/check.sh` | fmt, clippy `--all-targets -D warnings` núcleo y adaptador (con el lock del SDK), 13 pruebas + doctest `compile_fail,E0451`, peso | PASS |
 
-El juego corre offline con un nombre generado (`Player21872`): las pruebas no usan la cuenta Microsoft.
+**Alcance de G7:** prueba que `entity().nbt()` expone `NeoForgeData` en el caso sano. No prueba que una raíz corrupta sea visible: `nbt()` serializa el estado en memoria. Lo decide S11 en P2-native.
+
+El juego corre offline con un nombre generado: las pruebas no usan la cuenta Microsoft. El fichero del jugador está en `saves/<mundo>/players/data/<uuid>.dat` (gzip NBT, con `NeoForgeData` en la raíz).
 
 ## Peso del repositorio
 
-Árbol versionado tras P0b: 29 ficheros, ~99 KB (antes ~300 KB en `main`, 2.4 MB en la rama P2 legacy). `.git` empaquetado: 1.04 MiB (historia previa; no se reescribe).
+Árbol versionado en `c35d891`: 31 ficheros, 104 187 B (antes ~300 KB en `main` y 2.4 MB en la rama P2 legacy). `.git` empaquetado: 1.04 MiB (historia previa, no reescrita).
+
+## Revisión
+
+Revisión independiente (opus vía Herdr) sobre `218c455`: changes requested con B1 (alcance de G7) y B2 (plan desalineado). Ambos corregidos en `c35d891`, junto con los no bloqueantes 1–4, 6–12, 13 (sha fijado), 14–16, 18 y 19. Quedan para P10 los relativos a Windows, que están implementados pero sin probar (5, 10, 17).
 
 ## Límites
 
-- Solo macOS arm64. Windows x64 y Linux x64 quedan como gates de P10.
-- La firma `SHA256SUMS.sig` del SDK la verifica el launcher; `tools/fetch-sdk.sh` solo SHA256.
+- Solo macOS arm64. Windows x64 y Linux x64 son gates de P10.
+- La firma del SDK la verifica el launcher; los scripts verifican SHA256 (incluido un valor fijado para la fuente de la API).
 - G6 prueba el rollback en memoria del journal; la coherencia en disco ante cortes es P2 (S3/S4).
