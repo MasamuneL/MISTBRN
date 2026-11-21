@@ -1,0 +1,11 @@
+{
+  "template": "minecraft:stick",
+  "max_stack_size": 1,
+  "components": {
+    "minecraft:equippable": {
+      "slot": "chest",
+      "asset_id": "mistbrn:mistcloak",
+      "equip_sound": "minecraft:item.armor.equip_leather"
+    }
+  }
+}

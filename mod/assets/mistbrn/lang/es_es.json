@@ -1,10 +1,16 @@
 {
+  "item.mistbrn.boxing": "Boxing",
   "item.mistbrn.brass_flakes": "Virutas de latón",
   "item.mistbrn.brass_ingot": "Lingote de latón",
+  "item.mistbrn.bronze_earring": "Pendiente de bronce",
   "item.mistbrn.bronze_flakes": "Virutas de bronce",
   "item.mistbrn.bronze_ingot": "Lingote de bronce",
+  "item.mistbrn.clip": "Clip",
   "item.mistbrn.copper_flakes": "Virutas de cobre",
+  "item.mistbrn.dueling_cane": "Bastón de duelo",
+  "item.mistbrn.glass_dagger": "Daga de cristal",
   "item.mistbrn.iron_flakes": "Virutas de hierro",
+  "item.mistbrn.mistcloak": "Capa de bruma",
   "item.mistbrn.pewter_flakes": "Virutas de peltre",
   "item.mistbrn.pewter_ingot": "Lingote de peltre",
   "item.mistbrn.raw_tin": "Estaño en bruto",
@@ -24,5 +30,8 @@
   "item.mistbrn.vial_zinc": "Vial de zinc",
   "item.mistbrn.zinc_flakes": "Virutas de zinc",
   "item.mistbrn.zinc_ingot": "Lingote de zinc",
-  "itemGroup.mistbrn.allomancy": "Alomancia"
+  "itemGroup.mistbrn.allomancy": "Alomancia",
+  "message.mistbrn.save_blocked": "Alomancia: datos guardados ilegibles; no se modificarán.",
+  "message.mistbrn.vial.failed": "Alomancia: no se pudo beber el vial; no cambió nada.",
+  "message.mistbrn.vial.reserve_full": "Alomancia: esa reserva está llena; no se usó el vial."
 }

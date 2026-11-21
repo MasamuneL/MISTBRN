@@ -41,6 +41,14 @@ for definition in "$data"/horizon/item/*.json; do
   done
 done
 
+for equipment in "$assets"/equipment/*.json; do
+  [[ -f "$equipment" ]] || continue
+  while IFS= read -r texture; do
+    png="$assets/textures/entity/equipment/humanoid/${texture#mistbrn:}.png"
+    [[ "$texture" == mistbrn:* && -s "$png" ]] || die "missing equipment texture $texture for $equipment"
+  done < <(jq -er '.layers.humanoid[].texture' "$equipment")
+done
+
 for recipe in "$data"/recipe/*.json; do
   ids="$(jq -er '
     if (.result.id | type) != "string" then error("missing recipe result ID") else
@@ -51,6 +59,7 @@ for recipe in "$data"/recipe/*.json; do
     case "$id" in
       mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;
       minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal) ;;
+      minecraft:gold_ingot|minecraft:stick|minecraft:string|minecraft:gray_wool|'#minecraft:logs') ;;
       *) die "unknown item $id in $recipe" ;;
     esac
   done <<< "$ids"

@@ -122,6 +122,26 @@ check_range() {
 # The filled vial the "drink" scenarios consume; creative give fills hotbar slot 0 first.
 give3() { ctl give mistbrn:vial_iron 3 >/dev/null; }
 report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
+# slot_of ITEM: the first inventory slot (0-35) holding ITEM, from a fresh inventory read.
+slot_of() {
+  ctl inventory | jq -er --arg i "$1" '[.hotbar[], .main[]] | map(select(.item == $i)) | .[0].slot'
+}
+# put ITEM GRID...: place one ITEM from the inventory in each crafting GRID slot of the open screen.
+put() {
+  local item="$1" src; shift; src="$(slot_of "$item")" || die "no $item to craft with"
+  ctl click-slot "$src" >/dev/null
+  for g in "$@"; do ctl click-slot "$g" right >/dev/null; done
+  ctl click-slot "$src" >/dev/null
+}
+# take: move the crafting result into the inventory.
+take() { ctl wait 5 >/dev/null; ctl click-slot 200 shift >/dev/null; ctl wait 5 >/dev/null; }
+# table: place a crafting table beside the player and open it.
+table() {
+  local px py pz
+  read -r px py pz < <(ctl state | jq -r '.player.position | map(floor) | "\(.[0]) \(.[1]) \(.[2])"')
+  ctl setblock $((px + 2)) "$py" "$pz" crafting_table >/dev/null
+  ctl interact $((px + 2)) "$py" "$pz" >/dev/null
+}
 
 case "$scenario" in
   vial-smoke)
@@ -140,6 +160,55 @@ case "$scenario" in
     quit_game
     jq -e '.counts["mistbrn:vial_empty"] == 2 and (.counts["minecraft:glass"] // 0) == 0' \
       "$dir/craft-inventory.json" >/dev/null || die "expected two crafted vials and no glass" ;;
+  d1)  # craft every P3b accessory: four in the 2x2 grid, two at a crafting table
+    launch
+    ctl command "gamemode survival" >/dev/null
+    for i in glass stick stick stick string copper_ingot gold_ingot oak_log; do ctl give "$i" 1 >/dev/null; done
+    ctl give gray_wool 8 >/dev/null; ctl give mistbrn:bronze_ingot 1 >/dev/null
+    ctl open-inventory >/dev/null
+    put minecraft:glass 100; put minecraft:stick 102; take
+    put mistbrn:bronze_ingot 100; put minecraft:string 101; take
+    put minecraft:copper_ingot 100; take
+    put minecraft:gold_ingot 100; take
+    ctl close >/dev/null
+    table
+    put minecraft:oak_log 101; put minecraft:stick 104 107; take
+    put minecraft:gray_wool 100 102 103 104 105 106 107 108; take
+    ctl close >/dev/null
+    ctl inventory > "$dir/crafted-inventory.json"
+    quit_game
+    jq -e '.counts as $c | $c["mistbrn:glass_dagger"] == 1 and $c["mistbrn:bronze_earring"] == 1
+        and $c["mistbrn:clip"] == 4 and $c["mistbrn:boxing"] == 4 and $c["mistbrn:dueling_cane"] == 1
+        and $c["mistbrn:mistcloak"] == 1 and ([$c | keys[] | select(startswith("minecraft:"))] | length) == 0' \
+      "$dir/crafted-inventory.json" >/dev/null || die "crafted accessories or leftovers differ: $(jq -c .counts "$dir/crafted-inventory.json")"
+    echo "check: six accessories crafted, every ingredient used" ;;
+  d2)  # wear the cloak and the earring; both survive a save and a relaunch
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl give mistbrn:mistcloak 1 >/dev/null; ctl give mistbrn:bronze_earring 1 >/dev/null; ctl wait 10 >/dev/null
+    ctl select mistbrn:mistcloak >/dev/null; ctl use-item >/dev/null; ctl wait 5 >/dev/null
+    ctl select mistbrn:bronze_earring >/dev/null; ctl use-item >/dev/null; ctl wait 5 >/dev/null
+    ctl key f5 tap >/dev/null 2>&1 || true; ctl wait 10 >/dev/null
+    ctl screenshot "$dir/third-person.png" >/dev/null 2>&1 || true
+    ctl save >/dev/null; quit_game
+    launch; ctl inventory > "$dir/worn-inventory.json"; quit_game
+    jq -e '[.armor[] | select(.item != null) | {part, item}] | sort_by(.part)
+        == [{part: "chest", item: "mistbrn:mistcloak"}, {part: "head", item: "mistbrn:bronze_earring"}]' \
+      "$dir/worn-inventory.json" >/dev/null || die "worn accessories differ: $(jq -c .armor "$dir/worn-inventory.json")"
+    echo "check: cloak on chest and earring on head after relaunch" ;;
+  d3)  # a full reserve refuses the fifth vial with a translated message and keeps it
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl give mistbrn:vial_iron 5 >/dev/null; ctl wait 10 >/dev/null
+    ctl select mistbrn:vial_iron >/dev/null
+    for _ in 1 2 3 4 5; do ctl use-item --hold 1.8 >/dev/null; ctl wait 10 >/dev/null; done
+    ctl messages > "$dir/messages.json"
+    ctl save >/dev/null; quit_game
+    report; quit_game
+    [[ "$(grep -ac "MISTBRN event=vial_credit metal=iron" "$(log 1)")" == 4 ]] || die "expected four credits"
+    expect_log 1 "MISTBRN event=vial_refused metal=iron reason=InvalidReserves(CapacityExceeded(Iron))"
+    grep -q "that reserve is full" "$dir/messages.json" || die "missing translated reserve-full message"
+    expect 2 report state=active reserve_iron=100000 last_transaction=4 vials=1 empty_vials=4 ;;
   c1)
     launch
     ctl command "gamemode survival" >/dev/null
