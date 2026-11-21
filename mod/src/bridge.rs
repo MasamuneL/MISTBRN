@@ -255,6 +255,14 @@ impl Session {
             let read: &dyn Host = host;
             let position = player.entity().position(read);
             let uuid = player.uuid();
+            if self.reports < TICK_REPORTS && self.players.contains_key(&uuid) {
+                let state = match self.players.get(&uuid) {
+                    Some(Slot::Active { .. }) => "active",
+                    _ => "blocked",
+                };
+                eprintln!("MISTBRN event=player_tick state={state}");
+                self.reports += 1;
+            }
             let (Some([x, y, z]), Some(Slot::Active { saved, .. })) =
                 (position, self.players.get(&uuid))
             else {
@@ -300,10 +308,6 @@ impl Session {
                 *since_write = since_write.saturating_add(1);
             }
             self.flush_if(host, player, false);
-            if self.reports < TICK_REPORTS {
-                eprintln!("MISTBRN event=player_tick loaded=true burning={burning}");
-                self.reports += 1;
-            }
         }
     }
 }
