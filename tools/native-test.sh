@@ -25,7 +25,7 @@ resources="$LH/versions/$HORIZON_VERSION/.local/horizon-client/26.3"
 [[ -f "$resources/horizon-resources.json" ]] || die "prepared resources missing: $resources"
 case "$(os_kind)" in windows) client="$V/horizon-client.exe"; ctl_bin="$V/horizon-ctl.exe" ;;
   *) client="$V/horizon-client"; ctl_bin="$V/horizon-ctl" ;; esac
-lib="$(find "$V" -name 'libmistbrn.*' -o -name 'mistbrn.dll' | head -1)"
+lib="$(find "$V" \( -name 'libmistbrn.dylib' -o -name 'libmistbrn.so' -o -name 'mistbrn.dll' \) -print -quit)"
 {
   echo "run=$run scenario=$scenario build=$build world=$world"
   echo "mod_library=${lib##*/} sha256=$( [[ -n "$lib" ]] && sha256 "$lib" || echo none)"
@@ -59,12 +59,14 @@ wait_exit() {
   die "game pid $pid did not exit"
 }
 log() { echo "$dir/l$1.log"; }
+# G3 line the adapter prints for its first three ticks per world open.
+TICK_LINE="MISTBRN event=player_tick accepted=true tick_recorded=true"
 # check_load N: G2 (mod loaded) and G3 (three server ticks reached the core) for launch N.
 check_load() {
   local f; f="$(log "$1")"
   if grep -aq "MISTBRN event=loaded version=" "$f"; then echo "launch $1: loaded"
   else echo "  FAIL launch $1 not loaded"; fails=$((fails + 1)); fi
-  local ticks; ticks="$(grep -ac "MISTBRN event=player_tick" "$f" || true)"
+  local ticks; ticks="$(grep -ac "$TICK_LINE" "$f" || true)"
   if (( ticks >= 3 )); then echo "launch $1: player_tick x$ticks"
   else echo "  FAIL launch $1 ticks=$ticks"; fails=$((fails + 1)); fi
 }

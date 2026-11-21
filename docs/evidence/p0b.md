@@ -14,7 +14,7 @@ Equipo: macOS arm64 (Apple M3 Max), launcher 0.2.93, Rust del launcher 1.99.1. I
 
 ## Escenarios en juego
 
-`tools/native-test.sh <escenario> <escenario>-p0b5`. Cada corrida usa `runs/<run>/` como carpeta de juego; `report.txt` registra build, SHA256 de la librería y commit. G2–G4 los comprueba el script en cada lanzamiento.
+`tools/native-test.sh <escenario> <escenario>-p0b5` (y de nuevo `-p0b5b` con el arnés de la ronda 2: G3 exige `accepted=true tick_recorded=true`; las 3 PASS). Cada corrida usa `runs/<run>/` como carpeta de juego; `report.txt` registra build, SHA256 de la librería y commit. G2–G4 los comprueba el script en cada lanzamiento.
 
 | Gate | Corrida | Observado | Resultado |
 |---|---|---|---|
@@ -36,7 +36,7 @@ El juego corre offline con un nombre generado: las pruebas no usan la cuenta Mic
 
 ## Revisión
 
-Revisión independiente (opus vía Herdr) sobre `218c455`: changes requested con B1 (alcance de G7) y B2 (plan desalineado). Ambos corregidos en `c35d891`, junto con los no bloqueantes 1–4, 6–12, 13 (sha fijado), 14–16, 18 y 19. Quedan para P10 los relativos a Windows, que están implementados pero sin probar (5, 10, 17).
+Revisión independiente (opus vía Herdr) sobre `218c455`: changes requested con B1 (alcance de G7) y B2 (plan desalineado). Ambos corregidos en `c35d891`, junto con los no bloqueantes 1, 3, 4, 6–8, 10 y 11, 13 (sha fijado), 14–16, 18 y 19. El 2 queda parcial: se corrigió la variable vacía, y la sonda permanente pasa a comprobarse en P10. El 9 se completó tras la ronda 2: G3 exige `accepted=true tick_recorded=true`. El 12 usa el lock del SDK sin `--locked`, por diseño, porque cargo añade `mistbrn` y `allomancy-core`. Los relativos a Windows (5, 10, 17) están implementados pero sin probar y quedan para P10. Ronda 2 (`a40d8c2`): **approved**; sus no bloqueantes 1–3 se aplicaron y el 4 (herramienta de S11) es de P2.
 
 ## Límites
 

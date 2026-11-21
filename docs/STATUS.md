@@ -5,7 +5,7 @@ Actualizado: 2026-11-21.
 - Plan vigente: `docs/plan.md`. Legacy congelado: rama `legacy/windows-fdc87ae` (`930b96d`).
 - Pin: Horizon `0a875da91dbb0fdcb7ba8c42c11341aa229af51a` (`nightly-2026-11-20-0a875da`), Rust 1.99.1.
 - Rama activa: `feat/p0b-repin`; base `main` `24b4b2c`.
-- Fase: **P0b** — verificada (G1–G8 PASS en `c35d891`, `docs/evidence/p0b.md`); revisión 1 changes requested (B1, B2) corregida. Pendiente: confirmación del revisor y merge a `main`. P2-core implementado en `feat/p2-core` (`a6fe3b8`, 16 + 17 pruebas); P2-native en curso en `feat/p2-native` (worktree `MISTBRN-dev/wt-p2-core`).
+- Fase: **P0b** — verificada (G1–G8 PASS en `c35d891`, `docs/evidence/p0b.md`); revisión ronda 1 changes requested (B1, B2) corregida; ronda 2 **approved**. Merge a `main` en curso. P2-core implementado en `feat/p2-core` (`a6fe3b8`, 16 + 17 pruebas); P2-native en curso en `feat/p2-native` (worktree `MISTBRN-dev/wt-p2-core`).
 - Operación en curso: ninguna. No hay juego ni build activo.
 - Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build instalado `native-0a875da-e93082d7c828`.
 
