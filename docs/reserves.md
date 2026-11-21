@@ -19,6 +19,6 @@ Fuente: `mod/src/core/src/reserves.rs`. Semántica portada sin cambios de la P2A
 
 Son helpers de lógica confiable: no autentican ni deduplican. La aplicación exactamente-una-vez de un crédito la da `persistence` (`prepare_credit`/`commit_credit`).
 
-## Reglas por defecto del adaptador (P2)
+## Reglas por defecto del adaptador
 
-Consumo 10 milésimas/tick y capacidad base 100 000 milésimas en los ocho metales, reducción 0, bonus 0. P3 las moverá a datos.
+El adaptador fija valores provisionales de 10 milésimas de consumo por tick y 100 000 milésimas de capacidad base en los ocho metales, con reducción y bonus en cero. En P3a, completar un vial acredita 25 000 milésimas al metal correspondiente si cabe el crédito completo. El desbloqueo del poder se gestiona por separado. Estos valores siguen en el código (`mod/src/bridge.rs`, `default_rules`); moverlos a datos queda pendiente.

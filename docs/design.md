@@ -2,7 +2,17 @@
 
 Mod de alomancia para Horizon. Nombre visible: **Masamune's MISTBRN**; id del mod: `mistbrn`.
 
-Estado: propuesta consolidada para planificar; parámetros ajustables mediante pruebas. Fecha: 2026-11-12.
+Este documento describe la experiencia que MISTBRN quiere construir. Los parámetros y el reparto de hitos se ajustarán con pruebas.
+
+## La experiencia
+
+El recorrido comienza en el mundo. El jugador encuentra metales, prepara viales y decide qué reservas llevar. Los poderes deben hacer que una veta, un anclaje o una criatura cambien las opciones disponibles al explorar, combatir o moverse. Practicar una técnica útil y descubrir por qué funciona abre formas nuevas de usarla.
+
+La primera demo se concentra en hierro y acero. El objetivo es preparar un vial, beberlo, atravesar un tramo usando tirones o empujones, consultar la reserva y continuar después de guardar. La versión completa extiende ese recorrido a cuatro parejas de metales, con un diario de investigación y un árbol general de eficiencia.
+
+## Base implementada
+
+P3a ya permite extraer muestras en mundos existentes, fabricar viales para los ocho metales, beberlos y persistir las reservas. Las pruebas en Horizon cubren el ciclo de fabricación y consumo, el rollback de inventario y guardado y el aislamiento entre mundos. Los poderes utilizables, los árboles, el diario y el HUD corresponden a fases posteriores. [Estado actual](STATUS.md) · [Evidencia de P3a](evidence/p3.md)
 
 ## Requisitos expresados por el usuario
 
@@ -16,13 +26,13 @@ Estado: propuesta consolidada para planificar; parámetros ajustables mediante p
 
 Multiplataforma: el mod debe funcionar en todo sistema operativo que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64); desarrollo y pruebas primero en macOS arm64, verificación Windows x64 y Linux x64 antes de publicar. Supervivencia individual primero; cooperativo después de verificar soporte autoritativo del servidor. No prometer compatibilidad en servidores vanilla con estos poderes. Ocho metales iniciales. Diario personal con notas encontradas como pistas; esta elección narrativa puede cambiar sin alterar el motor.
 
-Primera entrega vertical: hierro/acero, combustible, una investigación, árbol y guardado. Versión completa: cuatro parejas y árbol general. Un tutorial entrega acceso a hierro/acero; un bastión desbloquea estaño/peltre, un guardián anciano zinc/latón y un desafío de ciudad antigua cobre/bronce. La dragona habilita maestría final; este reparto es una propuesta de balance, no una decisión previa del usuario. No exige matar al Warden. Todo hito se reclama una sola vez por jugador; duplicados no desbloquean más parejas.
+Tras la demo de hierro y acero, P5 añadirá investigación y árboles. Para los desbloqueos, se propone un tutorial para hierro y acero, un bastión para estaño y peltre, un guardián anciano para zinc y latón y un desafío en una ciudad antigua para cobre y bronce. La dragona habilitaría la maestría final. El desafío de la ciudad antigua puede completarse sin matar al Warden. Cada jugador puede reclamar un hito una sola vez.
 
-## Enfoques considerados
+## Arquitectura
 
-1. Mod nativo Rust con contenido declarativo: recomendado; permite separar lógica y recursos, sujeto a comprobar hooks.
-2. Solo contenido declarativo: útil para objetos/recetas, insuficiente si no admite física, poderes e interfaz.
-3. Modificar un fork de Horizon: alternativa si faltan hooks esenciales; mayor mantenimiento. No adoptar silenciosamente: documentar carencias y presentar la decisión antes de comprometer el proyecto a un fork.
+El núcleo Rust conserva las reglas y el estado del jugador. El adaptador observa el juego, aplica las transacciones en el servidor y conecta las reglas con Horizon. Los ítems, las recetas y los recursos visuales se declaran en el paquete del mod.
+
+Si el SDK fijado no expone un hook esencial, se documenta la carencia y se presentan opciones al usuario. Un fork de Horizon solo se adopta con su aprobación explícita.
 
 ## Mecánicas
 
@@ -44,7 +54,7 @@ Investigación: indicio → evidencias → conclusión en mesa. Aceptar varias m
 
 ## Recursos e interfaz
 
-Materias primas: hierro, cobre y zinc/estaño nuevos; aleaciones acero, peltre, latón y bronce. Recetas y obtención en datos. Viales vacíos/llenos, muestras, monedas, cuaderno, mesa y fragmentos ligados a hitos. Añadir fuentes de muestras en mundos ya creados; no obligar a regenerarlos. Recursos gráficos originales provisionales, con sustitución final y registro de licencias.
+La cadena actual usa hierro, cobre, estaño y zinc, además de las aleaciones acero, peltre, latón y bronce. Las muestras se obtienen al minar menas del juego base y están disponibles en chunks ya generados. P3b propone monedas, una capa de bruma y accesorios con arte propio. El cuaderno, la mesa de investigación y los fragmentos ligados a hitos forman parte del recorrido de progresión. La publicación incluye una revisión de recursos y licencias.
 
 Libro abre árboles, pistas y reservas. V selecciona pareja; Z/X activa cada metal; R modifica para avivar; G apaga todo. Reasignables; HUD indica reservas y combustiones que continúan al cambiar pareja. Menús/chat capturan entrada; no disparar poderes al escribir. Reducir destellos y señales visuales configurables.
 
@@ -58,4 +68,4 @@ Un jugador puede obtener metal, fabricar vial, beber, usar poder, descubrir, mej
 
 ## Evidencia y límites técnicos
 
-El README oficial consultado describe .hmod para contenido y .hnmod para Rust: https://github.com/horizon-rust/horizon#mods-and-shader-packs . La existencia de esos formatos no confirma cada hook requerido. La fase P0 debe verificar el código y fijar commit/versión antes de definir el adaptador. No existe código del mod en este proyecto al redactar este diseño.
+El proyecto compila un paquete `.hmod` nativo contra el SDK fijado. Antes de cada fase se comprueba en `surface.json` que el pin expone los hooks que necesita la entrega. La validación en macOS arm64 y las pruebas pendientes de otras plataformas se detallan en la documentación de compatibilidad. [Compatibilidad](compatibility.md)

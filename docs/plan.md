@@ -1,6 +1,6 @@
 # Masamune's MISTBRN — plan de ejecución
 
-Aprobado 2026-11-21. Sustituye al plan de 2026-11-12 (en `legacy/windows-fdc87ae`).
+Aprobado el 2026-11-21. P0b, P2 y P3a están integrados. El plan de 2026-11-12 queda en `legacy/windows-fdc87ae`. [Estado vigente](STATUS.md)
 
 ## Contexto
 
@@ -13,7 +13,7 @@ El plan de 2026-11-12 y todo lo ejecutado (P0, P1 en main; P2 parcial en `codex/
 
 Decisiones del usuario: congelar gates como legacy y borrar `codex/*`; desarrollo en macOS arm64; portar núcleo P2 legacy, reescribir adaptador. Nombre del mod **Masamune's MISTBRN**, id `mistbrn`.
 
-**Multiplataforma (requisito):** el mod funciona en todo SO que soporte el SDK fijado (macOS arm64, Windows x64, Linux x64). Reglas: el código del mod y del núcleo no usa APIs, rutas ni comportamiento específicos de un SO; sin `cfg(target_os)` salvo justificación escrita en la PR; sin dependencias nativas; rutas solo vía la API del juego. Las herramientas (`tools/*.sh`) son bash portable (macOS, Linux, Git Bash en Windows) y resuelven rutas del launcher por SO en `tools/lib.sh`. Verificación: macOS arm64 en cada fase con build nativo; Windows x64 y Linux x64 son gates obligatorios de P10 (build + S1/S4/S5).
+**Objetivo multiplataforma.** El mod debe funcionar en macOS arm64, Windows x64 y Linux x64 con el SDK fijado. El código del mod y del núcleo evita APIs y comportamiento específicos de un SO. Cualquier `cfg(target_os)` requiere una justificación en la PR. El mod accede a rutas mediante la API del juego y prescinde de dependencias nativas propias. Los scripts usan Bash y resuelven las rutas del launcher por SO en `tools/lib.sh`. Cada fase se verifica primero en macOS arm64. Windows x64 y Linux x64 son gates obligatorios de P10 (build + S1/S4/S5).
 
 ---
 
@@ -166,10 +166,11 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 
 | Fase | Rama | Depende | Entrega | Criterio de cierre |
 |---|---|---|---|---|
-| P3 contenido | `feat/p3-content` | P2 | metales (hierro, cobre, estaño, zinc + aleaciones), viales vacío/lleno, recetas, fuentes de muestra en mundos existentes, assets originales provisionales, `es_es`/`en_us` | Validador de contenido en `tools/check.sh`; en juego: fabricar vial y beberlo con la transacción de P2 (reemplaza el disparador de pepitas) |
-| P4 hierro/acero | `feat/p4-iron-steel` | P2, P3 | tirón/empujón sobre metales y anclajes, límites de velocidad, colisión del motor, cancelación por muerte/dimensión/objetivo inválido | Escenarios horizon-ctl con posiciones medidas: sin atravesar bloques, velocidad ≤ tope, apagado al agotarse |
+| P3a contenido | `feat/p3-content` | P2 | metales, viales, recetas, muestras en mundos existentes, arte original y traducciones | Integrado en `7f1d159` con 24 corridas y dos revisiones. [Evidencia](evidence/p3.md) |
+| P3b accesorios | Por definir | P3a | monedas, capa de bruma y accesorios | Por definir |
+| P4 hierro/acero | `feat/p4-iron-steel` | P2, P3a | tirón/empujón sobre metales y anclajes, límites de velocidad, colisión del motor, cancelación por muerte/dimensión/objetivo inválido | Escenarios horizon-ctl con posiciones medidas: sin atravesar bloques, velocidad ≤ tope, apagado al agotarse |
 | P7a controles/HUD mínimo | `feat/p7a-hud` | P4 | V selecciona pareja, Z/X activa, R aviva, G apaga; HUD de reservas; sin activación con chat/menú | Escenario con chat e inventario abiertos sin activación; captura local revisada (no versionada) |
-| V1 demo | — (validación) | P3, P4, P7a | recorrido hierro/acero completo | Lista V1 de legacy PLAN-ADJUSTMENTS; evaluación humana del usuario |
+| V1 demo | — (validación) | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |
 | P5 habilidades/investigación | `feat/p5-progress` | V1 | árboles, experiencia por práctica, investigación con pistas; **esquema de guardado 2 + migración 1→2** | Tests core + fixture v1 migrado; escenario en juego |
 | P6 hitos | `feat/p6-milestones` | P5 | fragmentos ligados a bastión, guardián, ciudad antigua, dragona; reclamo único por jugador | Duplicados rechazados en core y en juego |
 | P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario |
@@ -187,7 +188,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 
 ### P3b — Accesorios
 
-Propuesta para una entrega separada: monedas `clip` y `boxing`, daga `glass_dagger`, bastón `dueling_cane`, capa `mistcloak` equipable sin protección y pendiente `bronze_earring`. Cada ítem tendrá receta, arte original y traducciones. La interacción de las monedas con empujones de acero y los proyectiles se incorporarán en P4.
+La propuesta incluye las monedas `clip` y `boxing`, la daga `glass_dagger`, el bastón `dueling_cane`, la capa `mistcloak` equipable sin protección y el pendiente `bronze_earring`. Cada ítem tendrá receta, arte original y traducciones. P4 incorporará la interacción de las monedas con los empujones de acero y los proyectiles.
 
 ---
 
