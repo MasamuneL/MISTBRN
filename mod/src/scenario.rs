@@ -169,6 +169,18 @@ fn fnv64(bytes: &[u8]) -> String {
     format!("{hash:016x}")
 }
 
+/// The UUID as the game names player files: `8-4-4-4-12` lowercase hex.
+fn dashed_uuid(uuid: u128) -> String {
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        uuid >> 96,
+        (uuid >> 80) & 0xffff,
+        (uuid >> 64) & 0xffff,
+        (uuid >> 48) & 0xffff,
+        uuid & 0xffff_ffff_ffff
+    )
+}
+
 fn burn_name(burn: BurnState) -> &'static str {
     match burn {
         BurnState::Off => "off",
@@ -184,7 +196,8 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         .dimension(read)
         .map_or("none".into(), |d| d.to_string());
     let common = format!(
-        "nuggets={} dimension={dimension} raw_hash={raw}",
+        "uuid={} nuggets={} dimension={dimension} raw_hash={raw}",
+        dashed_uuid(player.uuid()),
         nuggets(read, player)
     );
     match session.slot(player.uuid()) {

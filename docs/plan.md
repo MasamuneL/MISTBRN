@@ -153,7 +153,7 @@ Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO=drink`, en el primer ti
 | S8 agotamiento | crédito 1 000, Burning, esperar 100 ticks (`wait 100`) | reserva 0, Off, `event=exhausted metal=iron` |
 | S9 corrupto | escenario escribe `mistbrn` con CRC inválido, `quit`, relanzar, `save`, `quit` | `save_blocked reason=crc`; bytes idénticos tras el segundo guardado |
 | S10 esquema futuro | igual con `schema=2` | `save_blocked reason=unsupported_version:2`; bytes intactos |
-| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` (Python 3, solo biblioteca estándar, versionado, < 8 KiB; única dependencia de pruebas fuera de bash/jq) reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | resultado registrado: `state=blocked reason=root_not_compound` (guarda efectiva) o `state=active` (el juego normaliza: límite aceptado, ver regla de raíz) |
+| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` (Python 3, solo biblioteca estándar, versionado, < 8 KiB; única dependencia de pruebas fuera de bash/jq) reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | `state=blocked reason=root_not_compound` para el UUID que `report` registró (el fichero editado es exactamente `players/data/<uuid>.dat` de ese jugador) |
 
 S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 PASS, S11 ejecutado con su resultado documentado, G8 y revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
 

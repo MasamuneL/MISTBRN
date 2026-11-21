@@ -176,21 +176,15 @@ case "$scenario" in
     expect 3 report state=blocked reason=$reason raw_hash=$h ;;
   s11)  # a non-compound NeoForgeData root on disk (edited with the game closed)
     report; ctl save >/dev/null; quit_game
-    file="$(python3 - "$dir/saves/$world/players/data" <<'PY'
-import gzip, os, sys
-for name in sorted(os.listdir(sys.argv[1])):
-    path = os.path.join(sys.argv[1], name)
-    if name.endswith(".dat") and b"NeoForgeData" in gzip.open(path).read():
-        print(path)
-        break
-PY
-)"
-    [[ -n "$file" ]] || die "no player file with NeoForgeData in $world"
+    # Edit exactly the controlled player's file: a world can hold other player files.
+    uuid="$(field 1 report uuid)"
+    file="$dir/saves/$world/players/data/$uuid.dat"
+    [[ -n "$uuid" && -f "$file" ]] || die "player file for uuid '$uuid' not found in $world"
     python3 "$REPO_ROOT/tools/nbt-poke.py" "$file" NeoForgeData 7 | tee -a "$dir/report.txt"
     report; quit_game
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
-    check "[[ '$state' == blocked && '$why' == root_not_compound || '$state' == active ]]" "S11 recorded ($state ${why:-})" ;;
+    expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done
