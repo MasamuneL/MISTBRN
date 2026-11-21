@@ -82,7 +82,7 @@ docs/{design.md,plan.md,contracts.md,compatibility.md,STATUS.md,history.md,evide
 |---|---|
 | G1 build | `build-native.sh` exit 0; log contiene compilación de `mistbrn`; SHA256 del ejecutable registrado |
 | G2 carga | Log del juego contiene `MISTBRN event=loaded version=0.2.0` |
-| G3 tick | ≥ 3 líneas `MISTBRN event=player_tick` por lanzamiento (en P0b con `accepted=true tick_recorded=true`), comprobado por `native-test.sh` |
+| G3 tick | ≥ 3 líneas `MISTBRN event=player_tick` por lanzamiento, comprobado por `native-test.sh` (en P0b `accepted=true tick_recorded=true`; desde P2-native `state=active` o `state=blocked`) |
 | G4 aislamiento | `runs/<run>/saves/` contiene exactamente `mistbrn-<escenario>` (comprobado por `native-test.sh`), y la home propia de Horizon (`horizon-launcher --json instance list`, instancia `horizon`) no gana carpetas de mundos (comprobado a mano antes/después y anotado en la evidencia) |
 | G5 persistent_data | Escenario `pd-roundtrip`: escribe `NeoForgeData.PlayerPersisted.mistbrn_probe = ByteArray[1,2,3]`, `quit`, relanzar, lee mismo valor |
 | G6 journal | Escenario `tx-abort`: dentro de `host.transaction`, quita 1 `minecraft:iron_nugget` del slot 0 y escribe persistent_data, y lee ambos (`inside_count=2 inside_pd=1`); devuelve `Err`; tras el cierre inventario y persistent_data idénticos a antes |
@@ -153,7 +153,7 @@ Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO=drink`, en el primer ti
 | S8 agotamiento | crédito 1 000, Burning, esperar 100 ticks (`wait 100`) | reserva 0, Off, `event=exhausted metal=iron` |
 | S9 corrupto | escenario escribe `mistbrn` con CRC inválido, `quit`, relanzar, `save`, `quit` | `save_blocked reason=crc`; bytes idénticos tras el segundo guardado |
 | S10 esquema futuro | igual con `schema=2` | `save_blocked reason=unsupported_version:2`; bytes intactos |
-| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | resultado registrado: `state=blocked reason=root_not_compound` (guarda efectiva) o `state=active` (el juego normaliza: límite aceptado, ver regla de raíz) |
+| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` (Python 3, solo biblioteca estándar, versionado, < 8 KiB; única dependencia de pruebas fuera de bash/jq) reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | resultado registrado: `state=blocked reason=root_not_compound` (guarda efectiva) o `state=active` (el juego normaliza: límite aceptado, ver regla de raíz) |
 
 S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 PASS, S11 ejecutado con su resultado documentado, G8 y revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
 

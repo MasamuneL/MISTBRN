@@ -60,7 +60,7 @@ wait_exit() {
 }
 log() { echo "$dir/l$1.log"; }
 # G3 line the adapter prints for its first three ticks per world open.
-TICK_LINE="MISTBRN event=player_tick accepted=true tick_recorded=true"
+TICK_LINE="MISTBRN event=player_tick state="
 # check_load N: G2 (mod loaded) and G3 (three server ticks reached the core) for launch N.
 check_load() {
   local f; f="$(log "$1")"
