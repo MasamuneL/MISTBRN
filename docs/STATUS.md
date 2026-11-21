@@ -27,7 +27,7 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 2. Pendientes de la revisión post-merge de P3a, a cerrar en P3b:
    - Deduplicar la cola de bebidas por jugador y slot. Hipótesis sin probar: la doc del hook dice que en el servidor `living_entity_use_item_finish` se dispara para cada jugador del mundo; si es así, con dos o más jugadores los duplicados se rechazarían con un aviso técnico en el chat. Confirmar con dos clientes.
    - Mensajes de chat con claves de idioma en lugar de códigos (`item_not_in_slot`, `CapacityExceeded`).
-   - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas sin Toque de Seda garantiza la muestra.
+   - Documentar como límite aceptado que colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto (sin Toque de Seda) garantiza la muestra.
 
 ## Próximos hitos
 
