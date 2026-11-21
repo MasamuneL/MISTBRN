@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:pewter_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:pewter_flakes",
+    "count": 2
+  }
+}

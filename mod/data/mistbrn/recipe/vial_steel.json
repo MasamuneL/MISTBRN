@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:vial_empty",
+    "mistbrn:steel_flakes"
+  ],
+  "result": {
+    "id": "mistbrn:vial_steel",
+    "count": 1
+  }
+}

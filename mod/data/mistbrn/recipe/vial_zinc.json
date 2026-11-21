@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:vial_empty",
+    "mistbrn:zinc_flakes"
+  ],
+  "result": {
+    "id": "mistbrn:vial_zinc",
+    "count": 1
+  }
+}

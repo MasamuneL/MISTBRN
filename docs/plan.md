@@ -30,7 +30,7 @@ Decisiones del usuario: congelar gates como legacy y borrar `codex/*`; desarroll
 ### Git
 - `main` solo recibe merges de PR. Una rama por fase: `feat/p0b-repin`, `feat/p2-core`, `feat/p2-native`, `feat/p3-content`, … Nombre `feat/<fase>-<tema>`; arreglos post-merge `fix/<tema>`.
 - Condiciones de merge (todas): (a) `tools/check.sh` exit 0; (b) pruebas nativas de la fase PASS cuando aplique, con evidencia; (c) revisión independiente sin hallazgos bloqueantes; (d) PR con resumen, gates y limitaciones. Merge commit (no squash), con `gh pr merge --merge --match-head-commit <sha>`.
-- Revisión independiente: sesión separada vía Herdr (`hc run --bg --name review-<fase> -- claude --model opus "<encargo>"`), solo lectura, informe en el cuerpo de la PR, no en ficheros del repo.
+- Revisión independiente: al menos dos proveedores distintos, en sesiones de solo lectura por Herdr. Incluir ambos informes en el cuerpo de la PR y cerrar las sesiones al terminar.
 - Commits con la línea `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Nunca `git add .`; staging explícito.
 
 ### Peso del repo (aplicado por `tools/check.sh`)
@@ -176,6 +176,18 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | P8 tres parejas restantes | `feat/p8-<pareja>` | P7b | estaño/peltre, zinc/latón, cobre/bronce | Pruebas por pareja |
 | P9 cooperativo | `feat/p9-coop` | P8 | autoridad servidor con 2 clientes, server export dedicado | Dos clientes reales; si no se logra, se entrega individual y se documenta |
 | P10 publicación | `feat/p10-release` | P8 (P9 opcional) | `.hmod`, verificación **Windows x64 y Linux x64** con el mismo pin (incluye `tools/*.sh` en Git Bash: `cygpath`, `tasklist`/`taskkill`, `jq` instalado), código de escenarios inactivo sin variable y sin sondas `mistbrn_probe*` en un mundo jugado sin ella, licencias de assets | Build y S1/S4/S5 en Windows x64 y Linux x64 PASS; paquete sin recursos de terceros |
+
+### P3a — Cadena de metales
+
+- 25 ítems. `vial_empty`, ocho `vial_<metal>`, ocho `<metal>_flakes`, seis lingotes de estaño, zinc, acero, peltre, latón y bronce, y `raw_tin` / `raw_zinc`. Hierro y cobre usan lingotes vanilla. Texturas propias de 16 × 16, nombres en inglés y español y pestaña creativa Alomancia.
+- 25 recetas. Dos vidrios en vertical rinden dos viales vacíos. Cada lingote rinde dos virutas y cada viruta llena un vial. Un hierro y dos carbones rinden un acero. Tres estaños y un cobre rinden cuatro peltres. Dos cobres y un zinc rinden tres latones. Tres cobres y un estaño rinden cuatro bronces. Estaño y zinc en bruto se refinan en horno y alto horno.
+- En chunks existentes, la minería de cobre da un estaño adicional en 1 de 4 posiciones, y la de hierro da un zinc en 1 de 3. Incluye pizarra profunda. Se exige el mineral en bruto vanilla en el botín, por lo que Toque de Seda y herramientas inadecuadas no dan muestras. Al abrir por primera vez determinados cofres de mazmorra, mina o ruina submarina, 1 de 8 posiciones añade un vial de descubrimiento. Las tasas son deterministas por dimensión y posición.
+- En supervivencia o aventura, el uso completo de 32 ticks intenta acreditar 25 000 milésimas. El servidor comprueba el mismo slot y stack y consume un vial, devuelve el envase y escribe el guardado en una transacción. El desbloqueo de poderes corresponde al sistema de progresión. Las menas propias quedan para una fase posterior.
+- Gates: `tools/check.sh`, C1 fabricación, C2 beber y persistir, C2b mano secundaria, C3/C4 cortes antes/después de guardar (3 corridas por caso), C5 rollback, C6 minería y botín, C7 cambio de mundo en el mismo proceso, regresión S1–S11 + S5b y dos revisiones independientes.
+
+### P3b — Accesorios
+
+Propuesta para una entrega separada: monedas `clip` y `boxing`, daga `glass_dagger`, bastón `dueling_cane`, capa `mistcloak` equipable sin protección y pendiente `bronze_earring`. Cada ítem tendrá receta, arte original y traducciones. La interacción de las monedas con empujones de acero y los proyectiles se incorporarán en P4.
 
 ---
 

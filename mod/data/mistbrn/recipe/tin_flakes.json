@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:tin_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:tin_flakes",
+    "count": 2
+  }
+}

@@ -1,12 +1,15 @@
 //! Server-side session: loads each online player's save, runs the core every server tick,
 //! persists changes and applies credits transactionally with the inventory.
+use crate::content::Drink;
 use crate::save::{self, Blocked, Loaded};
 use allomancy_core::{
-    Authority, BurnState, InputContext, Metal, PlayerId, ReserveRules, SaveError, SavedPlayer,
-    Tick, TransactionSeq, Vec3, WorldId, WorldSnapshot, advance_tick, commit_credit,
-    consume_reserves, on_death, on_reconnect, prepare_credit, update_player,
+    Authority, BurnState, EMPTY_VIAL, InputContext, Metal, PlayerId, ReserveRules, SaveError,
+    SavedPlayer, Tick, TransactionSeq, VIAL_MILLI, Vec3, WorldId, WorldSnapshot, advance_tick,
+    commit_credit, consume_reserves, on_death, on_reconnect, prepare_credit, update_player,
 };
-use mod_api::{Host, HostTransaction, ItemKey, PlayerRef, ServerHost, Text};
+use mod_api::{
+    GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
+};
 use std::collections::BTreeMap;
 
 /// Per-player isolation between worlds comes from the game's per-world player files, so the
@@ -54,6 +57,7 @@ pub(crate) struct Session {
     epoch: Option<u64>,
     players: BTreeMap<u128, Slot>,
     reports: u8,
+    drinks: Vec<Drink>,
 }
 
 fn tell(host: &mut dyn ServerHost, player: PlayerRef, line: &str) {
@@ -167,6 +171,7 @@ impl Session {
     /// Death: reserves cleared in memory at once and written as soon as the player can be
     /// written (now if alive enough, else after the respawn).
     pub(crate) fn died(&mut self, host: &mut dyn ServerHost, uuid: u128) {
+        self.drinks.retain(|drink| drink.player.uuid() != uuid);
         if self.change(uuid, true, on_death).is_ok() {
             eprintln!("MISTBRN event=death_cleared");
             if let Some(player) = host.player(uuid) {
@@ -204,26 +209,56 @@ impl Session {
     }
 
     pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
+        self.drinks.retain(|drink| drink.player.uuid() != uuid);
         if let Some(player) = host.player(uuid) {
             self.flush(host, player);
         }
         self.players.remove(&uuid);
     }
 
-    /// Credits `amount_milli` of `metal` for one item taken from `slot`, as one transaction:
-    /// inventory and save change together in the game, then the core commits. `fail_inside`
-    /// injects a failure after both writes (tests).
-    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn queue_drink(&mut self, drink: Drink) {
+        self.drinks.push(drink);
+    }
+
+    pub(crate) fn finish_drinks(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
+        for drink in std::mem::take(&mut self.drinks) {
+            let Some(player) = host.player(drink.player.uuid()) else {
+                continue;
+            };
+            if player.entity() != drink.player.entity()
+                || !matches!(
+                    player.game_mode(host),
+                    Some(GameMode::Survival | GameMode::Adventure)
+                )
+            {
+                continue;
+            }
+            let metal = metal_name(drink.metal);
+            match self.credit_from_slot(host, drink, VIAL_MILLI, fail_inside) {
+                Ok(seq) => eprintln!("MISTBRN event=vial_credit metal={metal} seq={}", seq.0),
+                Err(error) => {
+                    eprintln!("MISTBRN event=vial_refused metal={metal} reason={error}");
+                    tell(host, player, &format!("MISTBRN: {error}"));
+                }
+            }
+        }
+    }
+
+    /// Exchange one filled vial for its empty bottle and persist the credit together.
+    /// `fail_inside` injects a failure after all writes (tests).
     pub(crate) fn credit_from_slot(
         &mut self,
         host: &mut dyn ServerHost,
-        player: PlayerRef,
-        slot: u32,
-        item: ItemKey,
-        metal: Metal,
+        drink: Drink,
         amount_milli: i64,
         fail_inside: bool,
     ) -> Result<TransactionSeq, String> {
+        let Drink {
+            player,
+            slot,
+            stack: expected,
+            metal,
+        } = drink;
         let uuid = player.uuid();
         // Only an outermost transaction makes its writes final; inside another one, an outer
         // abort could undo the game's writes after the core committed.
@@ -240,17 +275,29 @@ impl Session {
             return Err("not_active".into());
         };
         let prepared = prepare_credit(saved, metal, amount_milli).map_err(|e| format!("{e:?}"))?;
+        let empty = Identifier::parse(EMPTY_VIAL)
+            .ok()
+            .and_then(|id| host.item_key(&id))
+            .and_then(|key| ItemStack::new(key, 1))
+            .ok_or("empty_vial_unavailable")?;
         host.transaction(|host, _tx| {
             let read: &dyn Host = host;
             let stack = player
                 .inventory_slots(read)
                 .and_then(|slots| slots.into_iter().find(|(s, _)| *s == slot))
                 .map(|(_, stack)| stack)
-                .filter(|stack| stack.item() == item)
+                .filter(|stack| *stack == expected)
                 .ok_or("item_not_in_slot")?;
+            let remaining = stack.shrink(1);
+            let replacement = remaining.clone().or_else(|| Some(empty.clone()));
             player
-                .set_inventory_slot(host, slot, stack.shrink(1))
+                .set_inventory_slot(host, slot, replacement)
                 .map_err(|e| format!("set_slot:{e:?}"))?;
+            if remaining.is_some() {
+                player
+                    .give_stack(host, empty)
+                    .map_err(|e| format!("give_empty_vial:{e:?}"))?;
+            }
             save::write(host, player, prepared.candidate())?;
             if fail_inside {
                 return Err("injected_failure".to_string());
@@ -280,6 +327,7 @@ impl Session {
             // the process keeps players loaded at login, which belong to this world.
             if self.epoch.is_some() {
                 self.players.clear();
+                self.drinks.clear();
             }
             self.epoch = Some(epoch);
             self.reports = 0;

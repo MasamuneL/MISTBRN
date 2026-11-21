@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:bronze_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:bronze_flakes",
+    "count": 2
+  }
+}

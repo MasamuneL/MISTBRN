@@ -35,10 +35,17 @@ lib="$(find "$V" \( -name 'libmistbrn.dylib' -o -name 'libmistbrn.so' -o -name '
 # Unix socket paths are limited to ~104 bytes: keep the sockets in a short temp folder and copy
 # each launch's log (written beside its socket) into the run folder.
 sockdir="$(mktemp -d "${TMPDIR:-/tmp}/mbrn.XXXXXX")"
-trap 'cp "$sockdir"/*.log "$dir"/ 2>/dev/null || true; rm -rf "$sockdir"' EXIT
 
 launch_no=0
 sock=""
+cleanup() {
+  if [[ -S "$sock" || -f "$sock" ]]; then
+    "$ctl_bin" --socket "$sock" --timeout 5 quit >/dev/null 2>&1 || true
+  fi
+  cp "$sockdir"/*.log "$dir"/ 2>/dev/null || true
+  rm -rf "$sockdir"
+}
+trap cleanup EXIT
 # launch [ENV=VALUE...]: start the game in this run's folder and wait until the player is in.
 launch() {
   launch_no=$((launch_no + 1)); sock="$sockdir/l$launch_no.sock"
@@ -46,7 +53,16 @@ launch() {
       launch --game "$client" --resources "$resources" --world "$world" --creative --wait \
       > "$dir/l$launch_no.launch.json" ) || die "launch $launch_no failed: $(tail -c 600 "$dir/l$launch_no.launch.json")"
 }
-ctl() { "$ctl_bin" --socket "$sock" --timeout 120 "$@"; }
+ctl() {
+  local result code
+  if result="$("$ctl_bin" --socket "$sock" --timeout 120 "$@")"; then
+    printf '%s\n' "$result"
+  else
+    code=$?
+    printf 'horizon-ctl %s: %s\n' "$*" "$result" >&2
+    return "$code"
+  fi
+}
 game_pid() { jq -r '.launch.pid' "$dir/l$launch_no.launch.json"; }
 quit_game() { ctl quit >/dev/null; wait_exit; }
 # Hard cut: the process dies without saving (SIGKILL / taskkill /F).
@@ -73,8 +89,10 @@ check_load() {
 }
 # check_isolation: G4, the run folder holds only this scenario's world.
 check_isolation() {
-  local worlds; worlds="$(ls -1 "$dir/saves" 2>/dev/null | tr '\n' ' ')"
-  if [[ "$worlds" == "$world " ]]; then echo "isolation: saves=$worlds"
+  local expected="$world " worlds
+  [[ "$scenario" != c7 ]] || expected="$world $world-b "
+  worlds="$(ls -1 "$dir/saves" 2>/dev/null | tr '\n' ' ')"
+  if [[ "$worlds" == "$expected" ]]; then echo "isolation: saves=$worlds"
   else echo "  FAIL isolation saves='$worlds'"; fails=$((fails + 1)); fi
 }
 fails=0
@@ -101,11 +119,193 @@ check_range() {
   if [[ "$2" =~ ^[0-9]+$ ]] && (( $2 > $3 && $2 < $4 )); then echo "check: $1 ($2)"
   else echo "  FAIL $1 ($2 not in ($3, $4))"; fails=$((fails + 1)); fi
 }
-# The nugget the "drink" scenarios consume; creative give fills hotbar slot 0 first.
-give3() { ctl give iron_nugget 3 >/dev/null; }
+# The filled vial the "drink" scenarios consume; creative give fills hotbar slot 0 first.
+give3() { ctl give mistbrn:vial_iron 3 >/dev/null; }
 report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
 
 case "$scenario" in
+  vial-smoke)
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl give glass 2 >/dev/null
+    ctl open-inventory >/dev/null
+    ctl click-slot 0 >/dev/null
+    ctl click-slot 100 right >/dev/null
+    ctl click-slot 102 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl screen > "$dir/craft-screen.json"
+    ctl click-slot 200 shift >/dev/null
+    ctl close >/dev/null
+    ctl inventory > "$dir/craft-inventory.json"
+    quit_game
+    jq -e '.counts["mistbrn:vial_empty"] == 2 and (.counts["minecraft:glass"] // 0) == 0' \
+      "$dir/craft-inventory.json" >/dev/null || die "expected two crafted vials and no glass" ;;
+  c1)
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl give glass 2 >/dev/null
+    ctl open-inventory >/dev/null
+    ctl click-slot 0 >/dev/null
+    ctl click-slot 100 right >/dev/null
+    ctl click-slot 102 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl click-slot 200 >/dev/null
+    ctl click-slot 1 >/dev/null
+    ctl close >/dev/null
+    ctl give iron_ingot 1 >/dev/null
+    ctl open-inventory >/dev/null
+    ctl click-slot 0 >/dev/null
+    ctl click-slot 100 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl click-slot 200 >/dev/null
+    ctl click-slot 2 >/dev/null
+    ctl click-slot 1 >/dev/null
+    ctl click-slot 100 right >/dev/null
+    ctl click-slot 1 >/dev/null
+    ctl click-slot 2 >/dev/null
+    ctl click-slot 101 right >/dev/null
+    ctl click-slot 2 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl click-slot 200 >/dev/null
+    ctl click-slot 3 >/dev/null
+    ctl close >/dev/null
+    ctl inventory > "$dir/craft-inventory.json"
+    quit_game
+    jq -e '.counts == {"mistbrn:iron_flakes": 1, "mistbrn:vial_empty": 1, "mistbrn:vial_iron": 1}' \
+      "$dir/craft-inventory.json" >/dev/null || die "crafting ledger differs from expected vial and leftovers" ;;
+  c2|c3|c4|c5)
+    # Seed and save an inventory, then use the actual item in Survival.
+    launch
+    ctl command "gamemode survival" >/dev/null
+    give3; ctl save >/dev/null; quit_game
+    if [[ "$scenario" == c5 ]]; then launch MISTBRN_TEST_FAIL_VIAL=1
+    else launch; fi
+    ctl select mistbrn:vial_iron >/dev/null
+    if [[ "$scenario" == c2 ]]; then
+      ctl mouse right down >/dev/null
+      ctl wait 23 >/dev/null
+      ctl status > "$dir/drinking-status.json"
+      ctl mouse right up >/dev/null
+      ctl wait 35 >/dev/null
+      ctl inventory > "$dir/short-use-inventory.json"
+    fi
+    ctl use-item --hold 1.8 > "$dir/use-item.json"
+    ctl wait 10 >/dev/null
+    case "$scenario" in
+      c3) kill_game ;;
+      c4) ctl save >/dev/null; kill_game ;;
+      *) ctl save >/dev/null; quit_game ;;
+    esac
+    report; quit_game
+    if [[ "$scenario" == c5 ]]; then
+      expect_log 2 "MISTBRN event=vial_refused metal=iron reason=injected_failure"
+    else
+      expect_log 2 "MISTBRN event=vial_credit metal=iron seq=1"
+    fi
+    case "$scenario" in
+      c2|c4) expect 3 report state=active reserve_iron=25000 last_transaction=1 vials=2 empty_vials=1 ;;
+      c3|c5) expect 3 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
+    esac
+    if [[ "$scenario" == c2 ]]; then
+      jq -e '.using[0] == 0 and .using[1] >= 23 and .using[1] < 32' \
+        "$dir/drinking-status.json" >/dev/null || die "expected the main-hand drink to still be in progress"
+      jq -e '.counts["mistbrn:vial_iron"] == 3 and (.counts["mistbrn:vial_empty"] // 0) == 0' \
+        "$dir/short-use-inventory.json" >/dev/null || die "an interrupted drink consumed the vial"
+    fi ;;
+  c2b)
+    launch
+    ctl command "gamemode survival" >/dev/null
+    ctl command "item replace entity @s weapon.offhand with mistbrn:vial_iron 1" >/dev/null
+    ctl use-item --hold 1.8 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl inventory > "$dir/offhand-inventory.json"
+    quit_game
+    expect_log 1 "MISTBRN event=vial_credit metal=iron seq=1"
+    jq -e '.offhand.item == "mistbrn:vial_empty" and .offhand.count == 1 and (.counts["mistbrn:vial_iron"] // 0) == 0' \
+      "$dir/offhand-inventory.json" >/dev/null || die "the last filled offhand vial should become an empty vial" ;;
+  c6)
+    # Place the fixture in an existing chunk; only the second launch mines it.
+    launch
+    ctl command "difficulty peaceful" >/dev/null
+    ctl command "tp @s 0.5 165 2.5" >/dev/null
+    ctl wait-for loaded --timeout 120 >/dev/null
+    ctl command "fill -1 160 1 11 165 12 minecraft:air" >/dev/null
+    ctl command "fill -1 159 1 11 159 12 minecraft:stone" >/dev/null
+    ctl command "fill 0 160 3 7 160 3 minecraft:copper_ore" >/dev/null
+    ctl command "fill 0 160 5 7 160 5 minecraft:deepslate_copper_ore" >/dev/null
+    ctl command "fill 0 160 7 7 160 7 minecraft:deepslate_iron_ore" >/dev/null
+    ctl command 'setblock 9 160 10 minecraft:chest{LootTable:"minecraft:chests/simple_dungeon",LootTableSeed:1L}' >/dev/null
+    ctl give diamond_pickaxe >/dev/null
+    ctl command "tp @s 0.5 160 2.5" >/dev/null
+    ctl command "gamemode survival" >/dev/null
+    ctl save >/dev/null; quit_game
+    launch
+    ctl select diamond_pickaxe >/dev/null
+    for z in 3 7 5; do
+      if [[ "$z" == 5 ]]; then
+        ctl command "enchant @s minecraft:silk_touch 1" > "$dir/silk-touch-command.json"
+        ctl wait 10 >/dev/null
+        ctl inventory > "$dir/silk-touch-tool.json"
+        jq -e '.hotbar | any(.item == "minecraft:diamond_pickaxe" and ((.components // "") | contains("minecraft:silk_touch")))' \
+          "$dir/silk-touch-tool.json" >/dev/null || die "the mining tool did not receive Silk Touch"
+      fi
+      for x in $(seq 0 7); do
+        ctl command "tp @s $x.5 160 $((z - 1)).5" >/dev/null
+        ctl wait 3 >/dev/null
+        ctl break "$x" 160 "$z" >> "$dir/mining.jsonl"
+      done
+      ctl collect 12 >> "$dir/mining.jsonl"
+      ctl inventory > "$dir/mining-$z.json"
+    done
+    ctl command "tp @s 9.5 160 9.5" >/dev/null
+    ctl wait 3 >/dev/null
+    ctl interact 9 160 10 > "$dir/chest-open.json"
+    ctl menu > "$dir/chest-menu.json"
+    ctl close >/dev/null; quit_game
+    # Copper: x=5 at z=3. Iron: x=1,6,7 at z=7. The z=5 row includes
+    # eligible positions too, but Silk Touch must leave both sample totals unchanged.
+    jq -e '.counts["mistbrn:raw_tin"] == 1' "$dir/mining-3.json" >/dev/null ||
+      die "expected exactly one tin sample from copper"
+    jq -e '.counts["mistbrn:raw_tin"] == 1 and .counts["mistbrn:raw_zinc"] == 3 and .counts["minecraft:deepslate_copper_ore"] == 8' \
+      "$dir/mining-5.json" >/dev/null || die "zinc samples or Silk Touch drops differ from expected"
+    jq -e '[.. | objects | select(.item? == "mistbrn:vial_tin") | .count] == [1]' "$dir/chest-menu.json" >/dev/null ||
+      die "expected one discovery vial in the previously unopened loot chest" ;;
+  c7)
+    launch MISTBRN_TEST_SCENARIO=report
+    ctl wait 40 >/dev/null
+    ctl command "gamemode survival" >/dev/null
+    give3; ctl wait 10 >/dev/null; ctl select mistbrn:vial_iron >/dev/null
+    ctl use-item --hold 1.8 >/dev/null
+    ctl wait 10 >/dev/null
+    ctl pause >/dev/null
+    ctl click-button "Save and Quit" >/dev/null
+    ctl wait-for screen title --timeout 120 >/dev/null
+    # This boundary is still in the first process, before world B has opened.
+    live_log="$sockdir/l1.log"
+    [[ "$(grep -ac 'MISTBRN event=save_loaded' "$live_log")" == 1 ]] ||
+      die "expected one player load before leaving world A"
+    grep -aq 'MISTBRN event=vial_credit metal=iron seq=1' "$live_log" ||
+      die "expected a vial credit in world A"
+    world_b_line=$(( $(wc -l < "$live_log") + 1 ))
+    ctl open "$world-b" 42 creative >/dev/null
+    ctl wait-for loaded --timeout 120 >/dev/null
+    ctl wait 40 >/dev/null
+    ctl inventory > "$dir/second-world-inventory.json"
+    quit_game
+    world_b_loads="$(tail -n "+$world_b_line" "$(log 1)" | grep -a 'MISTBRN event=save_loaded' || true)"
+    [[ "$world_b_loads" == 'MISTBRN event=save_loaded state=fresh' ]] ||
+      die "expected one fresh player load after opening world B"
+    [[ "$(grep -ac "$TICK_LINE" "$(log 1)")" == 6 ]] ||
+      die "expected three tick reports for each world"
+    jq -e '(.counts["mistbrn:vial_iron"] // 0) == 0 and (.counts["mistbrn:vial_empty"] // 0) == 0' \
+      "$dir/second-world-inventory.json" >/dev/null || die "vials from world A appeared in world B"
+    # Reopen B in a fresh process to report exactly what the first process saved there.
+    world_a="$world"; world="$world-b"
+    report; quit_game
+    world="$world_a"
+    expect_log 2 "MISTBRN event=save_loaded state=found"
+    expect 2 report state=active reserve_iron=0 last_transaction=0 vials=0 empty_vials=0 \
+      "uuid=$(field 1 report uuid)" ;;
   pd-roundtrip)
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
@@ -122,24 +322,24 @@ case "$scenario" in
     launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; quit_game
     expect 1 drink result=ok seq=1
-    expect 2 report state=active reserve_iron=25000 unlocked_iron=true last_transaction=1 nuggets=2 ;;
+    expect 2 report state=active reserve_iron=25000 unlocked_iron=true last_transaction=1 vials=2 empty_vials=1 ;;
   s2)  # failure inside the transaction rolls back inventory and save together
     launch MISTBRN_TEST_SCENARIO=drink-fail; give3; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; quit_game
-    expect 1 drink-fail result=err:injected_failure reserve_iron=0 last_transaction=0 nuggets=3
-    expect 2 report state=active reserve_iron=0 last_transaction=0 nuggets=3 ;;
+    expect 1 drink-fail result=err:injected_failure reserve_iron=0 last_transaction=0 vials=3 empty_vials=0
+    expect 2 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
   s3)  # hard cut after the credit, before any save: the old state, whole
     launch; give3; ctl wait 20 >/dev/null; ctl save >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=drink; ctl wait 40 >/dev/null; kill_game
     report; quit_game
     expect 2 drink result=ok seq=1
-    expect 3 report state=active reserve_iron=0 last_transaction=0 nuggets=3 ;;
+    expect 3 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
   s4)  # hard cut after a save: the new state, whole
     launch; give3; ctl wait 20 >/dev/null; ctl save >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=drink; ctl wait 40 >/dev/null; ctl save >/dev/null; kill_game
     report; quit_game
     expect 2 drink result=ok seq=1
-    expect 3 report state=active reserve_iron=25000 last_transaction=1 nuggets=2 ;;
+    expect 3 report state=active reserve_iron=25000 last_transaction=1 vials=2 empty_vials=1 ;;
   s5)  # death clears reserves, keeps unlocks and the transaction counter
     launch MISTBRN_TEST_SCENARIO=drink; give3; ctl wait 40 >/dev/null
     ctl command "kill @s" >/dev/null; ctl wait 20 >/dev/null; ctl respawn >/dev/null; ctl wait 40 >/dev/null

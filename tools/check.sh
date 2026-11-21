@@ -10,6 +10,52 @@ FORBIDDEN='\.(zip|jpg|jpeg|gif|log|dat|dat_old|mca|dylib|so|dll|exe|jar|tar|xz|g
 # Original mod textures are the only images allowed, each small.
 MAX_ASSET_PNG_BYTES=$((16 * 1024))
 
+echo "== content: JSON, item assets, translations and recipe IDs"
+require jq od
+assets=mod/assets/mistbrn
+data=mod/data/mistbrn
+while IFS= read -r -d '' path; do
+  jq -se 'length == 1 and (.[0] | type == "object")' "$path" >/dev/null ||
+    die "invalid content JSON: $path"
+done < <(find "$assets" "$data" -type f -name '*.json' -print0)
+keys="$(jq -c 'keys' "$assets/lang/en_us.json")"
+[[ "$keys" == "$(jq -c 'keys' "$assets/lang/es_es.json")" ]] ||
+  die "en_us and es_es must contain the same keys"
+
+for definition in "$data"/horizon/item/*.json; do
+  id="${definition##*/}"; id="${id%.json}"
+  [[ -f "$definition" ]] || die "no registered items"
+  jq -e --arg model "mistbrn:item/$id" '.model.model == $model' "$assets/items/$id.json" >/dev/null ||
+    die "missing item model for $id"
+  jq -e --arg texture "mistbrn:item/$id" '.textures.layer0 == $texture' "$assets/models/item/$id.json" >/dev/null ||
+    die "missing model texture for $id"
+  png="$assets/textures/item/$id.png"
+  [[ -s "$png" ]] || die "missing texture for $id"
+  header="$(od -An -tx1 -N24 "$png" | tr -d '[:space:]')"
+  [[ "$header" == 89504e470d0a1a0a0000000d494844520000001000000010 ]] ||
+    die "texture for $id must be a 16x16 PNG"
+  (( $(wc -c < "$png") <= MAX_ASSET_PNG_BYTES )) || die "texture too large: $png"
+  for language in en_us es_es; do
+    jq -e --arg key "item.mistbrn.$id" '.[$key] | type == "string" and length > 0' \
+      "$assets/lang/$language.json" >/dev/null || die "missing $language translation for $id"
+  done
+done
+
+for recipe in "$data"/recipe/*.json; do
+  ids="$(jq -er '
+    if (.result.id | type) != "string" then error("missing recipe result ID") else
+      [.key[]?, .ingredients[]?, .ingredient?, .result.id] | map(select(. != null)) | flatten | .[]
+    end
+  ' "$recipe")"
+  while IFS= read -r id; do
+    case "$id" in
+      mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;
+      minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal) ;;
+      *) die "unknown item $id in $recipe" ;;
+    esac
+  done <<< "$ids"
+done
+
 echo "== core: fmt, clippy, tests"
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
