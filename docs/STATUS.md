@@ -7,14 +7,13 @@ Actualizado: 2026-11-21.
 - Rama activa: `feat/p3-content` desde `314df92`.
 - Fase: **P2** cerrado — P2-core (PR #3) y P2-native (PR #4: revisión ronda 2 approve; S1–S11 + S5b PASS en `70308f9`, `docs/evidence/p2.md`).
 - P3a: prueba de contenido aprobada. `p3-vial-smoke-1` fabricó dos `mistbrn:vial_empty` con dos bloques de vidrio en supervivencia.
-- P3a: 25 ítems y 25 recetas implementados. Primeras corridas C1, C2 y C7 aprobadas con `native-0a875da-eb35c1a3e3cc`. C6 obtuvo la muestra de estaño esperada y se interrumpió por alcance durante el montaje de minería de hierro.
-- Runtime (fuera del repo): `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). Instancia `mistbrn-dev`; build de prueba `native-0a875da-27d62f8f5a96`.
+- P3a incluye 25 ítems y 25 recetas. Pasaron los escenarios de contenido y la regresión de P2, 24 corridas en total. C7 verifica una sola carga por mundo y cierra R3. Evidencia en `docs/evidence/p3.md`.
+- El runtime vive en `~/Library/Application Support/MISTBRN-dev/` (`staged/`, `logs/`, `runs/`). La instancia `mistbrn-dev` tiene seleccionado `native-0a875da-9de1682533b2`.
 
 ## Siguiente acción exacta
 
-1. Ejecutar la batería de P3a con el build final. Registrar evidencia en `docs/evidence/p3.md`.
-2. Obtener dos revisiones independientes de solo lectura de proveedores distintos antes del merge.
-3. P3b: accesorios según la propuesta de `docs/plan.md`.
+1. Incorporar en la PR los informes de las dos revisiones independientes de P3a.
+2. P3b queda descrito en `docs/plan.md` con monedas, capa y accesorios.
 
 ## Gates abiertos
 
@@ -23,5 +22,5 @@ Actualizado: 2026-11-21.
 | P0b | mergeado (PR #2) |
 | P2-core | mergeado (PR #3) |
 | P2-native | mergeado (PR #4) |
-| P3a | batería y revisión pendientes |
+| P3a | batería aprobada, revisión en la PR |
 | Windows x64 / Linux x64 | P10 |

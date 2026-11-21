@@ -42,7 +42,11 @@ for definition in "$data"/horizon/item/*.json; do
 done
 
 for recipe in "$data"/recipe/*.json; do
-  ids="$(jq -er '[.key[]?, .ingredients[]?, .ingredient?, .result.id] | map(select(. != null)) | flatten | .[]' "$recipe")"
+  ids="$(jq -er '
+    if (.result.id | type) != "string" then error("missing recipe result ID") else
+      [.key[]?, .ingredients[]?, .ingredient?, .result.id] | map(select(. != null)) | flatten | .[]
+    end
+  ' "$recipe")"
   while IFS= read -r id; do
     case "$id" in
       mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;

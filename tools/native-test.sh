@@ -182,7 +182,10 @@ case "$scenario" in
     else launch; fi
     ctl select mistbrn:vial_iron >/dev/null
     if [[ "$scenario" == c2 ]]; then
-      ctl use-item --hold 0.4 >/dev/null
+      ctl mouse right down >/dev/null
+      ctl wait 23 >/dev/null
+      ctl status > "$dir/drinking-status.json"
+      ctl mouse right up >/dev/null
       ctl wait 35 >/dev/null
       ctl inventory > "$dir/short-use-inventory.json"
     fi
@@ -204,6 +207,8 @@ case "$scenario" in
       c3|c5) expect 3 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
     esac
     if [[ "$scenario" == c2 ]]; then
+      jq -e '.using[0] == 0 and .using[1] >= 23 and .using[1] < 32' \
+        "$dir/drinking-status.json" >/dev/null || die "expected the main-hand drink to still be in progress"
       jq -e '.counts["mistbrn:vial_iron"] == 3 and (.counts["mistbrn:vial_empty"] // 0) == 0' \
         "$dir/short-use-inventory.json" >/dev/null || die "an interrupted drink consumed the vial"
     fi ;;
@@ -237,7 +242,13 @@ case "$scenario" in
     launch
     ctl select diamond_pickaxe >/dev/null
     for z in 3 7 5; do
-      [[ "$z" != 5 ]] || ctl enchant silk_touch 1 >/dev/null
+      if [[ "$z" == 5 ]]; then
+        ctl command "enchant @s minecraft:silk_touch 1" > "$dir/silk-touch-command.json"
+        ctl wait 10 >/dev/null
+        ctl inventory > "$dir/silk-touch-tool.json"
+        jq -e '.hotbar | any(.item == "minecraft:diamond_pickaxe" and ((.components // "") | contains("minecraft:silk_touch")))' \
+          "$dir/silk-touch-tool.json" >/dev/null || die "the mining tool did not receive Silk Touch"
+      fi
       for x in $(seq 0 7); do
         ctl command "tp @s $x.5 160 $((z - 1)).5" >/dev/null
         ctl wait 3 >/dev/null
@@ -251,28 +262,38 @@ case "$scenario" in
     ctl interact 9 160 10 > "$dir/chest-open.json"
     ctl menu > "$dir/chest-menu.json"
     ctl close >/dev/null; quit_game
-    # Copper: x=5 at z=3. Iron: x=0,1,6,7 at z=7. The z=5 row includes
+    # Copper: x=5 at z=3. Iron: x=1,6,7 at z=7. The z=5 row includes
     # eligible positions too, but Silk Touch must leave both sample totals unchanged.
     jq -e '.counts["mistbrn:raw_tin"] == 1' "$dir/mining-3.json" >/dev/null ||
       die "expected exactly one tin sample from copper"
-    jq -e '.counts["mistbrn:raw_tin"] == 1 and .counts["mistbrn:raw_zinc"] == 4 and .counts["minecraft:deepslate_copper_ore"] == 8' \
+    jq -e '.counts["mistbrn:raw_tin"] == 1 and .counts["mistbrn:raw_zinc"] == 3 and .counts["minecraft:deepslate_copper_ore"] == 8' \
       "$dir/mining-5.json" >/dev/null || die "zinc samples or Silk Touch drops differ from expected"
-    jq -e '[.. | strings | select(. == "mistbrn:vial_tin")] | length > 0' "$dir/chest-menu.json" >/dev/null ||
+    jq -e '[.. | objects | select(.item? == "mistbrn:vial_tin") | .count] == [1]' "$dir/chest-menu.json" >/dev/null ||
       die "expected one discovery vial in the previously unopened loot chest" ;;
   c7)
     launch MISTBRN_TEST_SCENARIO=report
     ctl wait 40 >/dev/null
+    ctl command "gamemode survival" >/dev/null
+    give3; ctl wait 10 >/dev/null; ctl select mistbrn:vial_iron >/dev/null
+    ctl use-item --hold 1.8 >/dev/null
+    ctl wait 10 >/dev/null
     ctl pause >/dev/null
     ctl click-button "Save and Quit" >/dev/null
     ctl wait-for screen title --timeout 120 >/dev/null
     ctl open "$world-b" 42 creative >/dev/null
     ctl wait-for loaded --timeout 120 >/dev/null
     ctl wait 40 >/dev/null
+    ctl inventory > "$dir/second-world-inventory.json"
     quit_game
+    expect_log 1 "MISTBRN event=vial_credit metal=iron seq=1"
     [[ "$(grep -ac 'MISTBRN event=save_loaded' "$(log 1)")" == 2 ]] ||
       die "expected one player load per world in the same process"
     [[ "$(grep -ac "$TICK_LINE" "$(log 1)")" == 6 ]] ||
-      die "expected three tick reports for each world" ;;
+      die "expected three tick reports for each world"
+    grep -a 'MISTBRN event=\(save_loaded\|vial_credit\)' "$(log 1)" | tail -1 |
+      grep -q 'MISTBRN event=save_loaded state=fresh' || die "world B must load a fresh save after world A's credit"
+    jq -e '(.counts["mistbrn:vial_iron"] // 0) == 0 and (.counts["mistbrn:vial_empty"] // 0) == 0' \
+      "$dir/second-world-inventory.json" >/dev/null || die "vials from world A appeared in world B" ;;
   pd-roundtrip)
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
