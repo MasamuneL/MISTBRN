@@ -41,6 +41,12 @@ for definition in "$data"/horizon/item/*.json; do
   done
 done
 
+# Every item that names a mod equipment asset has that asset file.
+while IFS= read -r asset; do
+  [[ -z "$asset" || -f "$assets/equipment/${asset#mistbrn:}.json" ]] || die "missing equipment asset $asset"
+done < <(jq -r '.components["minecraft:equippable"].asset_id? // empty | select(startswith("mistbrn:"))' \
+  "$data"/horizon/item/*.json; echo)
+
 for equipment in "$assets"/equipment/*.json; do
   [[ -f "$equipment" ]] || continue
   textures="$(jq -er '.layers.humanoid | if type == "array" and length > 0 then .[].texture else error("no humanoid layers") end' "$equipment")" ||

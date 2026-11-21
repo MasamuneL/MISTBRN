@@ -42,6 +42,9 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 ## Límites conocidos
 
+- Las muestras de mena dependen solo de la posición: colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto garantiza la muestra. Límite aceptado (cuesta una mena por muestra).
+- La cola de bebidas se deduplica por jugador y slot en cada tick porque la doc del hook de fin de uso indica que en el servidor puede dispararse para cada jugador del mundo. Sin probar con dos clientes (P9).
+- `bronze_earring` ocupa el slot de casco: no se lleva a la vez que un casco.
 - La batería P3a se ejecutó en el servidor integrado de macOS arm64. El cooperativo y el servidor dedicado corresponden a una fase posterior. [Evidencia de P3a](evidence/p3.md)
 - Las pruebas de corte de P3a cubren el inventario del jugador cuando tiene espacio para el envase. La durabilidad conjunta de la reserva y un envase soltado por desbordamiento sigue por verificar.
 - `player.persistent_data()` convierte un `NeoForgeData` no-compound en vacío y `set_persistent_data` lo sobrescribe (fuente `native_player_persistent_data.rs`). El adaptador lee primero `entity().nbt()`, que sí muestra una raíz corrupta (S11), y bloquea al jugador sin escribir.
