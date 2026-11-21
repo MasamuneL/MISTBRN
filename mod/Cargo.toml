@@ -1,0 +1,15 @@
+[package]
+name = "mistbrn"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+description = "Horizon adapter of the Allomancy mod; mod identity lives in horizon-mod.toml"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# The only accepted SDK form: the pinned SDK fetched by tools/fetch-sdk.sh.
+horizon-mod-api = { path = ".horizon/sdk/api/crates/horizon-mod-api" }
+allomancy-core = { path = "src/core" }

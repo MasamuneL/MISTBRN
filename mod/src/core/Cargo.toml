@@ -1,0 +1,9 @@
+[package]
+name = "allomancy-core"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Game-independent rules of the Allomancy mod: no registry dependencies by design."
+publish = false
+
+[dependencies]

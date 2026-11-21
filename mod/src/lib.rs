@@ -1,0 +1,54 @@
+//! Allomancy for Horizon: the native adapter between the game and `allomancy-core`.
+//!
+//! The core decides; this crate observes the game, builds trusted snapshots and applies effects.
+//! Nothing here is OS-specific: the same source builds for every host the pinned SDK supports.
+#![deny(unsafe_code)]
+
+mod bridge;
+mod scenario;
+
+use mod_api::{
+    self, Authority as HostAuthority, Hooks, ServerHost, ServerTickEvent, ServerTickPhase,
+};
+use std::sync::Mutex;
+
+pub(crate) const MOD_VERSION: &str = "0.2.0";
+
+struct Allomancy {
+    session: Mutex<bridge::Session>,
+    scenario: Mutex<scenario::Runner>,
+}
+
+impl Default for Allomancy {
+    fn default() -> Self {
+        eprintln!("MISTBRN event=loaded version={MOD_VERSION}");
+        Self {
+            session: Mutex::new(bridge::Session::default()),
+            scenario: Mutex::new(scenario::Runner::from_env()),
+        }
+    }
+}
+
+#[mod_api::horizon_mod]
+impl Hooks for Allomancy {
+    fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>) {
+        // Integrated (single player / LAN) and dedicated servers are both authoritative.
+        if !matches!(
+            event.context.authority,
+            HostAuthority::IntegratedServer | HostAuthority::DedicatedServer
+        ) || !matches!(
+            event.phase,
+            ServerTickPhase::ServerTickEnd {
+                world_running: true
+            }
+        ) {
+            return;
+        }
+        if let Ok(mut session) = self.session.lock() {
+            session.tick(host, event.context.epoch.get(), event.context.tick.get());
+        }
+        if let Ok(mut runner) = self.scenario.lock() {
+            runner.tick(host);
+        }
+    }
+}

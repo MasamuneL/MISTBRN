@@ -1,20 +1,22 @@
-# Contratos propios de Alomancia — P1
+# Contratos del núcleo — Masamune's MISTBRN
 
-Contrato congelado para consumidores P1, 2026-11-13. Son tipos del proyecto, no APIs del SDK. Fuente normativa de campos/variantes: `crates/allomancy-core/src/{types,state,commands}.rs`, todos reexportados en la raíz `allomancy_core`.
+Contrato P1 congelado 2026-11-13; revisado en P0b (2026-11-21). Son tipos del proyecto, no APIs del SDK. Fuente normativa: `mod/src/core/src/{types,state,commands}.rs`, reexportados en la raíz `allomancy_core`.
+
+**Cambio P0b:** el núcleo no tiene dependencias de registro. Se retiraron `Serialize/Deserialize` de todos los tipos: ningún tipo del núcleo se decodifica de bytes externos salvo mediante los codecs propios y validados que se definan (guardado en P2, peticiones de cliente en P7).
 
 ## Identidad y cantidades
 
-`PlayerId`, `WorldId`, `NodeId`, `ResearchId`, `EventId`, `TransactionId`: newtypes opacos de `String` privada, `new(impl Into<String>) -> Self`, `as_str() -> &str`, serde transparente, orden lexicográfico. No interpretan su contenido ni prueban autenticidad. WorldId admite una clave estable futura; el adaptador P1 puede usar un epoch transitorio explícito, que no es identidad persistida definitiva. `Tick(pub u64)`.
+`PlayerId`, `WorldId`, `NodeId`, `ResearchId`, `EventId`, `TransactionId`: newtypes opacos de `String` privada, `new(impl Into<String>) -> Self`, `as_str() -> &str`, orden lexicográfico. No interpretan su contenido ni prueban autenticidad. El adaptador usa `WorldId` constante `local`: el aislamiento entre mundos lo dan los ficheros de jugador por mundo del juego. `Tick(pub u64)`.
 
 `Metal` en orden fijo: `Iron, Steel, Tin, Pewter, Zinc, Brass, Copper, Bronze`; `Metal::ALL: [Metal;8]`, `index() -> usize`, `pair() -> Pair`. `Pair`: `IronSteel, TinPewter, ZincBrass, CopperBronze`. `Vec3 { x:f64, y:f64, z:f64 }`, `is_finite() -> bool`; solo geometría admite flotantes.
 
-`BurnState`: `Off, Burning, Flared`. `MetalState { unlocked:bool, reserve_milli:u64, burn:BurnState }`; milésimas enteras, sin consumo P1. `PlayerState { player_id:PlayerId, world_id:WorldId, last_tick:Option<Tick>, selected_pair:Pair, metals:[MetalState;8] }`. `PlayerState::new(player_id, world_id)` inicia metales bloqueados, reservas cero, apagados, pareja IronSteel y last_tick None. `WorldState { world_id:WorldId, players:BTreeMap<PlayerId,PlayerState> }`. Estos tipos tienen serde; su deserialización no equivale a validar un guardado ni autoriza mensajes cliente.
+`BurnState`: `Off, Burning, Flared`. `MetalState { unlocked:bool, reserve_milli:u64, burn:BurnState }`; milésimas enteras, sin consumo P1. `PlayerState { player_id:PlayerId, world_id:WorldId, last_tick:Option<Tick>, selected_pair:Pair, metals:[MetalState;8] }`. `PlayerState::new(player_id, world_id)` inicia metales bloqueados, reservas cero, apagados, pareja IronSteel y last_tick None. `WorldState { world_id:WorldId, players:BTreeMap<PlayerId,PlayerState> }`. Sin decodificador genérico: solo el codec de guardado de P2 produce estos tipos desde bytes, tras validarlos.
 
 ## Frontera de confianza
 
-`Authority`: `Client, Server`; `InputContext { gameplay_allowed:bool }`; `TargetSnapshot { id:String, position:Vec3 }`; `WorldSnapshot { tick:Tick, world_id:WorldId, actor:PlayerId, position:Vec3, targets:Vec<TargetSnapshot>, authority:Authority, input:InputContext }`. Ninguno implementa Deserialize. Solo el adaptador confiable crea snapshots del Host; nunca copiar `authority` de una petición cliente. `gameplay_allowed` proviene del foco/chat/menú comprobado por el adaptador.
+`Authority`: `Client, Server`; `InputContext { gameplay_allowed:bool }`; `TargetSnapshot { id:String, position:Vec3 }`; `WorldSnapshot { tick:Tick, world_id:WorldId, actor:PlayerId, position:Vec3, targets:Vec<TargetSnapshot>, authority:Authority, input:InputContext }`. Ninguno tiene decodificador. Solo el adaptador confiable crea snapshots del Host; nunca copiar `authority` de una petición cliente. `gameplay_allowed` proviene del foco/chat/menú comprobado por el adaptador.
 
-`Command` (serde): `Drink { transaction:TransactionId, slot:u32 }`, `Activate { metal:Metal }`, `Flare { metal:Metal }`, `Extinguish { metal:Option<Metal> }`, `Purchase { node:NodeId, transaction:TransactionId }`, `Claim { event:EventId, transaction:TransactionId }`, `SelectPair { pair:Pair }`. Un EventId del cliente es una referencia, nunca evidencia verificada.
+`Command`: `Drink { transaction:TransactionId, slot:u32 }`, `Activate { metal:Metal }`, `Flare { metal:Metal }`, `Extinguish { metal:Option<Metal> }`, `Purchase { node:NodeId, transaction:TransactionId }`, `Claim { event:EventId, transaction:TransactionId }`, `SelectPair { pair:Pair }`. Un EventId del cliente es una referencia, nunca evidencia verificada.
 
 `Operation`: `Drink, Activate, Flare, Purchase, Claim`. `RuleError`: `ServerAuthorityRequired, WorldMismatch, PlayerMismatch, NonFinitePosition, NonFiniteTarget, StaleTick, InputCaptured, MetalLocked(Metal), EmptyReserve(Metal), NotImplemented(Operation)`.
 
@@ -35,10 +37,10 @@ P1 solo emite Signal con AcceptedInMemory: la transición ya fue aceptada en el 
 
 ## Eventos y funciones reservadas
 
-`EventKind`: `ResearchObserved { research:ResearchId }`, `MilestoneReached { key:String }`. `VerifiedEvent` tiene campos privados `id:EventId, tick:Tick, world_id:WorldId, actor:PlayerId, kind:EventKind`; getters `id, tick, world_id, actor, kind`. No Serialize/Deserialize. Constructor `from_server_observation(id:EventId, kind:EventKind, ctx:&WorldSnapshot) -> Result<VerifiedEvent,RuleError>` valida autoridad y geometría y captura identidad/tick; debe llamarlo exclusivamente lógica confiable tras observar el Host. Este chequeo estructural no prueba por sí mismo un hito ni convierte texto del cliente en evidencia. P1 no observa ni reclama progresión.
+`EventKind`: `ResearchObserved { research:ResearchId }`, `MilestoneReached { key:String }`. `VerifiedEvent` tiene campos privados `id:EventId, tick:Tick, world_id:WorldId, actor:PlayerId, kind:EventKind`; getters `id, tick, world_id, actor, kind`. Sin codec. Constructor `from_server_observation(id:EventId, kind:EventKind, ctx:&WorldSnapshot) -> Result<VerifiedEvent,RuleError>` valida autoridad y geometría y captura identidad/tick; debe llamarlo exclusivamente lógica confiable tras observar el Host. Este chequeo estructural no prueba por sí mismo un hito ni convierte texto del cliente en evidencia. P1 no observa ni reclama progresión.
 
 Firmas del plan reservadas, **no exportadas ni implementadas**: `observe(&mut PlayerState,&VerifiedEvent,&ResearchCatalog)->Vec<Discovery>`, `purchase_node(&mut PlayerState,NodeId,&SkillCatalog)->Result<(),RuleError>`, `claim_milestone(&mut PlayerState,&VerifiedEvent)->Result<Reward,RuleError>`, `encode_save(&WorldState)->Result<Vec<u8>,SaveError>`, `decode_save(&[u8])->Result<WorldState,SaveError>`. Los tipos de catálogos/resultados se definirán en sus fases; no hay stubs que aparenten soporte.
 
 ## Gate P2 de persistencia e inventario
 
-Backend canónico futuro: subcompound namespaced/versionado en NeoForgeData, merge completo preservando claves ajenas. El getter normalizado del SDK oculta raíz corrupta: P2 leerá `player_compound` fuera del turno antes de escribir/consumir, distinguirá ausente de no-Compound y rechazará este último intacto. Inventario slot exacto fuera de acting; aplicación en callback servidor sin await, con rollback de inventario y estado ante fallos. Epoch P1, serde y Effect::Persist no son codecs ni transacciones crash-safe; durabilidad, esquema/migraciones e idempotencia transaccional requieren P2.
+Backend decidido (ver `docs/plan.md`, P2-native): bytes del codec propio en `NeoForgeData.PlayerPersisted.mistbrn` como `ByteArray`, leyendo y reescribiendo el compound completo y preservando claves ajenas. Inventario y `persistent_data` se modifican juntos dentro de `host.transaction`; cualquier `Err` aborta ambos. El getter del SDK normaliza una raíz `NeoForgeData` no-compound a vacía; la guarda que lo compensa depende del gate G7 de P0b. `Effect::Persist` no es por sí mismo durabilidad: la da el writer del juego, probado en P2-native.
