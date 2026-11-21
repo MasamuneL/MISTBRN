@@ -2,7 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    "minecraft:copper_ingot"
+    "minecraft:copper_ingot",
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:copper_flakes",

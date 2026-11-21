@@ -2,7 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    "mistbrn:brass_ingot"
+    "mistbrn:brass_ingot",
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:brass_flakes",

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "ingredients": [
+    "mistbrn:bronze_ingot",
+    "minecraft:string"
+  ],
+  "result": {
+    "id": "mistbrn:bronze_earring",
+    "count": 1
+  }
+}

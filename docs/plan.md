@@ -181,14 +181,25 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 ### P3a — Cadena de metales
 
 - 25 ítems. `vial_empty`, ocho `vial_<metal>`, ocho `<metal>_flakes`, seis lingotes de estaño, zinc, acero, peltre, latón y bronce, y `raw_tin` / `raw_zinc`. Hierro y cobre usan lingotes vanilla. Texturas propias de 16 × 16, nombres en inglés y español y pestaña creativa Alomancia.
-- 25 recetas. Dos vidrios en vertical rinden dos viales vacíos. Cada lingote rinde dos virutas y cada viruta llena un vial. Un hierro y dos carbones rinden un acero. Tres estaños y un cobre rinden cuatro peltres. Dos cobres y un zinc rinden tres latones. Tres cobres y un estaño rinden cuatro bronces. Estaño y zinc en bruto se refinan en horno y alto horno.
+- 25 recetas. Dos vidrios en vertical rinden dos viales vacíos. Cada lingote con un bloque de piedra (`#minecraft:stone_crafting_materials`) rinde dos virutas (desde P3b; un lingote solo chocaba con las pepitas vanilla y lingote + pedernal con el mechero) y cada viruta llena un vial. Un hierro y dos carbones rinden un acero. Tres estaños y un cobre rinden cuatro peltres. Dos cobres y un zinc rinden tres latones. Tres cobres y un estaño rinden cuatro bronces. Estaño y zinc en bruto se refinan en horno y alto horno.
 - En chunks existentes, la minería de cobre da un estaño adicional en 1 de 4 posiciones, y la de hierro da un zinc en 1 de 3. Incluye pizarra profunda. Se exige el mineral en bruto vanilla en el botín, por lo que Toque de Seda y herramientas inadecuadas no dan muestras. Al abrir por primera vez determinados cofres de mazmorra, mina o ruina submarina, 1 de 8 posiciones añade un vial de descubrimiento. Las tasas son deterministas por dimensión y posición.
 - En supervivencia o aventura, el uso completo de 32 ticks intenta acreditar 25 000 milésimas. El servidor comprueba el mismo slot y stack y consume un vial, devuelve el envase y escribe el guardado en una transacción. El desbloqueo de poderes corresponde al sistema de progresión. Las menas propias quedan para una fase posterior.
 - Gates: `tools/check.sh`, C1 fabricación, C2 beber y persistir, C2b mano secundaria, C3/C4 cortes antes/después de guardar (3 corridas por caso), C5 rollback, C6 minería y botín, C7 cambio de mundo en el mismo proceso, regresión S1–S11 + S5b y dos revisiones independientes.
 
 ### P3b — Accesorios
 
-La propuesta incluye las monedas `clip` y `boxing`, la daga `glass_dagger`, el bastón `dueling_cane`, la capa `mistcloak` equipable sin protección y el pendiente `bronze_earring`. Cada ítem tendrá receta, arte original y traducciones. P4 incorporará la interacción de las monedas con los empujones de acero y los proyectiles.
+Seis ítems con receta, arte original provisional y traducciones. Valores provisionales, ajustables con pruebas:
+
+| Ítem | Base | Valores | Receta |
+|---|---|---|---|
+| `clip` | moneda | pila 64 | 1 pepita de cobre → 1 |
+| `boxing` | moneda | pila 64 | 1 pepita de oro → 1 |
+| `glass_dagger` | espada | daño 4, velocidad 2,4, 48 usos, sin reparación | vidrio sobre palo (2 × 2) |
+| `dueling_cane` | espada | daño 3, velocidad 2,0, 131 usos | tronco, palo, palo en columna (mesa) |
+| `mistcloak` | equipable en pecho, sin armadura | pila 1, capa de equipamiento propia | lana gris con forma de peto (mesa) |
+| `bronze_earring` | equipable en cabeza, sin armadura | pila 1, modelo diminuto junto a la cabeza | lingote de bronce + hilo |
+
+Ninguna receta del mod coincide con una vanilla: un lingote solo sigue dando pepitas (D1 lo comprueba). También cierra los pendientes de la revisión de P3a: una bebida por jugador y slot en cada tick, mensajes con claves de idioma y el límite de Toque de Seda documentado. P4 incorporará la interacción de las monedas con los empujones de acero y los cuchillos arrojadizos (necesitan entidad de proyectil propia). Escenarios: D1 fabrica los seis, D2 equipa capa y pendiente y los conserva tras relanzar, D3 llena la reserva y rechaza el quinto vial con mensaje traducido; regresión C2, C2b, C5 y S9.
 
 ---
 

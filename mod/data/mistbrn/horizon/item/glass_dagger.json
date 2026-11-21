@@ -1,0 +1,23 @@
+{
+  "template": "minecraft:wooden_sword",
+  "components": {
+    "minecraft:max_damage": 48,
+    "minecraft:attribute_modifiers": [
+      {
+        "type": "minecraft:attack_damage",
+        "id": "minecraft:base_attack_damage",
+        "amount": 3.0,
+        "operation": "add_value",
+        "slot": "mainhand"
+      },
+      {
+        "type": "minecraft:attack_speed",
+        "id": "minecraft:base_attack_speed",
+        "amount": -1.6,
+        "operation": "add_value",
+        "slot": "mainhand"
+      }
+    ],
+    "!minecraft:repairable": {}
+  }
+}

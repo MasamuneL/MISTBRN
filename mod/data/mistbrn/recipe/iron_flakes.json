@@ -2,7 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    "minecraft:iron_ingot"
+    "minecraft:iron_ingot",
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:iron_flakes",

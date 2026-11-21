@@ -60,8 +60,29 @@ pub(crate) struct Session {
     drinks: Vec<Drink>,
 }
 
-fn tell(host: &mut dyn ServerHost, player: PlayerRef, line: &str) {
-    let _ = player.tell(host, Text::literal(line.to_string()));
+/// Chat line from the mod's translations (`assets/mistbrn/lang`), never a raw error code.
+fn tell(host: &mut dyn ServerHost, player: PlayerRef, key: &str) {
+    let _ = player.tell(host, Text::translate(key, Vec::new()));
+}
+
+fn slot_stack(host: &dyn Host, player: PlayerRef, slot: u32) -> Option<ItemStack> {
+    player
+        .inventory_slots(host)?
+        .into_iter()
+        .find(|(s, _)| *s == slot)
+        .map(|(_, stack)| stack)
+}
+
+/// What a refused drink tells the player. `item_not_in_slot` is silent: the vial moved before
+/// the next tick, or a duplicate of an already applied drink was refused.
+pub(crate) fn refusal_message(error: &str) -> Option<&'static str> {
+    if error == "item_not_in_slot" {
+        None
+    } else if error.contains("CapacityExceeded") {
+        Some("message.mistbrn.vial.reserve_full")
+    } else {
+        Some("message.mistbrn.vial.failed")
+    }
 }
 
 impl Session {
@@ -199,11 +220,7 @@ impl Session {
     pub(crate) fn block(&mut self, host: &mut dyn ServerHost, uuid: u128, reason: Blocked) {
         eprintln!("MISTBRN event=save_blocked reason={}", reason.reason());
         if let Some(player) = host.player(uuid) {
-            tell(
-                host,
-                player,
-                "Alomancia: datos guardados ilegibles; no se modificarán.",
-            );
+            tell(host, player, "message.mistbrn.save_blocked");
         }
         self.players.insert(uuid, Slot::Blocked(reason));
     }
@@ -216,8 +233,16 @@ impl Session {
         self.players.remove(&uuid);
     }
 
+    /// Queues one finished drink. The finish hook can be heard more than once for one use (on a
+    /// server it may fire for every player of the world): one drink per player and slot per tick.
     pub(crate) fn queue_drink(&mut self, drink: Drink) {
-        self.drinks.push(drink);
+        if !self
+            .drinks
+            .iter()
+            .any(|queued| queued.player.uuid() == drink.player.uuid() && queued.slot == drink.slot)
+        {
+            self.drinks.push(drink);
+        }
     }
 
     pub(crate) fn finish_drinks(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
@@ -238,7 +263,9 @@ impl Session {
                 Ok(seq) => eprintln!("MISTBRN event=vial_credit metal={metal} seq={}", seq.0),
                 Err(error) => {
                     eprintln!("MISTBRN event=vial_refused metal={metal} reason={error}");
-                    tell(host, player, &format!("MISTBRN: {error}"));
+                    if let Some(key) = refusal_message(&error) {
+                        tell(host, player, key);
+                    }
                 }
             }
         }
@@ -265,6 +292,11 @@ impl Session {
         if host.transaction_current().is_some() {
             return Err("nested_transaction".into());
         }
+        // A vial that moved is refused silently before any rule is checked (a full reserve
+        // must not be reported for a drink that no longer exists); re-checked in the transaction.
+        if slot_stack(host, player, slot).as_ref() != Some(&expected) {
+            return Err("item_not_in_slot".into());
+        }
         let Some(Slot::Active {
             saved,
             dirty,
@@ -281,11 +313,7 @@ impl Session {
             .and_then(|key| ItemStack::new(key, 1))
             .ok_or("empty_vial_unavailable")?;
         host.transaction(|host, _tx| {
-            let read: &dyn Host = host;
-            let stack = player
-                .inventory_slots(read)
-                .and_then(|slots| slots.into_iter().find(|(s, _)| *s == slot))
-                .map(|(_, stack)| stack)
+            let stack = slot_stack(host, player, slot)
                 .filter(|stack| *stack == expected)
                 .ok_or("item_not_in_slot")?;
             let remaining = stack.shrink(1);
@@ -418,5 +446,23 @@ pub(crate) fn metal_name(metal: Metal) -> &'static str {
         Metal::Brass => "brass",
         Metal::Copper => "copper",
         Metal::Bronze => "bronze",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refusal_message;
+
+    #[test]
+    fn refusals_use_translation_keys_and_moved_vials_stay_silent() {
+        assert_eq!(refusal_message("item_not_in_slot"), None);
+        assert_eq!(
+            refusal_message("InvalidReserves(CapacityExceeded(Iron))"),
+            Some("message.mistbrn.vial.reserve_full")
+        );
+        assert_eq!(
+            refusal_message("set_slot:Refused"),
+            Some("message.mistbrn.vial.failed")
+        );
     }
 }

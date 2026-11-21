@@ -2,7 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    "mistbrn:zinc_ingot"
+    "mistbrn:zinc_ingot",
+    "#minecraft:stone_crafting_materials"
   ],
   "result": {
     "id": "mistbrn:zinc_flakes",
