@@ -43,10 +43,12 @@ done
 
 for equipment in "$assets"/equipment/*.json; do
   [[ -f "$equipment" ]] || continue
+  textures="$(jq -er '.layers.humanoid | if type == "array" and length > 0 then .[].texture else error("no humanoid layers") end' "$equipment")" ||
+    die "equipment needs humanoid layers with textures: $equipment"
   while IFS= read -r texture; do
     png="$assets/textures/entity/equipment/humanoid/${texture#mistbrn:}.png"
     [[ "$texture" == mistbrn:* && -s "$png" ]] || die "missing equipment texture $texture for $equipment"
-  done < <(jq -er '.layers.humanoid[].texture' "$equipment")
+  done <<< "$textures"
 done
 
 for recipe in "$data"/recipe/*.json; do
@@ -59,7 +61,7 @@ for recipe in "$data"/recipe/*.json; do
     case "$id" in
       mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;
       minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal) ;;
-      minecraft:gold_ingot|minecraft:stick|minecraft:string|minecraft:gray_wool|'#minecraft:logs') ;;
+      minecraft:copper_nugget|minecraft:gold_nugget|minecraft:flint|minecraft:stick|minecraft:string|minecraft:gray_wool|'#minecraft:logs') ;;
       *) die "unknown item $id in $recipe" ;;
     esac
   done <<< "$ids"
@@ -83,11 +85,11 @@ trap 'rm -f "$REPO_ROOT/mod/Cargo.lock"' EXIT
 ( cd mod && cargo fmt -- --check && cargo clippy --all-targets -- -D warnings && cargo test )
 
 echo "== repository weight (tracked + staged files)"
+# Sizes of the staged blobs (the index), not of the working tree.
 files="$(git ls-files --cached)"
+sizes="$(git ls-files --cached -s | awk '{print $2}' | git cat-file --batch-check='%(objectsize)')"
 total=0; bad=0
-while IFS= read -r f; do
-  [[ -f "$f" ]] || continue
-  size=$(wc -c < "$f" | tr -d ' ')
+while IFS=$'\t' read -r size f; do
   total=$((total + size))
   if (( size > MAX_FILE_BYTES )); then echo "too large (${size} B > ${MAX_FILE_BYTES}): $f"; bad=1; fi
   if [[ "$f" =~ $FORBIDDEN ]]; then echo "forbidden file type: $f"; bad=1; fi
@@ -95,7 +97,7 @@ while IFS= read -r f; do
     if [[ "$f" != mod/assets/mistbrn/textures/* ]]; then echo "png outside mod textures: $f"; bad=1
     elif (( size > MAX_ASSET_PNG_BYTES )); then echo "texture too large (${size} B): $f"; bad=1; fi
   fi
-done <<< "$files"
+done < <(paste <(printf '%s\n' "$sizes") <(printf '%s\n' "$files"))
 echo "tree: $total bytes in $(wc -l <<< "$files" | tr -d ' ') files (limit $MAX_TREE_BYTES)"
 (( total <= MAX_TREE_BYTES )) || { echo "tree exceeds limit"; bad=1; }
 (( bad == 0 )) || die "repository weight check failed"

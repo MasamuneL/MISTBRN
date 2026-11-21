@@ -65,6 +65,14 @@ fn tell(host: &mut dyn ServerHost, player: PlayerRef, key: &str) {
     let _ = player.tell(host, Text::translate(key, Vec::new()));
 }
 
+fn slot_stack(host: &dyn Host, player: PlayerRef, slot: u32) -> Option<ItemStack> {
+    player
+        .inventory_slots(host)?
+        .into_iter()
+        .find(|(s, _)| *s == slot)
+        .map(|(_, stack)| stack)
+}
+
 /// What a refused drink tells the player. `item_not_in_slot` is silent: the vial moved before
 /// the next tick, or a duplicate of an already applied drink was refused.
 pub(crate) fn refusal_message(error: &str) -> Option<&'static str> {
@@ -284,6 +292,11 @@ impl Session {
         if host.transaction_current().is_some() {
             return Err("nested_transaction".into());
         }
+        // A vial that moved is refused silently before any rule is checked (a full reserve
+        // must not be reported for a drink that no longer exists); re-checked in the transaction.
+        if slot_stack(host, player, slot).as_ref() != Some(&expected) {
+            return Err("item_not_in_slot".into());
+        }
         let Some(Slot::Active {
             saved,
             dirty,
@@ -300,11 +313,7 @@ impl Session {
             .and_then(|key| ItemStack::new(key, 1))
             .ok_or("empty_vial_unavailable")?;
         host.transaction(|host, _tx| {
-            let read: &dyn Host = host;
-            let stack = player
-                .inventory_slots(read)
-                .and_then(|slots| slots.into_iter().find(|(s, _)| *s == slot))
-                .map(|(_, stack)| stack)
+            let stack = slot_stack(host, player, slot)
                 .filter(|stack| *stack == expected)
                 .ok_or("item_not_in_slot")?;
             let remaining = stack.shrink(1);

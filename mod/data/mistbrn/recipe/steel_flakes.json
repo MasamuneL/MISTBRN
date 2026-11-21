@@ -2,7 +2,8 @@
   "type": "minecraft:crafting_shapeless",
   "category": "misc",
   "ingredients": [
-    "mistbrn:steel_ingot"
+    "mistbrn:steel_ingot",
+    "minecraft:flint"
   ],
   "result": {
     "id": "mistbrn:steel_flakes",
