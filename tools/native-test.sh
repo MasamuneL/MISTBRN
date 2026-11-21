@@ -280,20 +280,32 @@ case "$scenario" in
     ctl pause >/dev/null
     ctl click-button "Save and Quit" >/dev/null
     ctl wait-for screen title --timeout 120 >/dev/null
+    # This boundary is still in the first process, before world B has opened.
+    live_log="$sockdir/l1.log"
+    [[ "$(grep -ac 'MISTBRN event=save_loaded' "$live_log")" == 1 ]] ||
+      die "expected one player load before leaving world A"
+    grep -aq 'MISTBRN event=vial_credit metal=iron seq=1' "$live_log" ||
+      die "expected a vial credit in world A"
+    world_b_line=$(( $(wc -l < "$live_log") + 1 ))
     ctl open "$world-b" 42 creative >/dev/null
     ctl wait-for loaded --timeout 120 >/dev/null
     ctl wait 40 >/dev/null
     ctl inventory > "$dir/second-world-inventory.json"
     quit_game
-    expect_log 1 "MISTBRN event=vial_credit metal=iron seq=1"
-    [[ "$(grep -ac 'MISTBRN event=save_loaded' "$(log 1)")" == 2 ]] ||
-      die "expected one player load per world in the same process"
+    world_b_loads="$(tail -n "+$world_b_line" "$(log 1)" | grep -a 'MISTBRN event=save_loaded' || true)"
+    [[ "$world_b_loads" == 'MISTBRN event=save_loaded state=fresh' ]] ||
+      die "expected one fresh player load after opening world B"
     [[ "$(grep -ac "$TICK_LINE" "$(log 1)")" == 6 ]] ||
       die "expected three tick reports for each world"
-    grep -a 'MISTBRN event=\(save_loaded\|vial_credit\)' "$(log 1)" | tail -1 |
-      grep -q 'MISTBRN event=save_loaded state=fresh' || die "world B must load a fresh save after world A's credit"
     jq -e '(.counts["mistbrn:vial_iron"] // 0) == 0 and (.counts["mistbrn:vial_empty"] // 0) == 0' \
-      "$dir/second-world-inventory.json" >/dev/null || die "vials from world A appeared in world B" ;;
+      "$dir/second-world-inventory.json" >/dev/null || die "vials from world A appeared in world B"
+    # Reopen B in a fresh process to report exactly what the first process saved there.
+    world_a="$world"; world="$world-b"
+    report; quit_game
+    world="$world_a"
+    expect_log 2 "MISTBRN event=save_loaded state=found"
+    expect 2 report state=active reserve_iron=0 last_transaction=0 vials=0 empty_vials=0 \
+      "uuid=$(field 1 report uuid)" ;;
   pd-roundtrip)
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
     launch MISTBRN_TEST_SCENARIO=pd-roundtrip; ctl wait 40 >/dev/null; quit_game
