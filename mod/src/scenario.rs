@@ -46,6 +46,7 @@ impl Runner {
     pub(crate) fn from_env() -> Self {
         let pending = std::env::var("MISTBRN_TEST_SCENARIO")
             .ok()
+            .filter(|name| !name.is_empty())
             .and_then(|name| {
                 let parsed = Scenario::parse(&name);
                 if parsed.is_none() {
@@ -136,6 +137,7 @@ fn tx_abort(host: &mut dyn ServerHost, player: PlayerRef) -> String {
         return format!("error=need_two_items_in_slot0 count={count_before}");
     }
     let mut inside_count = None;
+    let mut inside_pd = None;
     let result: Result<(), String> = host.transaction(|host, _tx| {
         let read: &dyn Host = host;
         let stack = player
@@ -152,14 +154,22 @@ fn tx_abort(host: &mut dyn ServerHost, player: PlayerRef) -> String {
             .set_persistent_data(host, with_persisted(data, ABORT_KEY, Tag::Byte(1)))
             .map_err(|e| format!("set_pd:{e:?}"))?;
         inside_count = slot0_count(host, player);
+        // Prove the write took effect inside the transaction, so `pd_unchanged` means rollback.
+        inside_pd = persistent(host, player).and_then(|data| {
+            match persisted_sub(&data)?.get(&ABORT_KEY.into()) {
+                Some(Tag::Byte(value)) => Some(*value),
+                _ => None,
+            }
+        });
         Err("deliberate_abort".into())
     });
     let count_after = slot0_count(host, player);
     let data_after = persistent(host, player);
     format!(
-        "result={} count_before={count_before} inside_count={} count_after={} pd_unchanged={}",
+        "result={} count_before={count_before} inside_count={} inside_pd={} count_after={} pd_unchanged={}",
         result.err().unwrap_or_else(|| "committed".into()),
         inside_count.map_or("none".into(), |c| c.to_string()),
+        inside_pd.map_or("none".into(), |v| v.to_string()),
         count_after.map_or("none".into(), |c| c.to_string()),
         data_after.as_ref() == Some(&data_before)
     )

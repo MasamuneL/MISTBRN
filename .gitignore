@@ -2,12 +2,15 @@
 target/
 # Pinned Horizon SDK fetched by tools/fetch-sdk.sh: never committed or packed.
 .horizon/
-# The mod has no registry dependencies; a local cargo run must not leave an SDK-graph lock here.
+# The mod has no registry dependencies of its own: no lock is versioned (tools/check.sh copies
+# the SDK's lock here temporarily to resolve the adapter).
 /mod/Cargo.lock
 # Never distribute game data, logs or binaries.
 *.log
 *.zip
 *.png
+# Original mod textures only (tools/check.sh limits their size).
+!/mod/assets/mistbrn/textures/**/*.png
 *.dat
 *.dat_old
 *.mca

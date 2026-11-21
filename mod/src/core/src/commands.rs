@@ -127,7 +127,7 @@ pub enum EventKind {
 /// Trusted-adapter data: only [`VerifiedEvent::from_server_observation`] builds it, so client
 /// bytes can never become one. Its fields are private and it has no decoder.
 ///
-/// ```compile_fail
+/// ```compile_fail,E0451
 /// use allomancy_core::{EventId, EventKind, PlayerId, Tick, VerifiedEvent, WorldId};
 /// let _ = VerifiedEvent {
 ///     id: EventId::new("forged"),

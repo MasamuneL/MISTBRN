@@ -34,18 +34,19 @@ Decisiones del usuario: congelar gates como legacy y borrar `codex/*`; desarroll
 - Commits con la línea `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Nunca `git add .`; staging explícito.
 
 ### Peso del repo (aplicado por `tools/check.sh`)
-- Prohibido versionar: `.horizon/`, `target/`, `mod/Cargo.lock` mientras el mod no tenga dependencias de registro, logs, capturas, zips, `.dat/.mca`, binarios (`.dylib .so .dll .exe`), mundos, SDK, recursos de Minecraft.
-- `tools/check.sh` falla si: algún fichero versionado > 64 KiB; extensión de la lista prohibida; árbol total de `HEAD`+staged > 1 MiB.
+- Prohibido versionar: `.horizon/`, `target/`, `mod/Cargo.lock` (el mod no tiene dependencias de registro **propias**; las del SDK se resuelven con el `Cargo.lock` del SDK, que `tools/check.sh` copia temporalmente), logs, capturas, zips, `.dat/.mca`, binarios (`.dylib .so .dll .exe`), mundos, SDK, recursos de Minecraft.
+- Imágenes: solo texturas originales del mod en `mod/assets/mistbrn/textures/**.png`, ≤ 16 KiB cada una (`.gitignore` las excluye del ignore de `*.png`; `tools/check.sh` rechaza cualquier otro PNG o uno mayor).
+- `tools/check.sh` falla si: algún fichero versionado > 64 KiB; extensión prohibida (`zip jpg jpeg gif log dat dat_old mca dylib so dll exe jar tar xz gz`); PNG fuera de texturas o > 16 KiB; árbol versionado (index) > 1 MiB.
 - Evidencia: un `docs/evidence/<fase>.md` por fase, ≤ 16 KiB, con comandos, SHA del commit probado, SHA256 del artefacto, resultados por escenario y límites. Logs crudos quedan fuera del repo en el runtime root.
 - Estado de reanudación: `docs/STATUS.md` ≤ 60 líneas (sustituye CHECKPOINT.md, progress.md, HANDOFF, PLAN-ADJUSTMENTS). Contiene: rama, commit base, fase y paso, operación en curso, último resultado, siguiente acción exacta.
 
 ### Rutas fuera del repo
-- Runtime root: `~/Library/Application Support/MISTBRN-dev/` con `staged/<build>/`, `logs/<run>/`, `homes/<run>/`. Nunca dentro del repo.
-- Instancia dedicada del launcher: `mistbrn-dev`, fijada a `nightly-2026-11-20-0a875da`. La instancia propia de Horizon y sus mundos no se tocan. Mundos de prueba se llaman `mistbrn-<escenario>-<n>`.
+- Runtime root (por SO en `tools/lib.sh`; macOS: `~/Library/Application Support/MISTBRN-dev/`, Linux: `$XDG_DATA_HOME/MISTBRN-dev`, Windows: `%LOCALAPPDATA%\MISTBRN-dev`) con `staged/<build>/` y `logs/<build>/` (builds) y `runs/<run>/` (una carpeta de juego por corrida). Nunca dentro del repo (`runtime_root` lo rechaza).
+- Instancia dedicada del launcher: `mistbrn-dev`, fijada a `nightly-2026-11-20-0a875da`. La instancia propia de Horizon y sus mundos no se tocan. Cada corrida usa como carpeta de juego su `runs/<run>/` (el juego usa el directorio de trabajo como home): saves, logs y cachés quedan ahí. Mundo de prueba: `mistbrn-<escenario>`, uno por corrida.
 
 ### Toolchain
-- `rust-toolchain.toml`: `channel = "1.99.1"`, `profile = "minimal"`, `components = ["rustfmt","clippy"]`, sin `targets`. Rustup descarga 1.99.1 (fuera del repo). Builds nativos usan el Rust del launcher (ya instalado: `…/horizon-launcher/rust/1.99.1-aarch64-apple-darwin`).
-- El núcleo no tiene dependencias de registro (ni serde ni serde_json). Motivo: el launcher exige aprobación de build scripts/proc macros de registro ("Registry dependency compilation was not approved") sin flag CLI documentado, y los tipos de registro no son intercambiables con los del SDK. Cualquier codec es propio.
+- `rust-toolchain.toml`: `channel = "1.99.1"`, `profile = "minimal"`, `components = ["rustfmt","clippy"]`, sin `targets`. Rustup descarga 1.99.1 (fuera del repo). Builds nativos usan el Rust del launcher (`horizon-launcher rust install`; en macOS arm64 queda en `…/horizon-launcher/rust/1.99.1-aarch64-apple-darwin`).
+- El núcleo y el mod no tienen dependencias de registro propias (ni serde ni serde_json). Motivo: el launcher exige aprobación de build scripts/proc macros de registro ("Registry dependency compilation was not approved") sin flag CLI documentado, y los tipos de registro no son intercambiables con los del SDK. Cualquier codec es propio.
 
 ---
 
@@ -57,9 +58,9 @@ Cargo.toml                    # workspace: members ["mod/src/core"], exclude ["m
 rust-toolchain.toml
 mod/                          # el paquete .hmod, plano
   horizon-mod.toml            # id "mistbrn", name "Masamune's MISTBRN", api "0.2", [native] game "26.3", horizon 0a875da…, mixins e59da909…
-  Cargo.toml                  # package allomancy-mod; deps: horizon-mod-api (path .horizon/sdk/…), allomancy-core (path src/core)
+  Cargo.toml                  # package mistbrn; deps: horizon-mod-api (path .horizon/sdk/…), allomancy-core (path src/core)
   src/lib.rs                  # #![deny(unsafe_code)], #[mod_api::horizon_mod] impl Hooks
-  src/{bridge,save,scenario}.rs
+  src/{bridge,scenario}.rs    # P0b; src/save.rs llega en P2-native
   src/core/                   # crate allomancy-core; el launcher solo empaqueta Cargo.toml/Cargo.lock raíz, build.rs y src/** (manifest.rs::source_file)
   assets/mistbrn/ data/mistbrn/   # vacíos hasta P3
 tools/{fetch-sdk.sh,build-native.sh,native-test.sh,check.sh}
@@ -70,23 +71,23 @@ docs/{design.md,plan.md,contracts.md,compatibility.md,STATUS.md,history.md,evide
 1. `git mv crates/allomancy-core mod/src/core`; quitar serde: derives `Serialize/Deserialize` fuera de types/state/commands; doctest `compile_fail` de `VerifiedEvent` se reescribe sin serde_json (construcción por literal de campos privados). Tests P1 deben seguir 13/13.
 2. Eliminar de main lo exclusivo de Windows/legacy: `experiments/`, `tools/*.ps1`, `integration/`, `crates/allomancy-horizon/`, `docs/execution/`, `docs/superpowers/`. Crear `docs/history.md` (≤ 3 KiB): qué se probó en P0/P1 y que todo está en `legacy/windows-fdc87ae`.
 3. `docs/design.md` = spec actual con plataforma cambiada a "macOS arm64 primero; Windows x64 verificado antes de publicar". `docs/plan.md` = este plan. `docs/compatibility.md` reescrito para 0a875da. `docs/contracts.md` actualizado (sin serde; tipos P2 añadidos en P2-core).
-4. `tools/fetch-sdk.sh`: descarga `sdk.json`, `SHA256SUMS`, `api-source.tar.xz`, `surface.json` de la release `sdk-<commit>`, verifica SHA256 contra `SHA256SUMS`, desempaqueta en `mod/.horizon/sdk/api/`, escribe `mod/.horizon/sdk/build` al final. Límite documentado: la firma `SHA256SUMS.sig` la verifica el launcher en `native-build`, no este script.
+4. `tools/fetch-sdk.sh`: descarga `sdk.json`, `SHA256SUMS`, `api-source.tar.xz`, `surface.json` de la release `sdk-<commit>`, verifica SHA256 contra `SHA256SUMS` y además el de `api-source.tar.xz` contra el valor fijado en `tools/lib.sh` (`SDK_API_SOURCE_SHA256`), desempaqueta en `mod/.horizon/sdk/api/`, escribe `mod/.horizon/sdk/build` al final. Límite documentado: la firma `SHA256SUMS.sig` la verifica el launcher en `native-build`, no este script.
 5. `tools/build-native.sh <build-name>`: copia limpia a `staged/<build-name>/mistbrn/` de `horizon-mod.toml Cargo.toml src assets data` (excluye `.horizon target Cargo.lock`); registra SHA256 de cada input en `staged/<build-name>/receipt.txt`; ejecuta `horizon-launcher native-build <staged> --instance mistbrn-dev --trust-native-code` con log en `logs/<build-name>/build.log`; rechaza si `<build-name>` ya existe.
-6. Crear instancia: `horizon-launcher instance create mistbrn-dev` + `instance version mistbrn-dev nightly-2026-11-20-0a875da`. Registrar en evidencia la ruta de su game folder.
-7. `tools/native-test.sh <escenario>`: crea `homes/<run>`, lanza con `horizon-ctl launch --game <cliente del build nativo> --world mistbrn-<escenario>-<n> --creative --wait` con `HORIZON_HOME` apuntando a la home aislada y `MISTBRN_TEST_SCENARIO=<escenario>`, ejecuta los pasos del escenario con `horizon-ctl`, extrae líneas `MISTBRN_TEST key=value` del log y compara con lo esperado; exit 0 solo si todas coinciden.
-8. Adaptador mínimo: `server_tick` (ServerTickEnd, world_running, autoridad IntegratedServer) llama `advance_tick`; `player_logged_in/out`, `player_clone`. Escenarios de prueba activados solo por la variable de entorno `MISTBRN_TEST_SCENARIO` (no hay features de Cargo: `E_NATIVE_FEATURES`). Sin la variable, el código de escenarios no hace nada; P10 lo verifica.
+6. Crear instancia: `horizon-launcher instance create mistbrn-dev` + `instance version mistbrn-dev nightly-2026-11-20-0a875da`. `native-build --instance mistbrn-dev` instala `native-0a875da-<clave>` y lo selecciona para esa instancia; `native-test.sh` usa exactamente el build que la instancia juega.
+7. `tools/native-test.sh <escenario> [run]`: crea `runs/<run>/` y lanza desde ahí `horizon-ctl launch --game <cliente del build> --resources <recursos preparados de la versión base> --world mistbrn-<escenario> --creative --wait`, con `MISTBRN_TEST_SCENARIO=<escenario>` cuando el paso lo pide. Sockets en una carpeta temporal corta (límite ~104 bytes de las rutas de socket Unix); los logs se copian a `runs/<run>/`. Registra en `report.txt` build, SHA256 de la librería del mod y commit. Comprueba en cada lanzamiento G2 y G3, al final G4, y las líneas `MISTBRN_TEST key=value` esperadas; exit 0 solo si todo coincide. Cortes duros con `kill -9` (Windows: `taskkill //F`).
+8. Adaptador mínimo: solo `server_tick` (fase `ServerTickEnd { world_running: true }`, autoridad `IntegratedServer` o `DedicatedServer`; ambos son servidores autoritativos) llama `advance_tick` y el apagado de seguridad. Los hooks de ciclo de vida (`player_logged_in/out`, `player_died`) llegan en P2-native. Escenarios de prueba activados solo por la variable de entorno `MISTBRN_TEST_SCENARIO` (no hay features de Cargo: `E_NATIVE_FEATURES`). Sin la variable, el código de escenarios no hace nada; P10 lo verifica.
 
 ### Gates P0b (todos PASS para merge)
 | Gate | Criterio exacto |
 |---|---|
 | G1 build | `build-native.sh` exit 0; log contiene compilación de `mistbrn`; SHA256 del ejecutable registrado |
 | G2 carga | Log del juego contiene `MISTBRN event=loaded version=0.2.0` |
-| G3 tick | ≥ 3 líneas `event=player_tick accepted=true tick_recorded=true` |
-| G4 aislamiento | `horizon-ctl worlds` en la home de prueba lista solo `mistbrn-*`; la instancia Horizon por defecto sin cambios (mtime de su carpeta saves) |
+| G3 tick | ≥ 3 líneas `MISTBRN event=player_tick` por lanzamiento (en P0b con `accepted=true tick_recorded=true`), comprobado por `native-test.sh` |
+| G4 aislamiento | `runs/<run>/saves/` contiene exactamente `mistbrn-<escenario>` (comprobado por `native-test.sh`), y la home propia de Horizon (`horizon-launcher --json instance list`, instancia `horizon`) no gana carpetas de mundos (comprobado a mano antes/después y anotado en la evidencia) |
 | G5 persistent_data | Escenario `pd-roundtrip`: escribe `NeoForgeData.PlayerPersisted.mistbrn_probe = ByteArray[1,2,3]`, `quit`, relanzar, lee mismo valor |
-| G6 journal | Escenario `tx-abort`: dentro de `host.transaction`, quita 1 `minecraft:iron_nugget` del slot 0 y escribe persistent_data, devuelve `Err`; tras el cierre inventario y persistent_data idénticos a antes |
-| G7 raíz cruda | Escenario `raw-root`: registra si `player.entity().nbt(host)` contiene `NeoForgeData`. Resultado (sí/no) decide la guarda de P2 (ver P2-native) |
-| G8 core | `cargo test --workspace --locked`, `cargo fmt --all -- --check`, `cargo clippy --workspace -- -D warnings` exit 0 |
+| G6 journal | Escenario `tx-abort`: dentro de `host.transaction`, quita 1 `minecraft:iron_nugget` del slot 0 y escribe persistent_data, y lee ambos (`inside_count=2 inside_pd=1`); devuelve `Err`; tras el cierre inventario y persistent_data idénticos a antes |
+| G7 raíz cruda | Escenario `raw-root`: registra si `player.entity().nbt(host)` contiene `NeoForgeData` (caso sano). Solo prueba que la clave es visible; si una raíz **corrupta** también lo es se prueba en P2-native (S11) |
+| G8 core | `tools/check.sh` exit 0: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo test --workspace --locked`, fmt y clippy `--all-targets -D warnings` del adaptador contra el SDK, y control de peso |
 
 Si G1 falla por exigencias del launcher (lock, formato, refusal `E_*`): corregir según el código de error documentado; tras dos intentos fallidos con la misma causa, parar y reportar. Si G2–G7 revela que una API no existe o no se comporta como dice la doc: parar y reportar al usuario antes de cambiar backend. Nunca fork de Horizon sin aprobación.
 
@@ -131,29 +132,30 @@ Motivos: (1) `set_persistent_data` e inventario de jugador están en el mismo jo
 Reglas de lectura/escritura en `mod/src/save.rs`:
 - Leer siempre el compound completo, modificar solo la clave `mistbrn` dentro de `PlayerPersisted`, conservar las demás claves y namespaces, escribir el compound completo.
 - `PlayerPersisted` presente pero no compound, o `mistbrn` presente pero no `ByteArray`, o decode con error → jugador en estado **Bloqueado**: sin escrituras del mod para ese jugador en toda la sesión, poderes desactivados, mensaje en chat `Alomancia: datos guardados ilegibles; no se modificarán.` y línea `MISTBRN event=save_blocked reason=<…>`.
-- Raíz `NeoForgeData` no-compound: si G7 = sí, se detecta con `entity().nbt()` y se aplica Bloqueado. Si G7 = no, límite aceptado y documentado: el juego nunca escribe esa raíz como no-compound; solo puede venir de manipulación externa del `.dat`.
+- Raíz `NeoForgeData` no-compound: antes de cualquier escritura se lee `entity().nbt()`; si contiene `NeoForgeData` y no es compound → Bloqueado. Que esta guarda funcione se prueba con S11. Si S11 muestra que el juego normaliza la raíz al cargar (`nbt()` la ve compound), la guarda no detecta nada: se mantiene como defensa barata, la evidencia lo declara **límite aceptado** (solo una edición externa del fichero puede producir esa raíz) y ningún documento afirma detección.
 - Ausencia real de `mistbrn` → `SavedPlayer::new` y escritura inicial.
 - Toda mutación económica = `host.transaction { modificar inventario (si aplica) + set_persistent_data }`; `Err` en cualquier paso aborta ambos; el estado en memoria se actualiza solo tras `Ok` del commit.
-- Consumo por ticks: `elapsed = 1` por cada `ServerTickEnd{world_running:true}`; no se cobra tiempo offline ni pausado. Estado sucio se persiste cada 20 ticks, al agotarse un metal, en `player_logged_out`, en muerte y tras cada transacción. Pérdida máxima ante corte: 20 ticks de consumo (a favor del jugador).
-- Muerte: en `player_clone` con `was_death=true` → leer, `on_death`, escribir. Reconexión: en `player_logged_in` → leer, `on_reconnect`, escribir.
+- Consumo por ticks: `elapsed = 1` por cada `ServerTickEnd{world_running:true}`; no se cobra tiempo offline ni pausado. Estado sucio se persiste cada 20 ticks, al agotarse un metal, en muerte y tras cada transacción. En `player_logged_out` se intenta escribir solo si el handle del jugador sigue resolviendo (al cerrar el servidor sí; en una desconexión normal el jugador ya salió de la lista). Pérdida máxima ante corte o desconexión: 20 ticks de consumo (a favor del jugador).
+- Muerte: en `player_died` → `on_death` en memoria e intento de escritura inmediato; si el juego la rechaza (`Dead`), queda pendiente y se escribe al jugador reaparecido en el siguiente tick. Reconexión: en `player_logged_in` (o en el primer tick con el jugador presente) → leer, `on_reconnect`, escribir. Un corte entre la muerte y esa escritura puede dejar las reservas anteriores a la muerte (a favor del jugador; documentado).
 
 ### Escenarios nativos (via `tools/native-test.sh`; cada uno en mundo nuevo)
-Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO`, en el primer tick tras login, consumir 1 `minecraft:iron_nugget` del slot 0 y acreditar 25 000 milli de hierro en una transacción (sustituto del vial de P3, solo en escenarios). Invariante comprobada en todos: `pepitas × 25 000 + reserva_hierro` constante salvo consumo por quema, y `revision`/`last_transaction` coherentes con ella.
+Disparador de prueba "beber": con `MISTBRN_TEST_SCENARIO=drink`, en el primer tick con el jugador cargado y una `minecraft:iron_nugget` en el slot 0, desbloquear hierro y acreditar 25 000 milli de hierro por esa pepita en una transacción (sustituto del vial de P3, solo en escenarios). `MISTBRN_TEST_SCENARIO=report` registra el estado cargado, las pepitas y un hash de los bytes guardados. Invariante comprobada en todos: `pepitas × 25 000 + reserva_hierro` constante salvo consumo por quema, y `revision`/`last_transaction` coherentes con ella.
 
 | Escenario | Pasos | Esperado |
 |---|---|---|
 | S1 roundtrip | give 3 pepitas, beber, `save`, `quit`, relanzar | 2 pepitas, reserva 25 000, last_transaction 1 |
-| S2 abort | beber con fallo inyectado tras escribir | 3 pepitas, sin clave `mistbrn` nueva |
-| S3 corte antes de guardar | beber, `kill -9` del proceso del juego < 30 s tras abrir mundo (antes de autosave), relanzar | estado anterior completo: 3 pepitas, sin crédito |
-| S4 corte después de guardar | beber, `save`, `kill -9`, relanzar | estado nuevo completo: 2 pepitas, 25 000 |
+| S2 abort | beber con fallo inyectado tras escribir inventario y guardado (`drink-fail`), `save`, `quit`, relanzar | 3 pepitas, reserva 0, last_transaction 0 |
+| S3 corte antes de guardar | lanzamiento 1: give 3, `save`, `quit` (estado A en disco); lanzamiento 2: beber y `kill -9` < 30 s tras abrir (antes del autosave de 6000 ticks); lanzamiento 3: report | estado A completo: 3 pepitas, reserva 0, last_transaction 0 (nunca mezcla) |
+| S4 corte después de guardar | como S3 pero `save` antes del `kill -9` | estado nuevo completo: 2 pepitas, 25 000, last_transaction 1 |
 | S5 muerte | beber, `command kill @s`, `respawn` | reserva 0, metales desbloqueados intactos, last_transaction 1 |
 | S6 reconexión | escenario fija hierro Burning, `quit`, relanzar | combustión Off, reserva y resto conservados |
 | S7 dimensión | beber, `command execute in minecraft:the_nether run tp @s 0 100 0` | datos idénticos |
 | S8 agotamiento | crédito 1 000, Burning, esperar 100 ticks (`wait 100`) | reserva 0, Off, `event=exhausted metal=iron` |
 | S9 corrupto | escenario escribe `mistbrn` con CRC inválido, `quit`, relanzar, `save`, `quit` | `save_blocked reason=crc`; bytes idénticos tras el segundo guardado |
-| S10 esquema futuro | igual con `schema=2` | `save_blocked reason=unsupported_version`; bytes intactos |
+| S10 esquema futuro | igual con `schema=2` | `save_blocked reason=unsupported_version:2`; bytes intactos |
+| S11 raíz corrupta | con el juego cerrado, `tools/nbt-poke.py` reemplaza `NeoForgeData` del jugador por un `Int` en el fichero de jugador del mundo; relanzar con `report` | resultado registrado: `state=blocked reason=root_not_compound` (guarda efectiva) o `state=active` (el juego normaliza: límite aceptado, ver regla de raíz) |
 
-S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 PASS + G8 + revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
+S3 y S4 se repiten 3 veces cada uno; los 6 deben pasar. Evidencia en `docs/evidence/p2.md`. Merge de P2 completo cuando S1–S10 PASS, S11 ejecutado con su resultado documentado, G8 y revisión. P2 queda cerrado; no se añaden gates de writer/GDB (el reemplazo del `.dat` lo garantiza el juego; S3/S4 prueban coherencia viejo/nuevo).
 
 ---
 
@@ -172,7 +174,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario |
 | P8 tres parejas restantes | `feat/p8-<pareja>` | P7b | estaño/peltre, zinc/latón, cobre/bronce | Pruebas por pareja |
 | P9 cooperativo | `feat/p9-coop` | P8 | autoridad servidor con 2 clientes, server export dedicado | Dos clientes reales; si no se logra, se entrega individual y se documenta |
-| P10 publicación | `feat/p10-release` | P8 (P9 opcional) | `.hmod`, verificación **Windows x64 y Linux x64** con el mismo pin, código de escenarios inactivo sin variable, licencias de assets | Build y S1/S4/S5 en Windows x64 y Linux x64 PASS; paquete sin recursos de terceros |
+| P10 publicación | `feat/p10-release` | P8 (P9 opcional) | `.hmod`, verificación **Windows x64 y Linux x64** con el mismo pin (incluye `tools/*.sh` en Git Bash: `cygpath`, `tasklist`/`taskkill`, `jq` instalado), código de escenarios inactivo sin variable y sin sondas `mistbrn_probe*` en un mundo jugado sin ella, licencias de assets | Build y S1/S4/S5 en Windows x64 y Linux x64 PASS; paquete sin recursos de terceros |
 
 ---
 

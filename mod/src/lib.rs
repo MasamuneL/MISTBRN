@@ -10,7 +10,7 @@ mod scenario;
 use mod_api::{
     self, Authority as HostAuthority, Hooks, ServerHost, ServerTickEvent, ServerTickPhase,
 };
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 pub(crate) const MOD_VERSION: &str = "0.2.0";
 
@@ -44,11 +44,10 @@ impl Hooks for Allomancy {
         ) {
             return;
         }
-        if let Ok(mut session) = self.session.lock() {
-            session.tick(host, event.context.epoch.get(), event.context.tick.get());
-        }
-        if let Ok(mut runner) = self.scenario.lock() {
-            runner.tick(host);
-        }
+        // A panic in an earlier tick must not silently stop every later one: keep the data.
+        let mut session = self.session.lock().unwrap_or_else(PoisonError::into_inner);
+        session.tick(host, event.context.epoch.get(), event.context.tick.get());
+        let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
+        runner.tick(host);
     }
 }
