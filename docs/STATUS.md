@@ -2,7 +2,7 @@
 
 Actualizado el 2026-11-21.
 
-## Integrado en main
+## Integrado en main (P3b, al integrar la PR #7)
 
 | Fase | Resultado |
 |---|---|
