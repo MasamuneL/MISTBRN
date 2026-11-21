@@ -1,13 +1,23 @@
-# Local runtime, third-party resources and inspection snapshots: never distribute.
-/experiments/horizon-probe/runtime/
-/experiments/horizon-probe/reference/
-/experiments/horizon-probe/installed-reference/
-/experiments/horizon-probe/candidate/
-# Local execution logs and recovery copies; publish curated evidence instead.
-/docs/execution/evidence/*.log
-/docs/execution/evidence/*-controls.json
-/docs/execution/evidence/p0-smoke-*.json
-/docs/execution/evidence/*.png
+# Build outputs
+target/
+# Pinned Horizon SDK fetched by tools/fetch-sdk.sh: never committed or packed.
+.horizon/
+# The mod has no registry dependencies of its own: no lock is versioned (tools/check.sh copies
+# the SDK's lock here temporarily to resolve the adapter).
+/mod/Cargo.lock
+# Never distribute game data, logs or binaries.
+*.log
+*.zip
+*.png
+# Original mod textures only (tools/check.sh limits their size).
+!/mod/assets/mistbrn/textures/**/*.png
+*.dat
+*.dat_old
+*.mca
+*.dylib
+*.so
+*.dll
+*.exe
 *.tmp
 *.bak
-target/
+.DS_Store

@@ -1,4 +1,5 @@
 [workspace]
-members = ["crates/allomancy-core"]
-exclude = ["crates/allomancy-horizon"]
-resolver = "2"
+members = ["mod/src/core"]
+# The mod package builds only through the Horizon launcher (tools/build-native.sh).
+exclude = ["mod"]
+resolver = "3"

@@ -1,23 +1,34 @@
-# MISTBRN — Alomancia para Horizon
+# Masamune's MISTBRN
 
-Mod en desarrollo para Horizon, inspirado en la alomancia. Windows x64 e individual primero. Diseño y plan aprobados; todavía no hay una versión jugable del mod completo.
+Mod de alomancia para [Horizon](https://playhorizon.dev), inspirado en Mistborn: metales, reservas, poderes por parejas y progresión por práctica e investigación. Id del mod: `mistbrn`. En desarrollo; todavía no hay versión jugable.
 
-## Estado comprobado
+**Multiplataforma:** el mod funciona en todo sistema que soporte el SDK fijado de Horizon (macOS arm64, Windows x64, Linux x64). El desarrollo y las pruebas en juego se hacen primero en macOS arm64.
 
-P0 ejecutó un probe nativo sobre Horizon `fdc87aecdbd116bf1e08adcd062fcbaea8c2e2ca` con Rust portable1.99.1. Se verificaron compilación/carga, ticks, controles con chat/inventario, impulso básico, item propio, HUD, eventos de muerte/loot, mensajes servidor/cliente y sonido encolado. Un contador versionado inline en el NBT del jugador persistió entre procesos. C0 quedó aprobado tras revisión independiente.
+## Estado
 
-P1 incorpora contratos, núcleo independiente y adaptador nativo mínimo. Pasaron 13 pruebas de comportamiento, un doctest, formato y compilación/ejecución contra el SDK fijado. Tres ticks reales del servidor llegaron al núcleo en un mundo aislado. La revisión independiente aprobó cumplimiento y calidad sin hallazgos bloqueantes; C1 es apto para integrar P1. Ver `docs/contracts.md`, `docs/execution/evidence/p1-integration.md` y `p1-review.md`. P2–P10 siguen pendientes.
+Fijado a Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb…`, juego 26.3, Rust 1.99.1). El estado vigente y la siguiente acción están en [`docs/STATUS.md`](docs/STATUS.md); el plan en [`docs/plan.md`](docs/plan.md); el diseño en [`docs/design.md`](docs/design.md). El trabajo anterior (Windows, `fdc87ae`) está congelado en la rama `legacy/windows-fdc87ae` ([resumen](docs/history.md)).
 
-No se acreditó todavía consumo resistente a cortes, árboles, poderes completos ni cooperativo. La matriz y sus límites están en `docs/compatibility.md`; los resultados curados en `docs/execution/evidence/p0-runtime-v2.json`, `p0-runtime-v4.json` y `p0-runtime-v5.json`.
+## Estructura
 
-## Continuar
+```text
+mod/                  paquete del mod (.hmod plano)
+  horizon-mod.toml    identidad y pin de Horizon
+  src/*.rs            adaptador Horizon
+  src/core/           crate allomancy-core: reglas puras, sin dependencias, probado con cargo
+tools/                scripts bash portables (macOS, Linux, Git Bash en Windows)
+docs/                 plan, diseño, contratos, compatibilidad, evidencias
+```
 
-1. Leer `docs/execution/CHECKPOINT.md` y contrastar archivos/logs/procesos antes de repetir acciones.
-2. Consultar el diseño y plan en `docs/superpowers/`.
-3. Registrar la integración de P1 y continuar P2 en una rama nueva; las pruebas de cortes y transacciones son obligatorias.
+## Desarrollo
 
-El probe es desechable y está en `experiments/horizon-probe/`. No es el mod final. Sus pruebas usan carpetas y mundos dedicados respaldados.
+```sh
+tools/fetch-sdk.sh            # SDK fijado en mod/.horizon/sdk (ignorado por git)
+tools/check.sh                # formato, clippy, pruebas del núcleo y control de peso del repo
+tools/build-native.sh NAME    # build nativo con el launcher para la instancia mistbrn-dev
+```
+
+Las pruebas en juego usan solo la instancia `mistbrn-dev` y mundos `mistbrn-*`. Runtime, logs, SDK y binarios quedan fuera del repo.
 
 ## Distribución
 
-No incluye Minecraft, recursos preparados, binarios del juego ni material de las novelas. La fixture original solo referencia recursos que ya posee el jugador. Runtime, fuentes upstream descargadas, screenshots, logs crudos y copias de recuperación quedan fuera de Git.
+No incluye Minecraft, recursos del juego, binarios ni material de las novelas.
