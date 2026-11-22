@@ -219,6 +219,34 @@ fn signal(signal: Signal) -> Effect {
     }
 }
 
+/// P4 implements iron and steel only. They act on one target at a time, so lighting one puts
+/// the other out (the last one lit wins).
+fn iron_steel_partner(metal: Metal) -> Option<Metal> {
+    match metal {
+        Metal::Iron => Some(Metal::Steel),
+        Metal::Steel => Some(Metal::Iron),
+        _ => None,
+    }
+}
+
+fn ignite(state: &mut PlayerState, metal: Metal, partner: Metal, burn: BurnState) -> Vec<Effect> {
+    let mut effects = Vec::new();
+    let other = &mut state.metals[partner.index()];
+    if other.burn != BurnState::Off {
+        other.burn = BurnState::Off;
+        effects.push(signal(Signal::BurnChanged {
+            metal: partner,
+            burn: BurnState::Off,
+        }));
+    }
+    let entry = &mut state.metals[metal.index()];
+    if entry.burn != burn {
+        entry.burn = burn;
+        effects.push(signal(Signal::BurnChanged { metal, burn }));
+    }
+    effects
+}
+
 pub fn apply_command(
     state: &mut PlayerState,
     command: Command,
@@ -236,6 +264,14 @@ pub fn apply_command(
             }
             if entry.reserve_milli == 0 {
                 return Err(RuleError::EmptyReserve(metal));
+            }
+            let burn = if matches!(command, Command::Activate { .. }) {
+                BurnState::Burning
+            } else {
+                BurnState::Flared
+            };
+            if let Some(partner) = iron_steel_partner(metal) {
+                return Ok(ignite(state, metal, partner, burn));
             }
             Err(RuleError::NotImplemented(
                 if matches!(command, Command::Activate { .. }) {
