@@ -118,6 +118,9 @@ pub(crate) struct Powers {
     /// Forces on players against an anchor, prepared during their level's pass and applied at
     /// the server tick's end, when the player's reported move of this tick has arrived.
     prepared: BTreeMap<u128, Prepared>,
+    /// The last server tick ended: log lines of the level passes carry the next one, so every
+    /// P4 line counts the same ticks.
+    server_tick: Option<u64>,
     flights: Vec<Flight>,
     /// Hits found during a teleport notice, dealt with the tick's own.
     pending_hits: Vec<Hit>,
@@ -166,10 +169,7 @@ impl Powers {
         if !level.in_place(read) {
             return Vec::new();
         }
-        let tick = level
-            .game_time(read)
-            .and_then(|t| u64::try_from(t).ok())
-            .unwrap_or(0);
+        let tick = self.server_tick.map_or(0, |t| t + 1);
         let mut online = host.players().server_players();
         online.sort_by_key(|player| player.uuid());
         self.held
@@ -207,6 +207,8 @@ impl Powers {
     }
 
     pub(crate) fn clear(&mut self, uuid: u128, reason: &str) {
+        // A force prepared this tick for the old target goes with it.
+        self.prepared.remove(&uuid);
         if self.held.remove(&uuid).is_some() {
             eprintln!("MISTBRN event=target_cleared reason={reason}");
         }
@@ -397,6 +399,7 @@ impl Powers {
         session: &Session,
         tick: u64,
     ) {
+        self.server_tick = Some(tick);
         for (uuid, prep) in std::mem::take(&mut self.prepared) {
             if acting(session, uuid).map(|(metal, _)| metal) != Some(prep.metal) {
                 continue;

@@ -231,7 +231,7 @@ p4_check_log() {
         check(stop_seen == 1 && block_samples_before_stop > 0,
             "expected one " (scenario == "n7" ? "iron exhaustion" : "target clear for " reason) " during a block pull")
         if (scenario == "n7") {
-          check(samples >= 19 && samples <= 21, "expected iron exhaustion after 20 ticks (+/- one)")
+          check(samples >= 18 && samples <= 21, "expected iron exhaustion after 20 ticks (the lighting and the exhausting tick may apply no force)")
           check(exhausted_clear == 1, "expected target_cleared reason=exhausted")
         }
         if (scenario == "n9") check(shutdown_changed >= 1, "expected the dimension shutdown to put iron out")
