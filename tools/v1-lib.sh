@@ -9,13 +9,19 @@ v1_craft_primer() {
   put minecraft:iron_ingot 100; put minecraft:coal 101 102; take
   put minecraft:book 100; put minecraft:iron_ingot 101; put mistbrn:steel_ingot 102; take
   ctl close >/dev/null
+  # A use sent while the table screen is still closing never starts.
+  ctl wait 10 >/dev/null
 }
 
 # v1_use ITEM: finish one held use in Survival.
 v1_use() {
-  ctl select "$1" >/dev/null
-  ctl use-item --hold 1.8 >/dev/null; ctl wait 10 >/dev/null
+  ctl select "$1" >/dev/null; ctl wait 5 >/dev/null
+  ctl inventory > "$dir/before-use-$v1_uses.json" || true
+  ctl use-item --hold 1.8 > "$dir/use-$v1_uses.json" || true
+  ctl wait 10 >/dev/null
+  v1_uses=$((v1_uses + 1))
 }
+v1_uses=0
 
 # v1_pull_fixture: the K1 pull lane in the current world, with no test commands enabled.
 v1_pull_fixture() {
