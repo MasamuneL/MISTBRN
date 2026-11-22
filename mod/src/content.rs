@@ -129,18 +129,17 @@ impl Content {
     }
 }
 
-/// The tool's Fortune level from its `minecraft:enchantments` component (0 when absent).
-/// Accepts both the map form (`{"minecraft:fortune": 3}`) and the older `levels` wrapper.
+/// The tool's Fortune level from the `minecraft:enchantments` component in its patch (26.3 form:
+/// a map from enchantment id to level), 0 when absent. `block_drops` only gets a `LevelHost`,
+/// which cannot resolve an item's default components (`ItemResource::value` needs a `Host`):
+/// Fortune that a data pack or mod puts in a tool's defaults is not seen. Vanilla tools have
+/// none; enchanting tables, anvils, `/enchant` and loot all write the patch.
 fn fortune_level(tool: &ItemStack) -> u8 {
-    let Some(Tag::Compound(enchantments)) = tool
+    let Some(Tag::Compound(levels)) = tool
         .components()
         .and_then(|components| components.as_nbt().get(&"minecraft:enchantments".into()))
     else {
         return 0;
-    };
-    let levels = match enchantments.get(&"levels".into()) {
-        Some(Tag::Compound(levels)) => levels,
-        _ => enchantments,
     };
     match levels.get(&"minecraft:fortune".into()) {
         Some(Tag::Int(level)) => u8::try_from((*level).clamp(0, 255)).unwrap_or(0),

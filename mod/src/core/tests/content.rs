@@ -70,10 +70,23 @@ fn fortune_raises_sample_counts_like_vanilla_ore_drops() {
     }
 }
 
-/// Counts the in-game C6 fixture expects with Fortune III (copper x=5 at z=3; iron x=1,6,7 at z=7).
+/// Counts the in-game C6F fixture expects with Fortune III: copper x=5 at z=3 gives 4 tin (1 without
+/// Fortune); iron x=0,1,5 at z=9 gives 4+2+3 zinc (3 without Fortune).
 #[test]
 fn c6_fortune_fixture_counts() {
     let at = |x, z| sample_count(3, "minecraft:overworld", [x, 160, z]);
     assert_eq!(at(5, 3), 4);
-    assert_eq!(at(1, 7) + at(6, 7) + at(7, 7), 3);
+    assert_eq!(at(0, 9) + at(1, 9) + at(5, 9), 9);
+}
+
+#[test]
+#[ignore = "generator for the C6F fixture"]
+fn print_iron_rows_for_fortune() {
+    for z in [7, 9, 11] {
+        let row: Vec<_> = (0..8)
+            .filter(|&x| ore_sample("iron_ore", "minecraft:overworld", [x, 160, z]).is_some())
+            .map(|x| (x, sample_count(3, "minecraft:overworld", [x, 160, z])))
+            .collect();
+        println!("z={z} {row:?}");
+    }
 }

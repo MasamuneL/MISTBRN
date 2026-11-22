@@ -42,7 +42,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 ## Límites conocidos
 
-- Las muestras de mena dependen solo de la posición: colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto garantiza la muestra. Límite aceptado (cuesta una mena por muestra). La Fortuna multiplica la muestra como el bonus vanilla de menas (Fortuna III: 1–4, media 2,2), también determinista por posición.
+- Las muestras de mena dependen solo de la posición: colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto garantiza la muestra. Límite aceptado (cuesta una mena por muestra). La Fortuna multiplica la muestra como el bonus vanilla de menas (Fortuna III: 1–4, media 2,2), también determinista por posición. Solo se lee la Fortuna del parche de componentes de la herramienta (mesa, yunque, `/enchant`, botín): `block_drops` no da acceso a los componentes por defecto, así que la Fortuna que un datapack o mod ponga por defecto en una herramienta no cuenta.
 - La cola de bebidas se deduplica por jugador y slot en cada tick porque la doc del hook de fin de uso indica que en el servidor puede dispararse para cada jugador del mundo. Sin probar con dos clientes (P9).
 - `bronze_earring` ocupa el slot de casco: no se lleva a la vez que un casco.
 - La batería P3a se ejecutó en el servidor integrado de macOS arm64. El cooperativo y el servidor dedicado corresponden a una fase posterior. [Evidencia de P3a](evidence/p3.md)
