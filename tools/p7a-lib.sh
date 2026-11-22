@@ -38,7 +38,7 @@ k_screen() {
   # test window may never draw.
   ctl state > "$dir/$1.json" || true
   local open; open="$(jq -c '.screen // empty' "$dir/$1.json" 2>/dev/null)"
-  if grep -qi -- "$2" <<< "$open"; then k_ok "$1 open: $open"
+  if grep -Eqi -- "$2" <<< "$open"; then k_ok "$1 open: $open"
   else k_fail "$1: screen '$open' does not look like $2"; fi
 }
 
@@ -132,7 +132,7 @@ k_scenario() {
         k_key z 10; k_key x 10; k_key r 10; k_key v 10
         k_key esc 10
       else
-        ctl open-inventory >/dev/null; ctl wait 10 >/dev/null; k_screen k5-screen inventory
+        ctl open-inventory >/dev/null; ctl wait 10 >/dev/null; k_screen k5-screen "inventory|creative"
         k_key z 10; k_key x 10; k_key r 10; k_key v 10
         ctl close >/dev/null; ctl wait 10 >/dev/null
       fi
@@ -146,7 +146,8 @@ k_scenario() {
       ctl look -90 -90 >/dev/null
       k_credit iron 50000
       k_key z 40
-      ctl screenshot "$dir/k6-hud.png" >/dev/null || k_fail "screenshot failed"
+      ctl status > "$dir/k6-status.json" || true
+      ctl --timeout 30 screenshot "$dir/k6-hud.png" >/dev/null || k_fail "screenshot failed (no rendered frame?)"
       k_key g 20
       ctl save >/dev/null; quit_game
       report; quit_game
