@@ -79,14 +79,16 @@ struct Flight {
     /// The speed the coin had at the end of the last tick: its next real move is at most this
     /// (plus a little gravity). A longer move was not flight but a teleport.
     expected: f64,
-    /// The move made before a reported teleport in this tick (`last` → the teleport's start),
-    /// still to be swept at the tick's end.
-    before_jump: Option<(Vec3, Vec3)>,
+    /// The moves made between reported teleports in this tick (each `last` → that teleport's
+    /// start), in order, still to be swept at the tick's end.
+    before_jumps: Vec<(Vec3, Vec3)>,
     ticks_left: u8,
 }
 
 /// How long a coin is followed after its last push, counted from the tick after it.
 const FLIGHT_TICKS: u8 = 40;
+/// Stretches kept between reported teleports of one coin in one tick.
+const MAX_JUMPS_PER_TICK: usize = 8;
 /// Slack on a coin's expected move: item gravity (0.04) and rounding.
 const COIN_STEP_SLACK: f64 = 0.1;
 
@@ -374,9 +376,7 @@ impl Powers {
                 .coin
                 .velocity(read)
                 .map_or(0.0, |v| physics::norm(v3(v)));
-            let segments = flight
-                .before_jump
-                .take()
+            let segments = std::mem::take(&mut flight.before_jumps)
                 .into_iter()
                 .chain(std::iter::once((flight.last, now)));
             let found = segments
@@ -414,9 +414,10 @@ impl Powers {
     pub(crate) fn teleported(&mut self, entity: u32, from: [f64; 3], to: [f64; 3]) {
         let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
         for flight in self.flights.iter_mut().filter(|f| f.coin.id() == entity) {
-            // Keep the first stretch of flight this tick; the jump itself is never swept.
-            if flight.before_jump.is_none() {
-                flight.before_jump = Some((flight.last, point(from)));
+            // Keep every stretch flown between jumps; the jumps themselves are never swept.
+            // Bounded: a command loop teleporting one coin cannot grow it without end.
+            if flight.before_jumps.len() < MAX_JUMPS_PER_TICK {
+                flight.before_jumps.push((flight.last, point(from)));
             }
             flight.last = point(to);
         }
@@ -448,7 +449,7 @@ impl Powers {
                     shooter,
                     last: at,
                     expected: speed,
-                    before_jump: None,
+                    before_jumps: Vec::new(),
                     ticks_left: FLIGHT_TICKS,
                 });
             }
