@@ -771,11 +771,28 @@ fn run_core(
     position: Vec3,
     command: Command,
 ) -> (String, usize) {
+    run_core_with(session, uuid, position, command, true)
+}
+
+/// [`run_core`] with the player's real input state (P7a key requests): `gameplay_allowed`
+/// false refuses everything but putting metals out (`InputCaptured`).
+pub(crate) fn run_core_with(
+    session: &mut Session,
+    uuid: u128,
+    position: Vec3,
+    command: Command,
+    gameplay_allowed: bool,
+) -> (String, usize) {
     let Some(saved) = session.saved(uuid) else {
         return ("not_active".into(), 0);
     };
     let mut probe = saved.state().clone();
-    let ctx = snapshot(uuid, position, probe.last_tick.unwrap_or(Tick(0)));
+    let ctx = snapshot(
+        uuid,
+        position,
+        probe.last_tick.unwrap_or(Tick(0)),
+        gameplay_allowed,
+    );
     let effects: Vec<Effect> = match apply_command(&mut probe, command.clone(), &ctx) {
         Ok(effects) => effects,
         Err(error) => {
@@ -802,7 +819,7 @@ fn run_core(
     }
 }
 
-fn snapshot(uuid: u128, position: Vec3, tick: Tick) -> WorldSnapshot {
+fn snapshot(uuid: u128, position: Vec3, tick: Tick, gameplay_allowed: bool) -> WorldSnapshot {
     WorldSnapshot {
         tick,
         world_id: world_id(),
@@ -810,10 +827,9 @@ fn snapshot(uuid: u128, position: Vec3, tick: Tick) -> WorldSnapshot {
         position,
         targets: Vec::new(),
         authority: Authority::Server,
-        // Test commands and safety shutdowns only: P7a passes the client's real input state.
-        input: InputContext {
-            gameplay_allowed: true,
-        },
+        // True for test commands and safety shutdowns; key requests pass the server's own
+        // view of the player's input (see `controls`).
+        input: InputContext { gameplay_allowed },
     }
 }
 

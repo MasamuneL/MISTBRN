@@ -5,19 +5,22 @@
 #![deny(unsafe_code)]
 
 mod bridge;
+mod client;
 mod content;
+mod controls;
 mod p4;
 mod save;
 mod scenario;
 
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
-    self, Authority as HostAuthority, BlockDropsEvent, ContainerLootFilledEvent,
-    EntityTeleportEvent, Flow, Hooks, HostSide, LevelHost, LevelTickPostEvent,
-    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerDiedEvent,
-    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, Registrar,
-    RegistrationContext, RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent,
-    ServerTickPhase,
+    self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
+    ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
+    Hooks, HostSide, LevelHost, LevelTickPostEvent, LivingEntityUseItemFinishEvent,
+    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
+    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
+    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
+    RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -28,6 +31,7 @@ struct Allomancy {
     scenario: Mutex<scenario::Runner>,
     content: Mutex<content::Content>,
     powers: Mutex<p4::Powers>,
+    controls: Mutex<controls::Controls>,
 }
 
 impl Default for Allomancy {
@@ -38,6 +42,7 @@ impl Default for Allomancy {
             scenario: Mutex::new(scenario::Runner::from_env()),
             content: Mutex::default(),
             powers: Mutex::default(),
+            controls: Mutex::default(),
         }
     }
 }
@@ -49,6 +54,8 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .register(registrar);
+        controls::register(registrar, client::hud_handler());
+        client::register_keys(registrar);
     }
 
     fn living_entity_use_item_finish(
@@ -87,6 +94,7 @@ impl Hooks for Allomancy {
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
+        *self.controls() = controls::Controls::default();
     }
 
     fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>) {
@@ -108,8 +116,13 @@ impl Hooks for Allomancy {
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
         session.finish_drinks(host, runner.fail_vial());
         runner.tick(host, &mut session);
-        self.powers()
-            .apply_prepared(host, &session, event.context.tick.get());
+        let tick = event.context.tick.get();
+        let mut powers = self.powers();
+        let mut controls = self.controls();
+        // Key requests first, so a metal put out this tick takes no force.
+        controls.apply(host, &mut session, &mut powers, tick);
+        powers.apply_prepared(host, &session, tick);
+        controls.sync_hud(host, &session, tick);
     }
 
     fn level_tick_post(&self, side: HostSide<'_>, event: &mut LevelTickPostEvent) {
@@ -183,16 +196,35 @@ impl Hooks for Allomancy {
     ) {
         self.powers()
             .changed_dimension(&mut self.session(), event.player);
+        self.controls().resend(event.player);
+    }
+
+    fn player_container_open(
+        &self,
+        _: &mut dyn ServerHost,
+        event: &mut PlayerContainerOpenEvent<'_>,
+    ) {
+        self.controls().menu_opened(event.player);
+    }
+
+    fn player_container_close(
+        &self,
+        _: &mut dyn ServerHost,
+        event: &mut PlayerContainerCloseEvent<'_>,
+    ) {
+        self.controls().menu_closed(event.player);
     }
 
     fn player_logged_in(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedInEvent<'_>) {
         if let Some(player) = host.player(event.player) {
             self.session().ensure_loaded(host, player);
         }
+        self.controls().resend(event.player);
     }
 
     fn player_logged_out(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedOutEvent<'_>) {
         self.session().logged_out(host, event.player);
+        self.controls().logged_out(event.player);
     }
 
     fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
@@ -204,12 +236,37 @@ impl Hooks for Allomancy {
         if event.was_death {
             self.session().respawned_after_death(host, event.player);
         }
+        self.controls().resend(event.player);
+    }
+
+    fn client_tick_post(&self, host: &mut dyn ClientHost, _: &mut ClientTickPostEvent) {
+        client::tick(host);
+    }
+
+    fn register_gui_layers(&self, _: &RegistrationContext, event: &mut RegisterGuiLayersEvent<'_>) {
+        client::gui_layers(event.layers);
+    }
+
+    fn gui_layer_draw(&self, host: &dyn ClientHost, event: &mut GuiLayerDrawEvent<'_>) {
+        client::draw(host, event.layer, event.draw);
+    }
+
+    fn client_player_logging_out(
+        &self,
+        _: &mut dyn ClientHost,
+        _: &mut ClientPlayerLoggingOutEvent,
+    ) {
+        client::logged_out();
     }
 }
 
 impl Allomancy {
     fn powers(&self) -> MutexGuard<'_, p4::Powers> {
         self.powers.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn controls(&self) -> MutexGuard<'_, controls::Controls> {
+        self.controls.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn session(&self) -> MutexGuard<'_, bridge::Session> {

@@ -1,5 +1,6 @@
 mod commands;
 mod content;
+mod control;
 mod metals;
 mod persistence;
 pub mod physics;
@@ -9,6 +10,7 @@ mod types;
 
 pub use commands::*;
 pub use content::*;
+pub use control::*;
 pub use metals::*;
 pub use persistence::*;
 pub use reserves::*;

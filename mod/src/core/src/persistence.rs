@@ -251,7 +251,7 @@ fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-fn burn_code(burn: BurnState) -> u8 {
+pub(crate) fn burn_code(burn: BurnState) -> u8 {
     match burn {
         BurnState::Off => 0,
         BurnState::Burning => 1,
@@ -259,7 +259,7 @@ fn burn_code(burn: BurnState) -> u8 {
     }
 }
 
-fn pair_code(pair: Pair) -> u8 {
+pub(crate) fn pair_code(pair: Pair) -> u8 {
     match pair {
         Pair::IronSteel => 0,
         Pair::TinPewter => 1,
