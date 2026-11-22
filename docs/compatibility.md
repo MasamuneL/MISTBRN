@@ -19,7 +19,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 | Plataforma | Estado |
 |---|---|
-| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md) y [P3a](evidence/p3.md) |
+| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md), [P3a](evidence/p3.md), [P3b](evidence/p3b.md) y [P4](evidence/p4.md) |
 | Windows x64 | Pendiente: gate obligatorio de P10 |
 | Linux x64 | Pendiente: gate obligatorio de P10 |
 
@@ -38,12 +38,17 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 | Contenido `.hmod` | C1, C2 y C2b | Registro de ítems y recetas, fabricación y consumo en ambas manos. El crédito de reserva y el retorno del envase se guardan juntos |
 | Fuentes en chunks existentes | C6 | Muestras al minar y vial al abrir un cofre de botín. Toque de Seda devolvió los bloques de mena sin añadir muestras |
 | Cambio de mundo en el mismo proceso | C7 | Una carga por mundo. Al reabrir el segundo, la reserva, la transacción y los viales seguían en cero para el mismo jugador |
+| Fuerza de hierro y acero | N1–N11 (`docs/evidence/p4.md`) | `set_velocity` mueve al jugador (cliente) y a los ítems (servidor) con la colisión del motor; objetivos por `clip` y `ray_trace_entities` en `level_tick_post`; monedas que golpean según su desplazamiento real |
 | Jugador sin cuenta | `horizon-ctl launch --game` | Juega offline con nombre generado; no usa la cuenta Microsoft |
 
 ## Límites conocidos
 
 - Las muestras de mena dependen solo de la posición: colocar menas sacadas con Toque de Seda en posiciones elegibles y volver a minarlas con una herramienta que dé el mineral en bruto garantiza la muestra. Límite aceptado (cuesta una mena por muestra). La Fortuna multiplica la muestra como el bonus vanilla de menas (Fortuna III: 1–4, media 2,2), también determinista por posición. Solo se lee la Fortuna del parche de componentes de la herramienta (mesa, yunque, `/enchant`, botín): `block_drops` no da acceso a los componentes por defecto, así que la Fortuna que un datapack o mod ponga por defecto en una herramienta no cuenta.
 - La cola de bebidas se deduplica por jugador y slot en cada tick porque la doc del hook de fin de uso indica que en el servidor puede dispararse para cada jugador del mundo. Sin probar con dos clientes (P9).
+- El comando de prueba `/mistbrn-test` (P4) existe solo con `MISTBRN_TEST_SCENARIO=p4` exacto y para operadores de nivel 2. Su `credit` desbloquea un metal y acredita reservas sin vial en el guardado real del mundo abierto: el SDK no expone el nombre del mundo para limitarlo a los mundos de prueba `mistbrn-*`. Límite aceptado por el usuario (2026-11-21): es código de prueba tras una variable que un jugador no define, como los escenarios de P2, y un operador ya puede darse viales con `/give`. P10 comprueba que sin la variable el comando no existe.
+- El tope de velocidad de P4 limita la velocidad que produce la fuerza: no frena una caída más rápida (la gravedad no se limita). El servidor recibe a veces dos movimientos del cliente en un tick, por eso los escenarios miden velocidad y paso medio en 4 ticks.
+- Una moneda empujada daña según su desplazamiento real entre ticks. Los teletransportes que `entity_teleport` avisa (comandos dentro del mismo nivel por la ruta de Horizon) no se barren: el tramo previo al salto se evalúa y el vuelo sigue desde el destino. Uno que el SDK no avisa y que no supera la velocidad de la moneda al acabar el tick anterior + 0,1 bloques no es distinguible de un vuelo y podría dañar lo que cruza. Si un operador mueve a la víctima y después teletransporta la moneda en el mismo tick, el tramo previo se barre con la víctima ya movida y el golpe puede perderse (solo con comandos).
+- Hierro y acero se reparten en dos fases. En `level_tick_post`, por nivel, se eligen y validan objetivos, se mueven ítems y monedas y se barren sus vuelos: en `ServerTickEnd` solo un nivel está en contexto y los rayos y lecturas de entidades de los demás responden `None`. La fuerza sobre el jugador contra un ancla se aplica en `ServerTickEnd`, cuando ya llegó su movimiento de ese tick (el servidor procesa los paquetes después de los niveles); con la lectura de la pasada del nivel, un tick atrasada, el salto con moneda oscilaba. Esa fuerza va después del consumo: el tick que agota la reserva (1 de 2 500 por vial) no la aplica, y un encendido que llega después de la pasada del nivel cobra ese tick sin fuerza.
 - `bronze_earring` ocupa el slot de casco: no se lleva a la vez que un casco.
 - La batería P3a se ejecutó en el servidor integrado de macOS arm64. El cooperativo y el servidor dedicado corresponden a una fase posterior. [Evidencia de P3a](evidence/p3.md)
 - Las pruebas de corte de P3a cubren el inventario del jugador cuando tiene espacio para el envase. La durabilidad conjunta de la reserva y un envase soltado por desbordamiento sigue por verificar.

@@ -125,15 +125,29 @@ fn clients_cannot_apply_any_command() {
     }
 }
 
-// Catches activation that bypasses lock/reserve checks or silently implements P4.
+// Catches activation that bypasses lock/reserve checks, and P4 leaking past iron and steel.
 #[test]
-fn activating_and_flaring_are_validated_then_explicitly_unimplemented() {
+fn activating_and_flaring_are_validated_and_only_iron_steel_are_implemented() {
     for (command, operation) in [
-        (
-            Command::Activate { metal: Metal::Iron },
-            Operation::Activate,
-        ),
-        (Command::Flare { metal: Metal::Iron }, Operation::Flare),
+        (Command::Activate { metal: Metal::Tin }, Operation::Activate),
+        (Command::Flare { metal: Metal::Tin }, Operation::Flare),
+    ] {
+        let mut tin = player();
+        tin.metals[Metal::Tin.index()] = MetalState {
+            unlocked: true,
+            reserve_milli: 1,
+            burn: BurnState::Off,
+        };
+        reject_unchanged(
+            tin,
+            command,
+            &snapshot(),
+            RuleError::NotImplemented(operation),
+        );
+    }
+    for command in [
+        Command::Activate { metal: Metal::Iron },
+        Command::Flare { metal: Metal::Iron },
     ] {
         let mut locked = player();
         locked.metals[0].unlocked = false;
@@ -147,17 +161,70 @@ fn activating_and_flaring_are_validated_then_explicitly_unimplemented() {
         empty.metals[0].reserve_milli = 0;
         reject_unchanged(
             empty,
-            command.clone(),
+            command,
             &snapshot(),
             RuleError::EmptyReserve(Metal::Iron),
         );
-        reject_unchanged(
-            player(),
-            command,
-            &snapshot(),
-            RuleError::NotImplemented(operation),
-        );
     }
+}
+
+fn burn_to(metal: Metal, burn: BurnState) -> Effect {
+    Effect {
+        stage: EffectStage::AcceptedInMemory,
+        kind: EffectKind::Signal(Signal::BurnChanged { metal, burn }),
+    }
+}
+
+// Catches iron and steel burning together, missing signals, or repeated signals on a repeat.
+#[test]
+fn iron_and_steel_light_exclusively_and_idempotently() {
+    let mut state = player(); // iron Burning, steel Flared
+    assert_eq!(
+        apply_command(
+            &mut state,
+            Command::Activate { metal: Metal::Iron },
+            &snapshot()
+        ),
+        Ok(vec![burn_signal(Metal::Steel)])
+    );
+    assert_eq!(state.metals[0].burn, BurnState::Burning);
+    assert_eq!(state.metals[1].burn, BurnState::Off);
+    assert_eq!(
+        apply_command(
+            &mut state,
+            Command::Activate { metal: Metal::Iron },
+            &snapshot()
+        ),
+        Ok(vec![])
+    );
+    assert_eq!(
+        apply_command(
+            &mut state,
+            Command::Flare {
+                metal: Metal::Steel
+            },
+            &snapshot()
+        ),
+        Ok(vec![
+            burn_signal(Metal::Iron),
+            burn_to(Metal::Steel, BurnState::Flared)
+        ])
+    );
+    assert_eq!(state.metals[0].burn, BurnState::Off);
+    assert_eq!(state.metals[1].burn, BurnState::Flared);
+    assert_eq!(
+        apply_command(
+            &mut state,
+            Command::Activate {
+                metal: Metal::Steel
+            },
+            &snapshot()
+        ),
+        Ok(vec![burn_to(Metal::Steel, BurnState::Burning)])
+    );
+    // Reserves are never touched by lighting.
+    assert_eq!(state.metals[0].reserve_milli, 12_345);
+    assert_eq!(state.metals[1].reserve_milli, 8_000);
 }
 
 // Catches premature consumption, purchases, milestone rewards or fake success.

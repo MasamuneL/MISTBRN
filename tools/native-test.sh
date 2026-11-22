@@ -6,6 +6,8 @@
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
 # the mod reports `MISTBRN_TEST scenario=<name> key=value ...` and this script compares them.
 source "$(dirname "$0")/lib.sh"
+# shellcheck source=tools/p4-lib.sh
+source "$(dirname "$0")/p4-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
@@ -173,6 +175,151 @@ table() {
 }
 
 case "$scenario" in
+  n1)  # Pull toward an iron block 12 blocks away and stop at its collision face.
+    p4_fixture
+    p4_iron_block 524
+    p4_burn iron
+    ctl wait 100 >/dev/null
+    p4_off; quit_game
+    p4_check_log ;;
+  n2)  # Push away from the iron block and stop against the glass wall.
+    p4_fixture
+    p4_iron_block 524
+    ctl command "fill 508 100 511 508 103 513 minecraft:glass" >/dev/null
+    p4_burn steel
+    ctl wait 100 >/dev/null
+    p4_off; quit_game
+    p4_check_log ;;
+  n3)  # Push downward on a grounded clip in Survival, hover, then fall with steel off.
+    p4_fixture
+    ctl command "tp @s 510.5 100 512.5" >/dev/null
+    ctl command 'summon item 512.5 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
+    ctl wait 10 >/dev/null
+    ctl command "gamemode survival" >/dev/null
+    ctl command "mistbrn-test credit steel 25000" >/dev/null
+    ctl command "tp @s 512.5 102 512.5" >/dev/null
+    ctl look 0 90 >/dev/null
+    ctl command "mistbrn-test burn steel" >/dev/null
+    ctl wait 160 >/dev/null
+    p4_off
+    ctl wait 60 >/dev/null
+    ctl state > "$dir/after-off.json"
+    quit_game
+    p4_check_log "$(jq -r '.player.position[1] // .position[1] // "missing"' "$dir/after-off.json")" ;;
+  n4)  # Pull in an iron ingot six blocks away without displacing the player.
+    p4_fixture
+    ctl command 'summon item 518.5 100 512.5 {Item:{id:"minecraft:iron_ingot",count:1},PickupDelay:0}' >/dev/null
+    ctl look-at 518.5 100.125 512.5 >/dev/null
+    p4_burn iron
+    ctl wait 80 >/dev/null
+    p4_off
+    ctl inventory > "$dir/pickup-inventory.json"
+    quit_game
+    p4_check_log
+    ingots="$(jq -r '.counts["minecraft:iron_ingot"] // 0' "$dir/pickup-inventory.json")"
+    echo "check: ingots_collected=$ingots" | tee -a "$dir/report.txt"
+    if [[ "$ingots" != 1 ]]; then p4_fail "expected to collect one iron ingot"; fi ;;
+  n11)  # N4 in the Nether: powers run per level, so a parked level's entities are reachable.
+    p4_fixture
+    ctl command "execute in minecraft:the_nether run tp @s 512.5 112 512.5" >/dev/null
+    ctl wait-for loaded --timeout 120 >/dev/null; ctl wait 40 >/dev/null
+    for _ in 1 2; do
+      ctl command "execute in minecraft:the_nether run fill 503 100 508 540 116 516 minecraft:air" >/dev/null
+      ctl wait 20 >/dev/null
+    done
+    ctl command "execute in minecraft:the_nether run fill 503 99 508 540 99 516 minecraft:stone" >/dev/null
+    ctl command "execute in minecraft:the_nether run tp @s 512.5 100 512.5" >/dev/null
+    ctl wait 5 >/dev/null
+    ctl command 'execute in minecraft:the_nether run summon item 518.5 100 512.5 {Item:{id:"minecraft:iron_ingot",count:1},PickupDelay:0}' >/dev/null
+    ctl look-at 518.5 100.125 512.5 >/dev/null
+    p4_burn iron
+    ctl wait 80 >/dev/null
+    p4_off
+    ctl inventory > "$dir/pickup-inventory.json"
+    ctl state > "$dir/nether-state.json"
+    quit_game
+    p4_check_log
+    ingots="$(jq -r '.counts["minecraft:iron_ingot"] // 0' "$dir/pickup-inventory.json")"
+    dimension="$(jq -r '.dimension // .player.dimension // .world.dimension // "missing"' "$dir/nether-state.json")"
+    echo "check: ingots_collected=$ingots dimension=$dimension" | tee -a "$dir/report.txt"
+    if [[ "$ingots" != 1 ]]; then p4_fail "expected to collect one iron ingot in the Nether"; fi
+    if [[ "$dimension" != minecraft:the_nether ]]; then p4_fail "expected to be in the Nether"; fi ;;
+  n5)  # Push a single clip through a stationary zombie at capped projectile speed.
+    p4_fixture
+    ctl command "time set midnight" >/dev/null
+    ctl command "difficulty normal" >/dev/null
+    ctl command 'summon zombie 520.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
+    ctl command 'summon item 514 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
+    ctl look-at 514 100.125 512.5 >/dev/null
+    p4_burn steel
+    ctl wait 30 >/dev/null
+    p4_off
+    quit_game
+    p4_check_log ;;
+  n5w)  # The same shot with glass between the clip and the zombie: the wall takes it.
+    p4_fixture
+    ctl command "time set midnight" >/dev/null
+    ctl command "difficulty normal" >/dev/null
+    # Glass at x=516..517; the zombie at 517.5 is within one 2-block coin move of the glass face.
+    ctl command 'summon zombie 517.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
+    ctl command "fill 516 100 511 516 103 514 minecraft:glass" >/dev/null
+    ctl command 'summon item 514 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
+    ctl look-at 514 100.125 512.5 >/dev/null
+    p4_burn steel
+    ctl wait 30 >/dev/null
+    p4_off
+    quit_game
+    p4_check_log ;;
+  n6)  # Reach an anchor 20 blocks away while flared and spend triple the normal rate.
+    p4_fixture
+    p4_iron_block 532
+    p4_burn iron 25000 flare
+    ctl wait 100 >/dev/null
+    p4_off
+    ctl save >/dev/null; quit_game
+    report; quit_game
+    expect 2 report state=active
+    p4_check_log "$(field 2 report reserve_iron)" ;;
+  n7)  # Spend 200 milli in exactly 20 ticks and stop reporting motion on exhaustion.
+    p4_fixture
+    p4_iron_block 524
+    p4_burn iron 200
+    ctl wait 60 >/dev/null
+    quit_game
+    p4_check_log ;;
+  n8)  # Die during an iron pull, respawn with an empty reserve, and never resume the pull.
+    p4_fixture
+    p4_iron_block 524
+    p4_burn iron
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
+    ctl command "kill @s" >/dev/null
+    ctl wait 20 >/dev/null; ctl respawn >/dev/null; ctl wait 40 >/dev/null
+    ctl save >/dev/null; quit_game
+    report; quit_game
+    p4_check_log
+    expect 2 report state=active reserve_iron=0 ;;
+  n9)  # Change dimension during an iron pull and verify that iron stops in the same session.
+    p4_fixture
+    p4_iron_block 524
+    p4_burn iron
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
+    ctl command "execute in minecraft:the_nether run tp @s 0 100 0" >/dev/null
+    ctl wait-for loaded --timeout 120 >/dev/null; ctl wait 40 >/dev/null
+    ctl state > "$dir/nether-state.json"
+    quit_game
+    p4_check_log
+    dimension="$(jq -r '.dimension // .player.dimension // .world.dimension // "missing"' "$dir/nether-state.json")"
+    echo "check: dimension=$dimension" | tee -a "$dir/report.txt"
+    if [[ "$dimension" != minecraft:the_nether ]]; then p4_fail "expected to reach the Nether"; fi ;;
+  n10)  # Remove the iron block during a pull and clear the invalid target.
+    p4_fixture
+    p4_iron_block 524
+    p4_burn iron
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
+    ctl command "setblock 524 101 512 minecraft:air" >/dev/null
+    ctl wait 40 >/dev/null
+    p4_off; quit_game
+    p4_check_log ;;
   vial-smoke)
     launch
     ctl command "gamemode survival" >/dev/null
