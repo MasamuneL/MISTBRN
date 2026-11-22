@@ -76,13 +76,16 @@ struct Flight {
     coin: EntityRef,
     shooter: EntityRef,
     last: Vec3,
+    /// The speed the coin had at the end of the last tick: its next real move is at most this
+    /// (plus a little gravity). A longer move was not flight but a teleport.
+    expected: f64,
     ticks_left: u8,
 }
 
 /// How long a coin is followed after its last push, counted from the tick after it.
 const FLIGHT_TICKS: u8 = 40;
-/// The longest move a coin makes in one tick: its cap plus a full fall's step.
-const MAX_COIN_STEP: f64 = 2.5;
+/// Slack on a coin's expected move: item gravity (0.04) and rounding.
+const COIN_STEP_SLACK: f64 = 0.1;
 
 /// A coin's hit, dealt after the tick's locks are released.
 pub(crate) struct Hit {
@@ -332,7 +335,7 @@ impl Powers {
             fmt3(next)
         );
         if direction == Direction::Push && is_coin(id) {
-            self.pushed_coin(*entity, body, point);
+            self.pushed_coin(*entity, body, point, speed, tick);
         }
     }
 
@@ -354,10 +357,20 @@ impl Powers {
                 flight.coin.id(),
                 fmt3(now)
             );
-            // A move no push or fall makes in one tick is a teleport: it hurts nothing.
-            if distance([flight.last.x, flight.last.y, flight.last.z], now) > MAX_COIN_STEP {
+            let step = distance([flight.last.x, flight.last.y, flight.last.z], now);
+            let teleported = step > flight.expected + COIN_STEP_SLACK;
+            flight.expected = flight
+                .coin
+                .velocity(read)
+                .map_or(0.0, |v| physics::norm(v3(v)));
+            // A move longer than the coin's own speed is a teleport: it hurts nothing, and the
+            // flight goes on from where the coin now is.
+            if teleported {
                 flight.last = now;
-                self.flights.push(flight);
+                flight.ticks_left = flight.ticks_left.saturating_sub(1);
+                if flight.ticks_left > 0 {
+                    self.flights.push(flight);
+                }
                 continue;
             }
             if let Some(hit) =
@@ -389,19 +402,35 @@ impl Powers {
         }
     }
 
-    /// Starts or refreshes the flight of a coin pushed this tick.
-    fn pushed_coin(&mut self, coin: EntityRef, shooter: EntityRef, at: Vec3) {
+    /// Starts or refreshes the flight of a coin pushed this tick to `speed`.
+    fn pushed_coin(
+        &mut self,
+        coin: EntityRef,
+        shooter: EntityRef,
+        at: Vec3,
+        speed: f64,
+        tick: u64,
+    ) {
         match self.flights.iter_mut().find(|f| f.coin == coin) {
             Some(flight) => {
                 flight.shooter = shooter;
+                flight.expected = speed;
                 flight.ticks_left = FLIGHT_TICKS;
             }
-            None => self.flights.push(Flight {
-                coin,
-                shooter,
-                last: at,
-                ticks_left: FLIGHT_TICKS,
-            }),
+            None => {
+                eprintln!(
+                    "MISTBRN p4coin tick={tick} entity={} pos={}",
+                    coin.id(),
+                    fmt3(at)
+                );
+                self.flights.push(Flight {
+                    coin,
+                    shooter,
+                    last: at,
+                    expected: speed,
+                    ticks_left: FLIGHT_TICKS,
+                });
+            }
         }
     }
 }
