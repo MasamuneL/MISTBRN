@@ -79,8 +79,10 @@ struct Flight {
     ticks_left: u8,
 }
 
-/// How long a coin is followed after its last push.
+/// How long a coin is followed after its last push, counted from the tick after it.
 const FLIGHT_TICKS: u8 = 40;
+/// The longest move a coin makes in one tick: its cap plus a full fall's step.
+const MAX_COIN_STEP: f64 = 2.5;
 
 /// A coin's hit, dealt after the tick's locks are released.
 pub(crate) struct Hit {
@@ -141,7 +143,10 @@ impl Powers {
             .retain(|uuid, _| online.iter().any(|p| p.uuid() == *uuid));
         let read: &dyn Host = host;
         self.spent.retain(|coin| coin.position(read).is_some());
+        // Last tick's coin moves are resolved first, with the pushers they had: a push this tick
+        // must not take over a segment it did not cause.
         let mut hits = Vec::new();
+        self.follow_flights(host, tick, &mut hits);
         for player in online {
             let uuid = player.uuid();
             match acting(session, uuid) {
@@ -161,7 +166,6 @@ impl Powers {
                 }
             }
         }
-        self.follow_flights(host, &mut hits);
         hits
     }
 
@@ -206,6 +210,7 @@ impl Powers {
         let read: &dyn Host = host;
         let body = player.entity();
         let Some(level) = player.level(read) else {
+            self.clear(uuid, "invalid");
             return;
         };
         if self
@@ -223,13 +228,14 @@ impl Powers {
             // Another player's push already spent this coin on a body.
             self.clear(uuid, "hit");
         }
-        // A player whose geometry cannot be read this tick is skipped: the target is kept and
-        // checked again on the next tick.
+        // A player whose geometry cannot be read drops the target: when the reading comes back
+        // the player aims anew instead of resuming on what they may no longer look at.
         let (Some(feet), Some(velocity), Some(eye)) = (
             body.position(read),
             body.velocity(read),
             body.eye_position(read),
         ) else {
+            self.clear(uuid, "invalid");
             return;
         };
         if !self.held.contains_key(&uuid) {
@@ -331,7 +337,7 @@ impl Powers {
     }
 
     /// Moves every followed coin's segment forward and collects at most one hit per coin.
-    fn follow_flights(&mut self, host: &mut dyn ServerHost, hits: &mut Vec<Hit>) {
+    fn follow_flights(&mut self, host: &mut dyn ServerHost, tick: u64, hits: &mut Vec<Hit>) {
         for mut flight in std::mem::take(&mut self.flights) {
             let read: &dyn Host = host;
             let (Some(level), Some([x, y, z])) =
@@ -343,6 +349,17 @@ impl Powers {
                 continue;
             }
             let now = Vec3 { x, y: y + 0.125, z };
+            eprintln!(
+                "MISTBRN p4coin tick={tick} entity={} pos={}",
+                flight.coin.id(),
+                fmt3(now)
+            );
+            // A move no push or fall makes in one tick is a teleport: it hurts nothing.
+            if distance([flight.last.x, flight.last.y, flight.last.z], now) > MAX_COIN_STEP {
+                flight.last = now;
+                self.flights.push(flight);
+                continue;
+            }
             if let Some(hit) =
                 coin_victim(read, level, flight.shooter, flight.coin, flight.last, now)
             {

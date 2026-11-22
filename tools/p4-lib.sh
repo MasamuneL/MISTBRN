@@ -90,6 +90,15 @@ p4_check_log() {
       hit_speed = fields["speed"]
       health_before = fields["health_before"]; health_after = fields["health_after"]
     }
+    tokens[1] == "p4coin" && vector(fields["pos"], cpos) {
+      # Follow only the first pushed coin, by entity id, for as long as it is followed.
+      if (coin_id == "") coin_id = fields["entity"]
+      if (fields["entity"] == coin_id) {
+        if (coin_samples == 0) coin_first_x = cpos[1] + 0
+        if (coin_samples == 0 || cpos[1] + 0 > coin_max_x) coin_max_x = cpos[1] + 0
+        coin_samples++
+      }
+    }
     tokens[1] == "p4item" {
       if (!vector(fields["vel"], velocity)) { bad_item++; next }
       item_samples++
@@ -165,7 +174,7 @@ p4_check_log() {
         check(max_speed <= 1.05 + 1e-6, "expected player speed <= 1.05")
         check(max_window <= 1.05 + 1e-6, "expected mean x step over 4 ticks <= 1.05")
         check(final_x <= 523.75, "expected final x <= block face - 0.25")
-        check(max_x < 524, "player reached or entered the iron block")
+        check(max_x <= 523.75, "player box entered the iron block (some sample x > face - 0.25)")
         check(samples >= 20 && final_x >= 523.5, "expected the pull to reach the block face (x >= 523.5)")
       } else if (scenario == "n2" || scenario == "n3") {
         low = high = scenario == "n2" ? tail_x[0] : tail_y[0]
@@ -202,9 +211,9 @@ p4_check_log() {
         metrics(sprintf("max_item_speed=%.6f coin_hits=%d", max_item_speed, hits))
         check(!bad_item && item_samples > 0 && max_item_speed <= 2 + 1e-6, "expected clip speed <= 2.0")
         check(hits == 0, "a coin hit a body behind glass")
-        metrics(sprintf("coin_first_x=%.3f coin_max_x=%.3f", first_item_x, max_item_x))
-        check(max_item_x - first_item_x >= 1, "expected the clip to fly toward the glass (>= 1 block)")
-        check(max_item_x < 516, "the clip passed the glass face")
+        metrics(sprintf("coin=%s coin_samples=%d coin_first_x=%.3f coin_max_x=%.3f", coin_id, coin_samples, coin_first_x, coin_max_x))
+        check(coin_samples >= 2 && coin_max_x - coin_first_x >= 1, "expected the pushed clip to fly toward the glass (>= 1 block)")
+        check(coin_max_x < 516, "the clip passed the glass face")
       } else if (scenario == "n6") {
         consumed = 25000 - observed
         metrics(sprintf("max_step=%.3f max_window=%.3f max_speed=%.3f final_x=%.3f reserve_iron=%s consumed_milli=%d expected_milli=%d",
@@ -213,7 +222,7 @@ p4_check_log() {
         check(max_window <= 1.45 + 1e-6, "expected mean flared x step over 4 ticks <= 1.45")
         check(number(observed) && abs(consumed - samples * 30) <= 30, "expected 30 milli per flared tick (+/- one tick)")
         check(samples >= 20 && final_x >= 531.5, "expected the flared pull to reach the block face (x >= 531.5)")
-        check(max_x < 532 && final_x <= 531.75, "player reached or entered the flared target block")
+        check(max_x <= 531.75, "player box entered the flared target block (some sample x > face - 0.25)")
       } else {
         metrics(sprintf("stop_events=%d block_ticks_before=%d p4_after=%d block_ticks_after=%d",
             stop_seen, block_samples_before_stop, after_stop, blocks_after_stop))
