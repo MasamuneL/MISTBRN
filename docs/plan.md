@@ -169,7 +169,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | P3a contenido | `feat/p3-content` | P2 | metales, viales, recetas, muestras en mundos existentes, arte original y traducciones | Integrado en `7f1d159` con 24 corridas y dos revisiones. [Evidencia](evidence/p3.md) |
 | P3b accesorios | `feat/p3b-accessories` | P3a | monedas, capa de bruma y accesorios (ver abajo) | Validador de contenido; en juego: fabricar cada accesorio y equipar la capa; pendientes de la revisión de P3a cerrados |
 | P4 hierro/acero | `feat/p4-iron-steel` | P2, P3a | tirón/empujón sobre metales y anclajes, límites de velocidad, colisión del motor, cancelación por muerte/dimensión/objetivo inválido | N1–N11 y regresión 17/17 en `p4-22`, dos revisiones. [Evidencia](evidence/p4.md) |
-| P7a controles/HUD mínimo | `feat/p7a-hud` | P4 | V selecciona pareja, Z/X activa, R aviva, G apaga; HUD de reservas; sin activación con chat/menú | Escenario con chat e inventario abiertos sin activación; captura local revisada (no versionada) |
+| P7a controles/HUD mínimo | `feat/p7a-hud` | P4 | V selecciona pareja, Z/X activa, R aviva, G apaga; HUD de reservas; sin activación con chat/menú | K1–K8 y regresión en `p7a-5`, captura revisada, dos revisiones. [Evidencia](evidence/p7a.md) |
 | V1 demo | — (validación) | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |
 | P5 habilidades/investigación | `feat/p5-progress` | V1 | árboles, experiencia por práctica, investigación con pistas; **esquema de guardado 2 + migración 1→2** | Tests core + fixture v1 migrado; escenario en juego |
 | P6 hitos | `feat/p6-milestones` | P5 | fragmentos ligados a bastión, guardián, ciudad antigua, dragona; reclamo único por jugador | Duplicados rechazados en core y en juego |
@@ -240,6 +240,16 @@ Flotantes con 3 decimales; `pos`/`vel` del jugador son las del servidor en ese t
 | N10 inválido | N1, `setblock` del bloque a aire a mitad | `reason=broken`; ningún `p4` con `target=block` después |
 
 Gates: `tools/check.sh`, N1–N10 en un build con árbol limpio, regresión S1, S5, S8, S9 y C2, evidencia `docs/evidence/p4.md` y dos revisiones. Valores de ensayo, no de balance.
+
+### P7a — Controles y HUD mínimo
+
+Aprobado el 2026-11-21. Superficie del pin sin fork: `Registrar::register_key_mapping` (`KeyRegistration`, reasignable en Controles), `ClientHost::{consume_click,is_down,playing,window_focused,send_payload_to_server,text_string}`, `client_tick_post`, `register_gui_layers`/`gui_layer_draw`, `payload_handlers().registrar("1").play_to_server/play_to_client` (emisor = jugador de la conexión, hilo principal), `PlayerRef::send_payload`, `player_container_open/close`.
+
+- **Teclas** (decisión del usuario): V pasa a la siguiente de las cuatro parejas; Z / X alternan el primer / segundo metal de la pareja; R alterna avivado del metal que arde; G apaga todo. Una petición por pulsación nueva (la auto-repetición no alterna); nada se envía sin `playing()` y foco.
+- **Paquete `mistbrn:control`**: codec propio `[versión 1][op][arg]`, exactamente 3 bytes (`core/src/control.rs`). Bytes inválidos: se descartan y registran, sin desconectar (decisión del usuario). Presupuesto por jugador de 8 peticiones y 1 más cada 2 ticks; bandeja de 16 por jugador. El servidor resuelve la petición con su propio estado y la pasa por `apply_command` con `gameplay_allowed = sin menú de contenedor && no espectador`; apagar siempre pasa.
+- **HUD `mistbrn:hud`**: 82 bytes (pareja + 8 × desbloqueo, combustión, reserva, capacidad), enviado al cambiar y como mucho cada 5 ticks, y de nuevo al entrar, reaparecer o cambiar de dimensión. Caja arriba a la izquierda (abajo chocaba con el chat y el hotbar; captura de `p7a-4`): pareja, barra y estado de sus dos metales, y los demás desbloqueados en una línea.
+- **Escenarios** (`tools/p7a-lib.sh`): K1 tirón por tecla, K2 alternar/avivar/cambiar (avivado ≈ 3× por HUD), K3 parejas, K4 chat abierto, K5 inventario abierto, K6 HUD = reserva del servidor y captura local, K7 bytes inválidos y ráfaga. Regresión N1, N3, N7 y S1.
+- **Límite**: el servidor no ve el chat ni el inventario propio (pantallas del cliente); ese bloqueo depende del cliente. Un cliente modificado solo podría hacer lo que ya puede con la pantalla cerrada.
 
 ---
 

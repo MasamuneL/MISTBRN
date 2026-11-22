@@ -8,6 +8,8 @@
 source "$(dirname "$0")/lib.sh"
 # shellcheck source=tools/p4-lib.sh
 source "$(dirname "$0")/p4-lib.sh"
+# shellcheck source=tools/p7a-lib.sh
+source "$(dirname "$0")/p7a-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
@@ -636,6 +638,8 @@ case "$scenario" in
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
     expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
+  k[1-8])  # P7a keys and HUD (tools/p7a-lib.sh)
+    k_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done
