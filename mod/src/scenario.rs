@@ -88,7 +88,8 @@ impl Scenario {
 
 pub(crate) struct Runner {
     pending: Option<Scenario>,
-    fail_vial: bool,
+    /// `MISTBRN_TEST_FAIL_VIAL=1`: fail every vial and unlock-item use inside its transaction.
+    fail_use: bool,
 }
 
 /// P4 scenarios drive everything through `/mistbrn-test`: the runner has nothing to do.
@@ -115,12 +116,12 @@ impl Runner {
             });
         Self {
             pending,
-            fail_vial: std::env::var("MISTBRN_TEST_FAIL_VIAL").as_deref() == Ok("1"),
+            fail_use: std::env::var("MISTBRN_TEST_FAIL_VIAL").as_deref() == Ok("1"),
         }
     }
 
-    pub(crate) fn fail_vial(&self) -> bool {
-        self.fail_vial
+    pub(crate) fn fail_use(&self) -> bool {
+        self.fail_use
     }
 
     pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, session: &mut Session) {

@@ -47,7 +47,7 @@ v1_pull_fixture() {
   ctl wait 5 >/dev/null
 }
 
-# v1_scenario: runs U1-U3 and V1; returns 1 for any other scenario name.
+# v1_scenario: runs U1-U5 and V1; returns 1 for any other scenario name.
 v1_scenario() {
   local server hud
   case "$scenario" in
@@ -61,7 +61,8 @@ v1_scenario() {
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1[[:space:]]*$'
-      expect 2 report state=active unlocked_iron=true unlocked_steel=true primers=0 last_transaction=1 burn_iron=off ;;
+      expect 2 report state=active unlocked_iron=true unlocked_steel=true primers=0 last_transaction=1 burn_iron=off \
+        reserve_iron=0 ;;
     u2)  # A second primer refuses an unlocked pair and stays in the inventory.
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
       ctl command "gamemode survival" >/dev/null
@@ -83,6 +84,22 @@ v1_scenario() {
       report; quit_game
       expect_log 1 'MISTBRN event=unlock_refused pair=iron_steel reason=injected_failure[[:space:]]*$'
       expect 2 report state=active primers=1 unlocked_iron=false unlocked_steel=false last_transaction=0 ;;
+    u4|u5)  # Hard cut after a primer: U4 without a save (old or new state, never half),
+      # U5 after a save (the new state).
+      launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
+      ctl command "gamemode survival" >/dev/null
+      ctl give mistbrn:primer_iron_steel 1 >/dev/null; ctl wait 10 >/dev/null
+      v1_use mistbrn:primer_iron_steel
+      [[ "$scenario" == u5 ]] && ctl save >/dev/null
+      kill_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1[[:space:]]*$'
+      local after
+      after="$(field 2 report primers) $(field 2 report unlocked_iron) $(field 2 report unlocked_steel) $(field 2 report last_transaction)"
+      case "$scenario:$after" in
+        u4:"1 false false 0"|u4:"0 true true 1"|u5:"0 true true 1") k_ok "after the cut: primers unlocked_iron unlocked_steel last_transaction = $after" ;;
+        *) k_fail "after the cut: primers unlocked_iron unlocked_steel last_transaction = '$after'" ;;
+      esac ;;
     v1)  # Craft from raw ingredients, drink, study, pull with Z and put iron out with G.
       # Glass makes two empties: one is filled and drunk (it comes back), one stays spare.
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
@@ -95,8 +112,11 @@ v1_scenario() {
       put minecraft:glass 100; put minecraft:glass 102; take
       put minecraft:iron_ingot 100; put minecraft:cobblestone 101; take
       put mistbrn:vial_empty 100; put mistbrn:iron_flakes 101; take
+      # The guide's path: steel ingot and primer are three-ingredient shapeless recipes (2x2).
+      put minecraft:iron_ingot 100; put minecraft:coal 101 102; take
+      put minecraft:book 100; put minecraft:iron_ingot 101; put mistbrn:steel_ingot 102; take
       ctl close >/dev/null
-      v1_craft_primer
+      ctl wait 10 >/dev/null
       v1_use mistbrn:vial_iron
       v1_use mistbrn:primer_iron_steel
       p4_iron_block 524
@@ -109,6 +129,8 @@ v1_scenario() {
       report; quit_game
       expect_log 1 'MISTBRN event=vial_credit metal=iron seq=1[[:space:]]*$'
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=2[[:space:]]*$'
+      # Exact fuel before any burn: the HUD sent on the unlock shows the whole vial.
+      expect_log 1 'MISTBRN hud pair=iron_steel iron=25000/off steel=0/off'
       k_expect_commands activate:iron=ok off:all=ok
       k_pull_check
       expect 2 report state=active burn_iron=off burn_steel=off unlocked_iron=true unlocked_steel=true \

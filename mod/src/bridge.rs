@@ -59,7 +59,8 @@ pub(crate) struct Session {
     epoch: Option<u64>,
     players: BTreeMap<u128, Slot>,
     reports: u8,
-    drinks: Vec<Finished>,
+    /// Finished uses of our items (vials and unlock items), applied once the hand is written.
+    uses: Vec<Finished>,
 }
 
 /// Chat line from the mod's translations (`assets/mistbrn/lang`), never a raw error code.
@@ -84,6 +85,24 @@ pub(crate) fn refusal_message(error: &str) -> Option<&'static str> {
         Some("message.mistbrn.vial.reserve_full")
     } else {
         Some("message.mistbrn.vial.failed")
+    }
+}
+
+/// Why an unlock item was not used. Only `Failed` changed nothing for a reason worth reporting
+/// as a failure; the item stays in every case.
+pub(crate) enum Refusal {
+    AlreadyUnlocked,
+    NotInSlot,
+    Failed(String),
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AlreadyUnlocked => f.write_str("AlreadyUnlocked"),
+            Self::NotInSlot => f.write_str("item_not_in_slot"),
+            Self::Failed(reason) => f.write_str(reason),
+        }
     }
 }
 
@@ -194,7 +213,7 @@ impl Session {
     /// Death: reserves cleared in memory at once and written as soon as the player can be
     /// written (now if alive enough, else after the respawn).
     pub(crate) fn died(&mut self, host: &mut dyn ServerHost, uuid: u128) {
-        self.drinks.retain(|queued| queued.player().uuid() != uuid);
+        self.uses.retain(|queued| queued.player().uuid() != uuid);
         if self.change(uuid, true, on_death).is_ok() {
             eprintln!("MISTBRN event=death_cleared");
             if let Some(player) = host.player(uuid) {
@@ -228,7 +247,7 @@ impl Session {
     }
 
     pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
-        self.drinks.retain(|queued| queued.player().uuid() != uuid);
+        self.uses.retain(|queued| queued.player().uuid() != uuid);
         if let Some(player) = host.player(uuid) {
             self.flush(host, player);
         }
@@ -239,15 +258,15 @@ impl Session {
     /// once for one use (on a server it may fire for every player of the world): one use per
     /// player and slot per tick.
     pub(crate) fn queue_use(&mut self, finished: Finished) {
-        if !self.drinks.iter().any(|queued| {
+        if !self.uses.iter().any(|queued| {
             queued.player().uuid() == finished.player().uuid() && queued.slot() == finished.slot()
         }) {
-            self.drinks.push(finished);
+            self.uses.push(finished);
         }
     }
 
-    pub(crate) fn finish_drinks(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
-        for finished in std::mem::take(&mut self.drinks) {
+    pub(crate) fn finish_uses(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
+        for finished in std::mem::take(&mut self.uses) {
             let Some(player) = host.player(finished.player().uuid()) else {
                 continue;
             };
@@ -292,12 +311,13 @@ impl Session {
                 eprintln!("MISTBRN event=unlock pair={pair} seq={}", seq.0);
                 tell(host, player, "message.mistbrn.primer.unlocked");
             }
-            Err(error) => {
-                eprintln!("MISTBRN event=unlock_refused pair={pair} reason={error}");
-                if error == "AlreadyUnlocked" {
-                    tell(host, player, "message.mistbrn.primer.known");
-                } else if error != "item_not_in_slot" {
-                    tell(host, player, "message.mistbrn.primer.failed");
+            Err(refusal) => {
+                eprintln!("MISTBRN event=unlock_refused pair={pair} reason={refusal}");
+                match refusal {
+                    Refusal::AlreadyUnlocked => tell(host, player, "message.mistbrn.primer.known"),
+                    // The item moved: nothing was used, nothing to say.
+                    Refusal::NotInSlot => {}
+                    Refusal::Failed(_) => tell(host, player, "message.mistbrn.primer.failed"),
                 }
             }
         }
@@ -311,7 +331,7 @@ impl Session {
         host: &mut dyn ServerHost,
         study: Study,
         fail_inside: bool,
-    ) -> Result<TransactionSeq, String> {
+    ) -> Result<TransactionSeq, Refusal> {
         let Study {
             player,
             slot,
@@ -320,10 +340,10 @@ impl Session {
         } = study;
         let uuid = player.uuid();
         if host.transaction_current().is_some() {
-            return Err("nested_transaction".into());
+            return Err(Refusal::Failed("nested_transaction".into()));
         }
         if slot_stack(host, player, slot).as_ref() != Some(&expected) {
-            return Err("item_not_in_slot".into());
+            return Err(Refusal::NotInSlot);
         }
         let Some(Slot::Active {
             saved,
@@ -332,19 +352,22 @@ impl Session {
             since_write,
         }) = self.players.get_mut(&uuid)
         else {
-            return Err("not_active".into());
+            return Err(Refusal::Failed("not_active".into()));
         };
-        let prepared = prepare_unlock(saved, pair).map_err(|e| format!("{e:?}"))?;
+        let prepared = prepare_unlock(saved, pair).map_err(|error| match error {
+            SaveError::AlreadyUnlocked => Refusal::AlreadyUnlocked,
+            other => Refusal::Failed(format!("{other:?}")),
+        })?;
         host.transaction(|host, _tx| {
             let stack = slot_stack(host, player, slot)
                 .filter(|stack| *stack == expected)
-                .ok_or("item_not_in_slot")?;
+                .ok_or(Refusal::NotInSlot)?;
             player
                 .set_inventory_slot(host, slot, stack.shrink(1))
-                .map_err(|e| format!("set_slot:{e:?}"))?;
-            save::write(host, player, prepared.candidate())?;
+                .map_err(|e| Refusal::Failed(format!("set_slot:{e:?}")))?;
+            save::write(host, player, prepared.candidate()).map_err(Refusal::Failed)?;
             if fail_inside {
-                return Err("injected_failure".to_string());
+                return Err(Refusal::Failed("injected_failure".into()));
             }
             Ok(())
         })?;
@@ -357,7 +380,7 @@ impl Session {
             }
             Err(error) => {
                 self.block(host, uuid, Blocked::Decode(error));
-                Err(format!("commit_after_host:{error:?}"))
+                Err(Refusal::Failed(format!("commit_after_host:{error:?}")))
             }
         }
     }
@@ -446,7 +469,7 @@ impl Session {
             // the process keeps players loaded at login, which belong to this world.
             if self.epoch.is_some() {
                 self.players.clear();
-                self.drinks.clear();
+                self.uses.clear();
             }
             self.epoch = Some(epoch);
             self.reports = 0;

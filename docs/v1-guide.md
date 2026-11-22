@@ -8,6 +8,8 @@ Demo interna de hierro y acero. Tu evaluación es el criterio de cierre de V1: a
 - Crea un mundo nuevo en **Supervivencia**, con trucos activados para darte los materiales.
 - No definas `MISTBRN_TEST_SCENARIO`: con ella el juego no es el de un jugador.
 
+Los mensajes salen en el idioma del juego (aquí, `es_es`; en inglés dicen «Allomancy: …»).
+
 Materiales (por chat): `/give @s glass 2`, `/give @s iron_ingot 3`, `/give @s cobblestone 1`, `/give @s coal 2`, `/give @s book 1`, `/give @s iron_block 1`.
 
 ## Recorrido
@@ -24,7 +26,7 @@ Materiales (por chat): `/give @s glass 2`, `/give @s iron_ingot 3`, `/give @s co
 4. **Estudiar la cartilla**: mantén clic derecho. El chat dice «Alomancia: ya puedes quemar hierro y acero.» y aparece el panel arriba a la izquierda, con la barra de hierro al 25 %. Una segunda cartilla no se consume: «…ya conoces el hierro y el acero; conservas la cartilla.»
 5. **Tirón**: coloca el bloque de hierro a unos 10 bloques, míralo y pulsa **Z** para quemar hierro. Te acerca al bloque y te detiene en su cara. Con **R** avivas (más fuerza, triple gasto); otra R vuelve a quemar normal.
 6. **Apagar**: pulsa **G** (apaga todo) o otra vez **Z** (solo hierro). La fuerza para.
-7. **Acero** (opcional): con **X** quemas acero, que empuja en sentido contrario. No tienes reserva de acero: date `/give @s iron_ingot 1`, `/give @s coal 2` y `/give @s cobblestone 1`, fabrica otro lingote de acero, virutas de acero (lingote de acero + adoquín) y el vial de acero (virutas + el segundo vial vacío).
+7. **Acero** (opcional): con **X** quemas acero, que empuja en sentido contrario. No tienes reserva de acero: date `/give @s iron_ingot 1`, `/give @s coal 2` y `/give @s cobblestone 1`, fabrica otro lingote de acero, virutas de acero (lingote de acero + adoquín) y el vial de acero (virutas + el segundo vial vacío); bébelo, mira el bloque y pulsa X.
 8. **Bloqueos**: con el chat (T) o el inventario (E) abiertos, ninguna tecla de alomancia (Z, X, R, G, V) actúa.
 9. **Guardar y volver**: sal al menú y vuelve a entrar al mundo. La reserva se conserva, los poderes están apagados y no tienes viales ni cartillas de más.
 

@@ -116,7 +116,7 @@ impl Hooks for Allomancy {
         let mut session = self.session();
         session.tick(host, event.context.epoch.get(), event.context.tick.get());
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
-        session.finish_drinks(host, runner.fail_vial());
+        session.finish_uses(host, runner.fail_use());
         runner.tick(host, &mut session);
         let tick = event.context.tick.get();
         let mut powers = self.powers();
