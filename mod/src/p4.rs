@@ -136,22 +136,37 @@ fn distance(a: [f64; 3], b: Vec3) -> f64 {
 
 impl Powers {
     /// One server tick of force. Returns the coin hits to deal once the locks are released.
-    pub(crate) fn tick(
+    /// One level's share of a server tick, run right after that level's own tick pass
+    /// (`level_tick_post`), while it is the level in place: entity reads and rays of a parked
+    /// level answer `None`, so a player or coin is only handled during its own level's pass.
+    /// Returns the coin hits to deal once the locks are released.
+    pub(crate) fn tick_level(
         &mut self,
         host: &mut dyn ServerHost,
         session: &mut Session,
-        tick: u64,
+        level: LevelRef,
     ) -> Vec<Hit> {
+        let read: &dyn Host = host;
+        if !level.in_place(read) {
+            return Vec::new();
+        }
+        let tick = level
+            .game_time(read)
+            .and_then(|t| u64::try_from(t).ok())
+            .unwrap_or(0);
         let mut online = host.players().server_players();
         online.sort_by_key(|player| player.uuid());
         self.held
             .retain(|uuid, _| online.iter().any(|p| p.uuid() == *uuid));
         let read: &dyn Host = host;
-        self.spent.retain(|coin| coin.position(read).is_some());
+        online.retain(|player| player.level(read) == Some(level));
+        // A removed coin of this level is forgotten; coins of parked levels wait their pass.
+        self.spent
+            .retain(|coin| coin.level(read) != Some(level) || coin.position(read).is_some());
         // Last tick's coin moves are resolved first, with the pushers they had: a push this tick
         // must not take over a segment it did not cause.
         let mut hits = std::mem::take(&mut self.pending_hits);
-        self.follow_flights(host, tick, &mut hits);
+        self.follow_flights(host, level, tick, &mut hits);
         for player in online {
             let uuid = player.uuid();
             match acting(session, uuid) {
@@ -348,12 +363,25 @@ impl Powers {
     }
 
     /// Moves every followed coin's segment forward and collects at most one hit per coin.
-    fn follow_flights(&mut self, host: &mut dyn ServerHost, tick: u64, hits: &mut Vec<Hit>) {
+    fn follow_flights(
+        &mut self,
+        host: &mut dyn ServerHost,
+        level: LevelRef,
+        tick: u64,
+        hits: &mut Vec<Hit>,
+    ) {
         for mut flight in std::mem::take(&mut self.flights) {
             let read: &dyn Host = host;
-            let (Some(level), Some([x, y, z])) =
-                (flight.coin.level(read), flight.coin.position(read))
-            else {
+            match flight.coin.level(read) {
+                // Another level's coin: followed during that level's pass.
+                Some(other) if other != level => {
+                    self.flights.push(flight);
+                    continue;
+                }
+                Some(_) => {}
+                None => continue, // removed
+            }
+            let Some([x, y, z]) = flight.coin.position(read) else {
                 continue;
             };
             if self.spent.contains(&flight.coin) {

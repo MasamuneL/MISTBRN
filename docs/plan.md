@@ -232,6 +232,7 @@ Flotantes con 3 decimales; `pos`/`vel` del jugador son las del servidor en ese t
 | N4 ítem | `iron_ingot` a 6 bloques, `burn iron` | el ítem llega y se recoge; el jugador se mueve ≤ 0,05 |
 | N5 proyectil | zombi `NoAI` a 8 bloques, `clip` 1,5 delante, `burn steel` | moneda ≤ 2,0; salud del zombi baja (log del mod); un `coin_hit` |
 | N5w muro | N5 con vidrio en x = 516 y el zombi en 517,5 | la moneda avanza ≥ 1 y no pasa del vidrio; ningún `coin_hit` |
+| N11 Nether | N4 en el Nether | el lingote llega y se recoge; el jugador sigue en el Nether |
 | N6 avivado | N1 a 20 bloques con `flare` | velocidad y Δx medio en 4 ticks ≤ 1,45; consumo ×3 |
 | N7 agotamiento | `credit iron 200`, N1 | `exhausted metal=iron` a los 20 ticks; sin `p4` después |
 | N8 muerte | N1, `kill @s` a mitad, `respawn` | `target_cleared reason=death`; reserva 0; sin `p4` después |

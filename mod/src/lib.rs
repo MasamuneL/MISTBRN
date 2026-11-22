@@ -13,10 +13,11 @@ mod scenario;
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ContainerLootFilledEvent,
-    EntityTeleportEvent, Flow, Hooks, HostSide, LevelHost, LivingEntityUseItemFinishEvent,
-    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerDiedEvent, PlayerLoggedInEvent,
-    PlayerLoggedOutEvent, RegisterCommandsEvent, Registrar, RegistrationContext,
-    RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    EntityTeleportEvent, Flow, Hooks, HostSide, LevelHost, LevelTickPostEvent,
+    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerDiedEvent,
+    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, Registrar,
+    RegistrationContext, RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent,
+    ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -102,15 +103,19 @@ impl Hooks for Allomancy {
             return;
         }
         // A panic in an earlier tick must not silently stop every later one: keep the data.
-        let hits = {
-            let mut session = self.session();
-            session.tick(host, event.context.epoch.get(), event.context.tick.get());
-            let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
-            session.finish_drinks(host, runner.fail_vial());
-            runner.tick(host, &mut session);
-            self.powers()
-                .tick(host, &mut session, event.context.tick.get())
-        };
+        let mut session = self.session();
+        session.tick(host, event.context.epoch.get(), event.context.tick.get());
+        let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
+        session.finish_drinks(host, runner.fail_vial());
+        runner.tick(host, &mut session);
+    }
+
+    fn level_tick_post(&self, side: HostSide<'_>, event: &mut LevelTickPostEvent) {
+        // Iron and steel act per level, while it is the level in place (see `p4::Powers`).
+        let HostSide::Server(host) = side else { return };
+        let hits = self
+            .powers()
+            .tick_level(host, &mut self.session(), event.level);
         // A lethal hit runs the death hooks, which take the session and power locks again.
         p4::deal_hits(host, hits);
     }

@@ -219,6 +219,31 @@ case "$scenario" in
     ingots="$(jq -r '.counts["minecraft:iron_ingot"] // 0' "$dir/pickup-inventory.json")"
     echo "check: ingots_collected=$ingots" | tee -a "$dir/report.txt"
     if [[ "$ingots" != 1 ]]; then p4_fail "expected to collect one iron ingot"; fi ;;
+  n11)  # N4 in the Nether: powers run per level, so a parked level's entities are reachable.
+    p4_fixture
+    ctl command "execute in minecraft:the_nether run tp @s 512.5 112 512.5" >/dev/null
+    ctl wait-for loaded --timeout 120 >/dev/null; ctl wait 40 >/dev/null
+    for _ in 1 2; do
+      ctl command "execute in minecraft:the_nether run fill 503 100 508 540 116 516 minecraft:air" >/dev/null
+      ctl wait 20 >/dev/null
+    done
+    ctl command "execute in minecraft:the_nether run fill 503 99 508 540 99 516 minecraft:stone" >/dev/null
+    ctl command "execute in minecraft:the_nether run tp @s 512.5 100 512.5" >/dev/null
+    ctl wait 5 >/dev/null
+    ctl command 'execute in minecraft:the_nether run summon item 518.5 100 512.5 {Item:{id:"minecraft:iron_ingot",count:1},PickupDelay:0}' >/dev/null
+    ctl look-at 518.5 100.125 512.5 >/dev/null
+    p4_burn iron
+    ctl wait 80 >/dev/null
+    p4_off
+    ctl inventory > "$dir/pickup-inventory.json"
+    ctl state > "$dir/nether-state.json"
+    quit_game
+    p4_check_log
+    ingots="$(jq -r '.counts["minecraft:iron_ingot"] // 0' "$dir/pickup-inventory.json")"
+    dimension="$(jq -r '.dimension // .player.dimension // .world.dimension // "missing"' "$dir/nether-state.json")"
+    echo "check: ingots_collected=$ingots dimension=$dimension" | tee -a "$dir/report.txt"
+    if [[ "$ingots" != 1 ]]; then p4_fail "expected to collect one iron ingot in the Nether"; fi
+    if [[ "$dimension" != minecraft:the_nether ]]; then p4_fail "expected to be in the Nether"; fi ;;
   n5)  # Push a single clip through a stationary zombie at capped projectile speed.
     p4_fixture
     ctl command "time set midnight" >/dev/null

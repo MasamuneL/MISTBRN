@@ -54,9 +54,9 @@ p4_check_log() {
       steel = scenario ~ /^n([235]|5w)$/
       metal = steel ? "steel" : "iron"
       burn = scenario == "n6" ? "flared" : "burning"
-      item = scenario ~ /^n([345]|5w)$/
+      item = scenario ~ /^n([345]|5w|11)$/
       kind = item ? "item" : "block"
-      id = item ? (scenario == "n4" ? "minecraft:iron_ingot" : "mistbrn:clip") : "minecraft:iron_block"
+      id = item ? (scenario ~ /^n(4|11)$/ ? "minecraft:iron_ingot" : "mistbrn:clip") : "minecraft:iron_block"
       reason = scenario == "n8" ? "death" : (scenario == "n9" ? "dimension" : "broken")
     }
     {
@@ -162,7 +162,7 @@ p4_check_log() {
       check(acquired > 0, "expected to acquire " id)
       check(item ? item_targets > 0 : block_samples > 0, "expected a player tick with target=" kind)
       check(samples >= 2 && !gaps && !bad_player, "expected consecutive valid player ticks")
-      if (scenario ~ /^n([1-6]|5w)$/ || scenario == "n10")
+      if (scenario ~ /^n([1-6]|5w|11)$/ || scenario == "n10")
         check(off_seen > 0, "expected successful " metal " off")
       metrics(sprintf("p4_after_off=%d", after_off))
       check(!after_off, "found force applied after a successful off")
@@ -195,7 +195,7 @@ p4_check_log() {
           check(max_vy <= 1, "expected upward velocity <= 1.0")
           check(number(observed) && observed + 0 < final_y, "expected y to fall after turning steel off")
         }
-      } else if (scenario == "n4") {
+      } else if (scenario == "n4" || scenario == "n11") {
         metrics(sprintf("max_displacement=%.3f item_samples=%d", max_displacement, item_samples))
         check(!bad_item && item_samples > 0, "expected ingot motion in p4item")
         check(max_displacement <= 0.05 + 1e-6, "expected player displacement <= 0.05")
