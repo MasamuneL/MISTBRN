@@ -34,3 +34,12 @@ El pin expone lo necesario sin fork: `minecraft:equippable` y `minecraft:attribu
 - Deduplicación de bebidas sin probar con dos clientes: diferida a P9 por decisión del usuario. Los revisores no ven ruta de doble crédito: cada bebida revalida el stack exacto dentro de la transacción.
 - `bronze_earring` ocupa el slot de casco. El render del pendiente no se verificó visualmente (queda diminuto junto a la cabeza).
 - Las monedas y la daga no tienen todavía comportamiento alomántico ni arrojadizo (P4).
+
+## Fortuna en las muestras (posterior a P3b)
+
+Commit probado `961eddca9815c145659f592e02c20c90776d85c4` (`git_dirty=no`), build `fortune-1` → `native-0a875da-eca383a9bb7c`, `libmistbrn.dylib` SHA-256 `65b8a1697aa7b8075e5eb1e4d97288a7ea9ce8e93b4dadf086f0f73a4c6b1665`. Cada mena elegible da `1 + max(0, r − 1)` muestras con `r` en `0..=fortuna+1` (bonus vanilla de menas), elegido por posición. El adaptador lee `minecraft:enchantments` de la herramienta. Tests del núcleo: medias 4/3, 7/4 y 11/5 (±3 %) en 10 000 posiciones y conteos fijos del fixture de C6.
+
+| Escenario | Corrida | Observado | Resultado |
+|---|---|---|---|
+| C6F | `fortune1-c6f` | Pico con Fortuna III: 4 estaños en la fila de cobre y 3 zincs en la de hierro, como fija el núcleo | PASS |
+| C6 | `fortune1-c6` | Regresión sin Fortuna (1 estaño, 3 zincs, Toque de Seda sin muestras, vial del cofre) tras extraer el fixture a una función | PASS |
