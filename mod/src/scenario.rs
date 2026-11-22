@@ -91,11 +91,20 @@ pub(crate) struct Runner {
     fail_vial: bool,
 }
 
+/// Whether this is a test run: `MISTBRN_TEST_SCENARIO` names any scenario. Only then are the
+/// `/mistbrn-test` commands registered and run.
+pub(crate) fn enabled() -> bool {
+    std::env::var("MISTBRN_TEST_SCENARIO").is_ok_and(|name| !name.is_empty())
+}
+
+/// P4 scenarios drive everything through `/mistbrn-test`: the runner has nothing to do.
+const COMMANDS_ONLY: &str = "p4";
+
 impl Runner {
     pub(crate) fn from_env() -> Self {
         let pending = std::env::var("MISTBRN_TEST_SCENARIO")
             .ok()
-            .filter(|name| !name.is_empty())
+            .filter(|name| !name.is_empty() && name != COMMANDS_ONLY)
             .and_then(|name| {
                 let parsed = Scenario::parse(&name);
                 if parsed.is_none() {

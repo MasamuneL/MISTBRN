@@ -6,13 +6,16 @@
 
 mod bridge;
 mod content;
+mod p4;
 mod save;
 mod scenario;
 
+use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ContainerLootFilledEvent, Flow, Hooks,
-    HostSide, LevelHost, LivingEntityUseItemFinishEvent, PlayerCloneEvent, PlayerDiedEvent,
-    PlayerLoggedInEvent, PlayerLoggedOutEvent, Registrar, RegistrationContext, ServerHost,
+    HostSide, LevelHost, LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent,
+    PlayerCloneEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
+    RegisterCommandsEvent, Registrar, RegistrationContext, RunModCommandEvent, ServerHost,
     ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -23,6 +26,7 @@ struct Allomancy {
     session: Mutex<bridge::Session>,
     scenario: Mutex<scenario::Runner>,
     content: Mutex<content::Content>,
+    powers: Mutex<p4::Powers>,
 }
 
 impl Default for Allomancy {
@@ -32,6 +36,7 @@ impl Default for Allomancy {
             session: Mutex::new(bridge::Session::default()),
             scenario: Mutex::new(scenario::Runner::from_env()),
             content: Mutex::default(),
+            powers: Mutex::default(),
         }
     }
 }
@@ -80,6 +85,7 @@ impl Hooks for Allomancy {
 
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
         *self.session() = bridge::Session::default();
+        *self.powers() = p4::Powers::default();
     }
 
     fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>) {
@@ -101,6 +107,62 @@ impl Hooks for Allomancy {
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
         session.finish_drinks(host, runner.fail_vial());
         runner.tick(host, &mut session);
+        self.powers()
+            .tick(host, &mut session, event.context.tick.get());
+    }
+
+    fn register_commands(&self, _: &mut dyn ServerHost, event: &mut RegisterCommandsEvent<'_>) {
+        // Test commands exist only in test runs (P10 checks a normal world has none).
+        if scenario::enabled() {
+            event.commands.extend(
+                p4::TEST_COMMANDS
+                    .iter()
+                    .map(|usage| mod_api::Command::op(usage, 2)),
+            );
+        }
+    }
+
+    fn run_mod_command(
+        &self,
+        host: &mut dyn ServerHost,
+        event: &mut RunModCommandEvent<'_>,
+    ) -> Flow {
+        let command = event.command;
+        if !scenario::enabled()
+            || command.literals.first().map(String::as_str) != Some("mistbrn-test")
+        {
+            return Flow::Continue;
+        }
+        let CommandSource::Player { player, .. } = event.source else {
+            return Flow::Cancel;
+        };
+        let word = |name: &str| match command.argument(name) {
+            Some(CommandArgumentValue::String(value)) => Some(value.as_str()),
+            _ => None,
+        };
+        let milli = match command.argument("milli") {
+            Some(CommandArgumentValue::Integer(value)) => Some(*value),
+            _ => None,
+        };
+        p4::run_test_command(
+            host,
+            &mut self.session(),
+            *player,
+            &command.literals,
+            word("metal"),
+            word("mode"),
+            milli,
+        );
+        Flow::Cancel
+    }
+
+    fn player_changed_dimension(
+        &self,
+        host: &mut dyn ServerHost,
+        event: &mut PlayerChangedDimensionEvent<'_>,
+    ) {
+        self.powers()
+            .changed_dimension(host, &mut self.session(), event.player);
     }
 
     fn player_logged_in(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedInEvent<'_>) {
@@ -114,6 +176,7 @@ impl Hooks for Allomancy {
     }
 
     fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
+        self.powers().died(event.player);
         self.session().died(host, event.player);
     }
 
@@ -125,6 +188,10 @@ impl Hooks for Allomancy {
 }
 
 impl Allomancy {
+    fn powers(&self) -> MutexGuard<'_, p4::Powers> {
+        self.powers.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn session(&self) -> MutexGuard<'_, bridge::Session> {
         self.session.lock().unwrap_or_else(PoisonError::into_inner)
     }
