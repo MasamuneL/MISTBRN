@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run one in-game scenario against the dev instance's native build and check its report lines.
 # Usage: tools/native-test.sh <scenario> [run-name]
+# V1 scenarios: u1 (craft), u2 (repeat), u3 (rollback), v1 (player path).
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
@@ -10,9 +11,11 @@ source "$(dirname "$0")/lib.sh"
 source "$(dirname "$0")/p4-lib.sh"
 # shellcheck source=tools/p7a-lib.sh
 source "$(dirname "$0")/p7a-lib.sh"
+# shellcheck source=tools/v1-lib.sh
+source "$(dirname "$0")/v1-lib.sh"
 require jq grep cksum
 
-scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
+scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name] (V1: u1, u2, u3, v1)"
 [[ "$scenario" == s11 ]] && require python3
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
@@ -640,6 +643,8 @@ case "$scenario" in
     expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
   k[1-8])  # P7a keys and HUD (tools/p7a-lib.sh)
     k_scenario ;;
+  u[1-3]|v1)  # V1 primer and player path (tools/v1-lib.sh)
+    v1_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done
