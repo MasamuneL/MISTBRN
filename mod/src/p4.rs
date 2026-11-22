@@ -326,8 +326,14 @@ impl Powers {
         else {
             return;
         };
-        let _ = entity.set_velocity(host, [next.x, next.y, next.z]);
+        let written = entity.set_velocity(host, [next.x, next.y, next.z]);
         let speed = physics::norm(next);
+        // Any velocity written on a followed coin (a pull too) is what it moves by next.
+        if written {
+            for flight in self.flights.iter_mut().filter(|f| f.coin == *entity) {
+                flight.expected = speed;
+            }
+        }
         eprintln!(
             "MISTBRN p4item tick={tick} entity={} pos={} vel={} speed={speed:.6}",
             entity.id(),
@@ -399,6 +405,18 @@ impl Powers {
             if flight.ticks_left > 0 {
                 self.flights.push(flight);
             }
+        }
+    }
+
+    /// A command teleported an entity within its level (`entity_teleport`): a followed coin's
+    /// segment restarts at the destination, so the jump is never swept for bodies.
+    pub(crate) fn teleported(&mut self, entity: u32, to: [f64; 3]) {
+        for flight in self.flights.iter_mut().filter(|f| f.coin.id() == entity) {
+            flight.last = Vec3 {
+                x: to[0],
+                y: to[1] + 0.125,
+                z: to[2],
+            };
         }
     }
 

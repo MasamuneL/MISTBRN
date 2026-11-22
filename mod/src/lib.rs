@@ -12,11 +12,11 @@ mod scenario;
 
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
-    self, Authority as HostAuthority, BlockDropsEvent, ContainerLootFilledEvent, Flow, Hooks,
-    HostSide, LevelHost, LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent,
-    PlayerCloneEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
-    RegisterCommandsEvent, Registrar, RegistrationContext, RunModCommandEvent, ServerHost,
-    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    self, Authority as HostAuthority, BlockDropsEvent, ContainerLootFilledEvent,
+    EntityTeleportEvent, Flow, Hooks, HostSide, LevelHost, LivingEntityUseItemFinishEvent,
+    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerDiedEvent, PlayerLoggedInEvent,
+    PlayerLoggedOutEvent, RegisterCommandsEvent, Registrar, RegistrationContext,
+    RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -162,6 +162,10 @@ impl Hooks for Allomancy {
             &test,
         );
         Flow::Cancel
+    }
+
+    fn entity_teleport(&self, _: &mut dyn ServerHost, event: &mut EntityTeleportEvent<'_>) {
+        self.powers().teleported(event.entity, event.to);
     }
 
     fn player_changed_dimension(
