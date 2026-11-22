@@ -22,7 +22,7 @@ k_expect_count() {
 
 # k_commands: the server's key commands of launch 1, in order, as command=result words.
 k_commands() {
-  grep -a "MISTBRN event=control " "$(log 1)" | sed -n 's/.* command=\([^ ]*\) .* result=\([^ ]*\) .*/\1=\2/p' | tr '\n' ' '
+  { grep -a "MISTBRN event=control " "$(log 1)" || true; } | sed -n 's/.* command=\([^ ]*\) .* result=\([^ ]*\) .*/\1=\2/p' | tr '\n' ' '
 }
 
 # k_expect_commands WORDS...: exactly this sequence of command=result.

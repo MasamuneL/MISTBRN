@@ -53,6 +53,8 @@ v1_scenario() {
   case "$scenario" in
     u1)  # Craft and use one primer; both unlocks survive a save and a relaunch.
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
+      # Cleared lane: spawn terrain (leaves) can hide the crafting table's faces.
+      v1_pull_fixture
       ctl command "gamemode survival" >/dev/null
       ctl give book 1 >/dev/null; ctl give iron_ingot 2 >/dev/null; ctl give coal 2 >/dev/null
       ctl wait 10 >/dev/null
@@ -89,8 +91,10 @@ v1_scenario() {
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
       ctl command "gamemode survival" >/dev/null
       ctl give mistbrn:primer_iron_steel 1 >/dev/null; ctl wait 10 >/dev/null
+      # Saved with the primer first (as C3): the cut can only return to "primer, locked".
+      ctl save >/dev/null
       v1_use mistbrn:primer_iron_steel
-      [[ "$scenario" == u5 ]] && ctl save >/dev/null
+      if [[ "$scenario" == u5 ]]; then ctl save >/dev/null; fi
       kill_game
       report; quit_game
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1[[:space:]]*$'
@@ -131,6 +135,10 @@ v1_scenario() {
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=2[[:space:]]*$'
       # Exact fuel before any burn: the HUD sent on the unlock shows the whole vial.
       expect_log 1 'MISTBRN hud pair=iron_steel iron=25000/off steel=0/off'
+      # Keys need the game window focused (client playing() && window_focused()).
+      if grep -aq "MISTBRN event=key .* result=blocked" "$(log 1)"; then
+        k_fail "keys blocked: the game window lost focus (or a screen was open) during the run"
+      fi
       k_expect_commands activate:iron=ok off:all=ok
       k_pull_check
       expect 2 report state=active burn_iron=off burn_steel=off unlocked_iron=true unlocked_steel=true \
