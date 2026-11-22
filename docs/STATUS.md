@@ -2,7 +2,7 @@
 
 Actualizado el 2026-11-21.
 
-## Integrado en main (P4, al integrar su PR)
+## Integrado en main (P4, al integrar la PR #11)
 
 | Fase | Resultado |
 |---|---|
@@ -10,13 +10,13 @@ Actualizado el 2026-11-21.
 | P2 | Reservas, guardado versionado y transacciones de jugador. [PR #3](https://github.com/MasamuneL/MISTBRN/pull/3) · [PR #4](https://github.com/MasamuneL/MISTBRN/pull/4) · [Evidencia](evidence/p2.md) |
 | P3a | 25 ítems, 25 recetas, viales para ocho metales, fuentes de estaño y zinc en mundos existentes y traducciones. [PR #5](https://github.com/MasamuneL/MISTBRN/pull/5) · [Evidencia](evidence/p3.md) |
 | P3b | Monedas, daga, bastón, capa de bruma y pendiente; texturas nuevas (PR #9) y Fortuna en las muestras (PR #10). [PR #7](https://github.com/MasamuneL/MISTBRN/pull/7) · [Evidencia](evidence/p3b.md) |
-| P4 | Tirón de hierro y empujón de acero: objetivo por la mirada, anclas, salto con moneda, monedas como proyectil, topes, colisión del motor y cancelación por muerte, dimensión, objetivo inválido y agotamiento. Activación solo con `/mistbrn-test` hasta P7a. [Evidencia](evidence/p4.md) |
+| P4 | Tirón de hierro y empujón de acero: objetivo por la mirada, anclas, salto con moneda, monedas como proyectil, topes, colisión del motor y cancelación por muerte, dimensión, objetivo inválido y agotamiento. Activación solo con `/mistbrn-test` hasta P7a. [PR #11](https://github.com/MasamuneL/MISTBRN/pull/11) · [Evidencia](evidence/p4.md) |
 
 El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P4) fue `native-0a875da-7fc1871a8f7f` (`p4-22`, commit `554e97c`) en `mistbrn-dev`: 17/17 (N1–N11, S1, S5, S8, S9, C2). Recibos y corridas fuera del repo, en `~/Library/Application Support/MISTBRN-dev/`. Windows x64 y Linux x64 quedan para P10. [Compatibilidad](compatibility.md)
 
 ## Reanudación
 
-Estado previsto tras integrar la PR de P4 (escrito en la propia PR).
+Estado previsto tras integrar la PR #11 (escrito en la propia PR).
 
 - Rama activa: ninguna tras integrar `feat/p4-iron-steel`; `main` incluye P0b, P2, P3a, P3b y P4.
 - Fase y paso: P4 cerrada; P7a sin empezar.
