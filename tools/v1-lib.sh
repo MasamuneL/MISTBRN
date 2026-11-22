@@ -5,11 +5,14 @@
 
 # v1_craft_primer: craft the steel ingot and then the primer at a crafting table.
 v1_craft_primer() {
+  local px py pz
+  read -r px py pz < <(ctl state | jq -r '.player.position | map(floor) | "\(.[0]) \(.[1]) \(.[2])"')
   table
   put minecraft:iron_ingot 100; put minecraft:coal 101 102; take
   put minecraft:book 100; put minecraft:iron_ingot 101; put mistbrn:steel_ingot 102; take
   ctl close >/dev/null
-  # A use sent while the table screen is still closing never starts.
+  # Remove the table: a right-click use aimed at it would open it instead of using the item.
+  ctl setblock $((px + 2)) "$py" "$pz" air >/dev/null
   ctl wait 10 >/dev/null
 }
 
@@ -94,8 +97,6 @@ v1_scenario() {
       put mistbrn:vial_empty 100; put mistbrn:iron_flakes 101; take
       ctl close >/dev/null
       v1_craft_primer
-      # The table sits two blocks east of the player, in the pull lane.
-      ctl command "setblock 514 100 512 minecraft:air" >/dev/null
       v1_use mistbrn:vial_iron
       v1_use mistbrn:primer_iron_steel
       p4_iron_block 524
