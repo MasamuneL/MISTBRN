@@ -79,16 +79,11 @@ struct Flight {
     /// The speed the coin had at the end of the last tick: its next real move is at most this
     /// (plus a little gravity). A longer move was not flight but a teleport.
     expected: f64,
-    /// The moves made between reported teleports in this tick (each `last` → that teleport's
-    /// start), in order, still to be swept at the tick's end.
-    before_jumps: Vec<(Vec3, Vec3)>,
     ticks_left: u8,
 }
 
 /// How long a coin is followed after its last push, counted from the tick after it.
 const FLIGHT_TICKS: u8 = 40;
-/// Stretches kept between reported teleports of one coin in one tick.
-const MAX_JUMPS_PER_TICK: usize = 8;
 /// Slack on a coin's expected move: item gravity (0.04) and rounding.
 const COIN_STEP_SLACK: f64 = 0.1;
 
@@ -108,6 +103,8 @@ pub(crate) struct Powers {
     /// Coins that already hit: never a target again, so one coin hits once.
     spent: HashSet<EntityRef>,
     flights: Vec<Flight>,
+    /// Hits found during a teleport notice, dealt with the tick's own.
+    pending_hits: Vec<Hit>,
 }
 
 /// The metal a player acts with: iron or steel, burning or flared (the core lights one only).
@@ -153,7 +150,7 @@ impl Powers {
         self.spent.retain(|coin| coin.position(read).is_some());
         // Last tick's coin moves are resolved first, with the pushers they had: a push this tick
         // must not take over a segment it did not cause.
-        let mut hits = Vec::new();
+        let mut hits = std::mem::take(&mut self.pending_hits);
         self.follow_flights(host, tick, &mut hits);
         for player in online {
             let uuid = player.uuid();
@@ -368,36 +365,15 @@ impl Powers {
                 flight.coin.id(),
                 fmt3(now)
             );
-            // The moves to sweep: any stretch before a reported teleport, then the one since.
-            // Each must fit the coin's own speed; a longer one was an unreported teleport and
-            // hurts nothing.
-            let bound = flight.expected + COIN_STEP_SLACK;
+            // The move since the last sweep (or the last reported teleport) must fit the coin's
+            // own speed; a longer one was an unreported teleport and hurts nothing.
+            let found = flight_hit(read, level, &flight, now);
             flight.expected = flight
                 .coin
                 .velocity(read)
                 .map_or(0.0, |v| physics::norm(v3(v)));
-            let segments = std::mem::take(&mut flight.before_jumps)
-                .into_iter()
-                .chain(std::iter::once((flight.last, now)));
-            let found = segments
-                .filter(|(a, b)| distance([a.x, a.y, a.z], *b) <= bound)
-                .find_map(|(a, b)| coin_victim(read, level, flight.shooter, flight.coin, a, b));
             if let Some(hit) = found {
-                // The flight ends at the body: the coin stops and is never a target again.
-                let _ = flight.coin.set_velocity(host, [0.0, 0.0, 0.0]);
-                self.spent.insert(flight.coin);
-                let coin = flight.coin;
-                let holders: Vec<u128> = self
-                    .held
-                    .iter()
-                    .filter(|(_, held)| {
-                        matches!(held.target, Target::Item { entity, .. } if entity == coin)
-                    })
-                    .map(|(uuid, _)| *uuid)
-                    .collect();
-                for uuid in holders {
-                    self.clear(uuid, "hit");
-                }
+                self.land(host, flight.coin);
                 hits.push(hit);
                 continue;
             }
@@ -409,18 +385,53 @@ impl Powers {
         }
     }
 
-    /// A command teleported an entity within its level (`entity_teleport`): a followed coin's
-    /// segment restarts at the destination, so the jump is never swept for bodies.
-    pub(crate) fn teleported(&mut self, entity: u32, from: [f64; 3], to: [f64; 3]) {
-        let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
-        for flight in self.flights.iter_mut().filter(|f| f.coin.id() == entity) {
-            // Keep every stretch flown between jumps; the jumps themselves are never swept.
-            // Bounded: a command loop teleporting one coin cannot grow it without end.
-            if flight.before_jumps.len() < MAX_JUMPS_PER_TICK {
-                flight.before_jumps.push((flight.last, point(from)));
-            }
-            flight.last = point(to);
+    /// Ends a coin's flight at a body: it stops, is never a target again, and every player
+    /// holding it lets go.
+    fn land(&mut self, host: &mut dyn ServerHost, coin: EntityRef) {
+        let _ = coin.set_velocity(host, [0.0, 0.0, 0.0]);
+        self.spent.insert(coin);
+        self.flights.retain(|f| f.coin != coin);
+        let holders: Vec<u128> = self
+            .held
+            .iter()
+            .filter(
+                |(_, held)| matches!(held.target, Target::Item { entity, .. } if entity == coin),
+            )
+            .map(|(uuid, _)| *uuid)
+            .collect();
+        for uuid in holders {
+            self.clear(uuid, "hit");
         }
+    }
+
+    /// A command teleported an entity within its level (`entity_teleport`). For a followed
+    /// coin, the stretch flown before the jump is swept now (a hit waits for the tick's end,
+    /// and survives the coin's removal), and the flight resumes at the destination: the jump
+    /// itself is never swept.
+    pub(crate) fn teleported(
+        &mut self,
+        host: &mut dyn ServerHost,
+        entity: u32,
+        from: [f64; 3],
+        to: [f64; 3],
+    ) {
+        let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
+        let Some(index) = self.flights.iter().position(|f| f.coin.id() == entity) else {
+            return;
+        };
+        let read: &dyn Host = host;
+        let flight = &self.flights[index];
+        let found = flight
+            .coin
+            .level(read)
+            .and_then(|level| flight_hit(read, level, flight, point(from)));
+        if let Some(hit) = found {
+            let coin = flight.coin;
+            self.land(host, coin);
+            self.pending_hits.push(hit);
+            return;
+        }
+        self.flights[index].last = point(to);
     }
 
     /// Starts or refreshes the flight of a coin pushed this tick to `speed`.
@@ -449,7 +460,6 @@ impl Powers {
                     shooter,
                     last: at,
                     expected: speed,
-                    before_jumps: Vec::new(),
                     ticks_left: FLIGHT_TICKS,
                 });
             }
@@ -482,6 +492,16 @@ pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) {
             health(after)
         );
     }
+}
+
+/// A body hit by the flight's move from its last point to `to`, if that move fits the coin's
+/// speed (a longer one is an unreported teleport).
+fn flight_hit(host: &dyn Host, level: LevelRef, flight: &Flight, to: Vec3) -> Option<Hit> {
+    let from = flight.last;
+    if distance([from.x, from.y, from.z], to) > flight.expected + COIN_STEP_SLACK {
+        return None;
+    }
+    coin_victim(host, level, flight.shooter, flight.coin, from, to)
 }
 
 /// The first living body the coin's real move (`from` → `to`, last tick to this one) crossed,

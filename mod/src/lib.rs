@@ -164,8 +164,9 @@ impl Hooks for Allomancy {
         Flow::Cancel
     }
 
-    fn entity_teleport(&self, _: &mut dyn ServerHost, event: &mut EntityTeleportEvent<'_>) {
-        self.powers().teleported(event.entity, event.from, event.to);
+    fn entity_teleport(&self, host: &mut dyn ServerHost, event: &mut EntityTeleportEvent<'_>) {
+        self.powers()
+            .teleported(host, event.entity, event.from, event.to);
     }
 
     fn player_changed_dimension(
