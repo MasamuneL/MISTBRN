@@ -208,8 +208,11 @@ const BAR_W: f32 = 60.0;
 const LINE: f32 = 10.0;
 /// Wide enough for a pair's two rows (name, bar and state).
 const PANEL_MIN_W: f32 = 150.0;
+/// Half of vanilla's boss bar, centred at the top.
+const BOSS_BAR_HALF: f32 = 91.0;
 
-/// The reserve panel, bottom left: the selected pair with a bar per metal and its state, then
+/// The reserve panel, top left (clear of the chat, the hotbar and the bars above it, and
+/// narrower than the space left of a boss bar): the selected pair with a bar per metal and its state, then
 /// the other unlocked metals in one line. Nothing while no metal is unlocked.
 pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
     if layer != HUD_LAYER {
@@ -221,7 +224,7 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
     if !hud.metals.iter().any(|metal| metal.unlocked) {
         return;
     }
-    let [_, height] = draw.size();
+    let [gui_width, _] = draw.size();
     let metals = pair_metals(hud.pair);
     let others: Vec<String> = Metal::ALL
         .into_iter()
@@ -236,7 +239,7 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
         })
         .collect();
     let lines = if others.is_empty() { 3.0 } else { 4.0 };
-    let (x, top) = (4.0, height - 4.0 - lines * LINE - 4.0);
+    let (x, top) = (4.0, 4.0);
     let others_line = others.join("  ");
     let mut title = tr(host, &format!("hud.mistbrn.pair.{}", pair_name(hud.pair)));
     if hud.pair != Pair::IronSteel {
@@ -244,7 +247,8 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
     }
     let width = PANEL_MIN_W
         .max(draw.text_width(&others_line) + 4.0)
-        .max(draw.text_width(&title) + 4.0);
+        .max(draw.text_width(&title) + 4.0)
+        .min((gui_width / 2.0 - BOSS_BAR_HALF - 6.0).max(PANEL_MIN_W));
     draw.fill([x - 2.0, top - 2.0, width, lines * LINE + 4.0], PANEL);
     draw.text(&title, [x, top], TEXT, true);
     for (row, metal) in metals.into_iter().enumerate() {
