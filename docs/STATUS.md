@@ -17,20 +17,19 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## En curso: V1 (rama `feat/v1-unlock`)
 
-Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. Escenarios U1–U3 y `v1` (recorrido completo sin comandos de prueba) y regresión C2, S1, K1, K6, N1 PASS con el build `v1-1` (`native-0a875da-2974e2b92524`, `1b59711`). [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
+Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. Escenarios U1–U5 y `v1` (recorrido completo sin comandos de prueba) y regresión C2, S1, K1, K6, N1 PASS con el build `v1-2` (`native-0a875da-c01af71c3d7a`, `a63f1a0`). Revisión: Codex y Gemini APROBADO en la 1.ª ronda; hallazgos medios y bajos atendidos. [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
 
 ## Reanudación
 
 - Rama activa: `feat/v1-unlock` (desde `main` `6d440f4`); worktree `../MISTBRN-v1` (`wip/v1-scenario`) solo para el escenario de Codex, ya integrado.
-- Fase y paso: V1, revisión de la PR (Codex + Gemini).
+- Fase y paso: V1, PR #13 revisada; falta la evaluación humana y la aprobación del merge.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: batería V1 con `v1-1`, todo PASS (U1 tras arreglar el harness, ver evidencia); captura del HUD revisada.
+- Último resultado: batería V1 con `v1-2`, todo PASS (U1, U4 y v1 tras arreglar el harness o el foco de la ventana, ver evidencia); captura `runs/v1-2-v1b/v1-hud.png` revisada.
 
 ## Siguiente acción exacta
 
-1. Revisión de la PR (Codex solo lectura + Gemini) y arreglos agrupados; si cambia `mod/`, nuevo build y batería completa.
-2. Evaluación humana del usuario con `docs/v1-guide.md`: criterio de cierre de V1. Merge solo con su aprobación tras ver la captura.
-3. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
+1. Evaluación humana del usuario con `docs/v1-guide.md`: criterio de cierre de V1. Merge solo con su aprobación tras ver la captura.
+2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
 
 ## Próximos hitos
 
