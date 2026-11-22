@@ -79,6 +79,9 @@ struct Flight {
     /// The speed the coin had at the end of the last tick: its next real move is at most this
     /// (plus a little gravity). A longer move was not flight but a teleport.
     expected: f64,
+    /// The move made before a reported teleport in this tick (`last` → the teleport's start),
+    /// still to be swept at the tick's end.
+    before_jump: Option<(Vec3, Vec3)>,
     ticks_left: u8,
 }
 
@@ -363,25 +366,23 @@ impl Powers {
                 flight.coin.id(),
                 fmt3(now)
             );
-            let step = distance([flight.last.x, flight.last.y, flight.last.z], now);
-            let teleported = step > flight.expected + COIN_STEP_SLACK;
+            // The moves to sweep: any stretch before a reported teleport, then the one since.
+            // Each must fit the coin's own speed; a longer one was an unreported teleport and
+            // hurts nothing.
+            let bound = flight.expected + COIN_STEP_SLACK;
             flight.expected = flight
                 .coin
                 .velocity(read)
                 .map_or(0.0, |v| physics::norm(v3(v)));
-            // A move longer than the coin's own speed is a teleport: it hurts nothing, and the
-            // flight goes on from where the coin now is.
-            if teleported {
-                flight.last = now;
-                flight.ticks_left = flight.ticks_left.saturating_sub(1);
-                if flight.ticks_left > 0 {
-                    self.flights.push(flight);
-                }
-                continue;
-            }
-            if let Some(hit) =
-                coin_victim(read, level, flight.shooter, flight.coin, flight.last, now)
-            {
+            let segments = flight
+                .before_jump
+                .take()
+                .into_iter()
+                .chain(std::iter::once((flight.last, now)));
+            let found = segments
+                .filter(|(a, b)| distance([a.x, a.y, a.z], *b) <= bound)
+                .find_map(|(a, b)| coin_victim(read, level, flight.shooter, flight.coin, a, b));
+            if let Some(hit) = found {
                 // The flight ends at the body: the coin stops and is never a target again.
                 let _ = flight.coin.set_velocity(host, [0.0, 0.0, 0.0]);
                 self.spent.insert(flight.coin);
@@ -410,13 +411,14 @@ impl Powers {
 
     /// A command teleported an entity within its level (`entity_teleport`): a followed coin's
     /// segment restarts at the destination, so the jump is never swept for bodies.
-    pub(crate) fn teleported(&mut self, entity: u32, to: [f64; 3]) {
+    pub(crate) fn teleported(&mut self, entity: u32, from: [f64; 3], to: [f64; 3]) {
+        let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
         for flight in self.flights.iter_mut().filter(|f| f.coin.id() == entity) {
-            flight.last = Vec3 {
-                x: to[0],
-                y: to[1] + 0.125,
-                z: to[2],
-            };
+            // Keep the first stretch of flight this tick; the jump itself is never swept.
+            if flight.before_jump.is_none() {
+                flight.before_jump = Some((flight.last, point(from)));
+            }
+            flight.last = point(to);
         }
     }
 
@@ -446,6 +448,7 @@ impl Powers {
                     shooter,
                     last: at,
                     expected: speed,
+                    before_jump: None,
                     ticks_left: FLIGHT_TICKS,
                 });
             }

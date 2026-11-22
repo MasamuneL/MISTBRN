@@ -165,7 +165,7 @@ impl Hooks for Allomancy {
     }
 
     fn entity_teleport(&self, _: &mut dyn ServerHost, event: &mut EntityTeleportEvent<'_>) {
-        self.powers().teleported(event.entity, event.to);
+        self.powers().teleported(event.entity, event.from, event.to);
     }
 
     fn player_changed_dimension(
