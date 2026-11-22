@@ -122,6 +122,35 @@ check_range() {
 # The filled vial the "drink" scenarios consume; creative give fills hotbar slot 0 first.
 give3() { ctl give mistbrn:vial_iron 3 >/dev/null; }
 report() { launch MISTBRN_TEST_SCENARIO=report; ctl wait 40 >/dev/null; }
+# ore_fixture [EXTRA_IRON_Z]: first launch places copper (z=3, z=5 deepslate) and iron (z=7, plus
+# EXTRA_IRON_Z if given) rows and a loot chest in an existing chunk, then saves; the next launch mines.
+ore_fixture() {
+  launch
+  ctl command "difficulty peaceful" >/dev/null
+  ctl command "tp @s 0.5 165 2.5" >/dev/null
+  ctl wait-for loaded --timeout 120 >/dev/null
+  ctl command "fill -1 160 1 11 165 12 minecraft:air" >/dev/null
+  ctl command "fill -1 159 1 11 159 12 minecraft:stone" >/dev/null
+  ctl command "fill 0 160 3 7 160 3 minecraft:copper_ore" >/dev/null
+  ctl command "fill 0 160 5 7 160 5 minecraft:deepslate_copper_ore" >/dev/null
+  ctl command "fill 0 160 7 7 160 7 minecraft:deepslate_iron_ore" >/dev/null
+  [[ -z "${1:-}" ]] || ctl command "fill 0 160 $1 7 160 $1 minecraft:iron_ore" >/dev/null
+  ctl command 'setblock 9 160 10 minecraft:chest{LootTable:"minecraft:chests/simple_dungeon",LootTableSeed:1L}' >/dev/null
+  ctl give diamond_pickaxe >/dev/null
+  ctl command "tp @s 0.5 160 2.5" >/dev/null
+  ctl command "gamemode survival" >/dev/null
+  ctl save >/dev/null; quit_game
+}
+# mine_row Z: break x=0..7 at y=160 in row Z, collect, and save the inventory as mining-Z.json.
+mine_row() {
+  for x in $(seq 0 7); do
+    ctl command "tp @s $x.5 160 $(($1 - 1)).5" >/dev/null
+    ctl wait 3 >/dev/null
+    ctl break "$x" 160 "$1" >> "$dir/mining.jsonl"
+  done
+  ctl collect 12 >> "$dir/mining.jsonl"
+  ctl inventory > "$dir/mining-$1.json"
+}
 # slot_of ITEM: the first inventory slot (0-35) holding ITEM, from a fresh inventory read.
 slot_of() {
   ctl inventory | jq -er --arg i "$1" '[.hotbar[], .main[]] | map(select(.item == $i)) | .[0].slot'
@@ -283,22 +312,25 @@ case "$scenario" in
     expect_log 1 "MISTBRN event=vial_credit metal=iron seq=1"
     jq -e '.offhand.item == "mistbrn:vial_empty" and .offhand.count == 1 and (.counts["mistbrn:vial_iron"] // 0) == 0' \
       "$dir/offhand-inventory.json" >/dev/null || die "the last filled offhand vial should become an empty vial" ;;
+  c6f)  # Fortune III multiplies the samples deterministically (core test c6_fortune_fixture_counts)
+    ore_fixture 9
+    launch
+    ctl select diamond_pickaxe >/dev/null
+    ctl command "enchant @s minecraft:fortune 3" > "$dir/fortune-command.json"
+    ctl wait 10 >/dev/null
+    ctl inventory > "$dir/fortune-tool.json"
+    jq -e '.hotbar | any(.item == "minecraft:diamond_pickaxe" and ((.components // "") | contains("minecraft:fortune")))' \
+      "$dir/fortune-tool.json" >/dev/null || die "the mining tool did not receive Fortune"
+    mine_row 3; mine_row 9
+    quit_game
+    jq -e '.counts["mistbrn:raw_tin"] == 4' "$dir/mining-3.json" >/dev/null ||
+      die "expected four tin samples with Fortune III: $(jq -c .counts "$dir/mining-3.json")"
+    jq -e '.counts["mistbrn:raw_tin"] == 4 and .counts["mistbrn:raw_zinc"] == 9' "$dir/mining-9.json" >/dev/null ||
+      die "expected nine zinc samples with Fortune III (three without): $(jq -c .counts "$dir/mining-9.json")"
+    echo "check: Fortune III gave 4 tin (1 without) and 9 zinc (3 without) at the fixed positions" ;;
   c6)
     # Place the fixture in an existing chunk; only the second launch mines it.
-    launch
-    ctl command "difficulty peaceful" >/dev/null
-    ctl command "tp @s 0.5 165 2.5" >/dev/null
-    ctl wait-for loaded --timeout 120 >/dev/null
-    ctl command "fill -1 160 1 11 165 12 minecraft:air" >/dev/null
-    ctl command "fill -1 159 1 11 159 12 minecraft:stone" >/dev/null
-    ctl command "fill 0 160 3 7 160 3 minecraft:copper_ore" >/dev/null
-    ctl command "fill 0 160 5 7 160 5 minecraft:deepslate_copper_ore" >/dev/null
-    ctl command "fill 0 160 7 7 160 7 minecraft:deepslate_iron_ore" >/dev/null
-    ctl command 'setblock 9 160 10 minecraft:chest{LootTable:"minecraft:chests/simple_dungeon",LootTableSeed:1L}' >/dev/null
-    ctl give diamond_pickaxe >/dev/null
-    ctl command "tp @s 0.5 160 2.5" >/dev/null
-    ctl command "gamemode survival" >/dev/null
-    ctl save >/dev/null; quit_game
+    ore_fixture
     launch
     ctl select diamond_pickaxe >/dev/null
     for z in 3 7 5; do
