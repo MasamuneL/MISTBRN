@@ -235,8 +235,9 @@ case "$scenario" in
     p4_fixture
     ctl command "time set midnight" >/dev/null
     ctl command "difficulty normal" >/dev/null
-    ctl command 'summon zombie 520.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
-    ctl command "fill 517 100 511 517 103 514 minecraft:glass" >/dev/null
+    # Glass at x=516..517; the zombie at 517.5 is within one 2-block coin move of the glass face.
+    ctl command 'summon zombie 517.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
+    ctl command "fill 516 100 511 516 103 514 minecraft:glass" >/dev/null
     ctl command 'summon item 514 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
     ctl look-at 514 100.125 512.5 >/dev/null
     p4_burn steel

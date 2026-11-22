@@ -67,10 +67,20 @@ impl Target {
 struct Held {
     metal: Metal,
     target: Target,
-    /// Where an item target was last tick: its real move since then, already resolved by the
-    /// engine against blocks, is what a coin can hit.
-    last: Option<Vec3>,
 }
+
+/// A pushed coin in flight. It is followed after its pusher lets go (steel off, out of range)
+/// until it hits or settles: its real move each tick, already stopped at blocks by the
+/// engine, is what it can hit.
+struct Flight {
+    coin: EntityRef,
+    shooter: EntityRef,
+    last: Vec3,
+    ticks_left: u8,
+}
+
+/// How long a coin is followed after its last push.
+const FLIGHT_TICKS: u8 = 40;
 
 /// A coin's hit, dealt after the tick's locks are released.
 pub(crate) struct Hit {
@@ -87,6 +97,7 @@ pub(crate) struct Powers {
     held: BTreeMap<u128, Held>,
     /// Coins that already hit: never a target again, so one coin hits once.
     spent: HashSet<EntityRef>,
+    flights: Vec<Flight>,
 }
 
 /// The metal a player acts with: iron or steel, burning or flared (the core lights one only).
@@ -146,12 +157,11 @@ impl Powers {
                     if self.held.get(&uuid).is_some_and(|held| held.metal != metal) {
                         self.clear(uuid, "switched");
                     }
-                    if let Some(hit) = self.act(host, session, player, metal, flared, tick) {
-                        hits.push(hit);
-                    }
+                    self.act(host, session, player, metal, flared, tick);
                 }
             }
         }
+        self.follow_flights(host, &mut hits);
         hits
     }
 
@@ -190,18 +200,13 @@ impl Powers {
         metal: Metal,
         flared: bool,
         tick: u64,
-    ) -> Option<Hit> {
+    ) {
         let uuid = player.uuid();
         let rules = ForceRules::for_flare(flared);
         let read: &dyn Host = host;
         let body = player.entity();
-        let (Some(level), Some(feet), Some(velocity), Some(eye)) = (
-            player.level(read),
-            body.position(read),
-            body.velocity(read),
-            body.eye_position(read),
-        ) else {
-            return None;
+        let Some(level) = player.level(read) else {
+            return;
         };
         if self
             .held
@@ -210,38 +215,50 @@ impl Powers {
         {
             // The tick can come before `player_changed_dimension`: the same shutdown.
             self.changed_dimension(session, uuid);
-            return None;
+            return;
         }
+        if self.held.get(&uuid).is_some_and(|held| {
+            matches!(held.target, Target::Item { entity, .. } if self.spent.contains(&entity))
+        }) {
+            // Another player's push already spent this coin on a body.
+            self.clear(uuid, "hit");
+        }
+        // A player whose geometry cannot be read this tick is skipped: the target is kept and
+        // checked again on the next tick.
+        let (Some(feet), Some(velocity), Some(eye)) = (
+            body.position(read),
+            body.velocity(read),
+            body.eye_position(read),
+        ) else {
+            return;
+        };
         if !self.held.contains_key(&uuid) {
             let report = crate::scenario::commands_enabled() && tick.is_multiple_of(20);
-            let target = acquire(read, level, body, rules.range, &self.spent, report)?;
+            let Some(target) = acquire(read, level, body, rules.range, &self.spent, report) else {
+                return;
+            };
             let at = target_point(read, level, &target).map_or_else(String::new, fmt3);
             eprintln!(
                 "MISTBRN event=target_acquired kind={} id={} at={at}",
                 target.kind(),
                 target.id()
             );
-            self.held.insert(
-                uuid,
-                Held {
-                    metal,
-                    target,
-                    last: None,
-                },
-            );
+            self.held.insert(uuid, Held { metal, target });
         }
-        let target = self.held.get(&uuid)?.target.clone();
+        let Some(target) = self.held.get(&uuid).map(|held| held.target.clone()) else {
+            return;
+        };
         let Some(point) = target_point(read, level, &target) else {
             let reason = match target {
                 Target::Block { .. } => "broken",
                 Target::Item { .. } => "gone",
             };
             self.clear(uuid, reason);
-            return None;
+            return;
         };
         if !in_sight(read, level, eye, point, &target) {
             self.clear(uuid, "blocked");
-            return None;
+            return;
         }
         let (target_body, target_velocity) = match &target {
             Target::Block { .. } => (Body::Anchor, Vec3::default()),
@@ -273,11 +290,11 @@ impl Powers {
             Ok(outcome) => outcome,
             Err(StepError::OutOfRange) => {
                 self.clear(uuid, "range");
-                return None;
+                return;
             }
             Err(StepError::NonFinite | StepError::Coincident | StepError::InvalidRules) => {
                 self.clear(uuid, "invalid");
-                return None;
+                return;
             }
         };
         if let Some(next) = outcome.player_velocity
@@ -298,7 +315,7 @@ impl Powers {
         );
         let (Some(next), Target::Item { entity, id, .. }) = (outcome.target_velocity, &target)
         else {
-            return None;
+            return;
         };
         let _ = entity.set_velocity(host, [next.x, next.y, next.z]);
         let speed = physics::norm(next);
@@ -308,20 +325,67 @@ impl Powers {
             fmt3(point),
             fmt3(next)
         );
-        if direction != Direction::Push || !is_coin(id) {
-            return None;
+        if direction == Direction::Push && is_coin(id) {
+            self.pushed_coin(*entity, body, point);
         }
-        let last = self
-            .held
-            .get_mut(&uuid)
-            .and_then(|held| held.last.replace(point))?;
-        let read: &dyn Host = host;
-        let hit = coin_victim(read, level, body, *entity, last, point)?;
-        // The coin's flight ends at the body: it stops, and it is never a target again.
-        let _ = entity.set_velocity(host, [0.0, 0.0, 0.0]);
-        self.spent.insert(*entity);
-        self.clear(uuid, "hit");
-        Some(hit)
+    }
+
+    /// Moves every followed coin's segment forward and collects at most one hit per coin.
+    fn follow_flights(&mut self, host: &mut dyn ServerHost, hits: &mut Vec<Hit>) {
+        for mut flight in std::mem::take(&mut self.flights) {
+            let read: &dyn Host = host;
+            let (Some(level), Some([x, y, z])) =
+                (flight.coin.level(read), flight.coin.position(read))
+            else {
+                continue;
+            };
+            if self.spent.contains(&flight.coin) {
+                continue;
+            }
+            let now = Vec3 { x, y: y + 0.125, z };
+            if let Some(hit) =
+                coin_victim(read, level, flight.shooter, flight.coin, flight.last, now)
+            {
+                // The flight ends at the body: the coin stops and is never a target again.
+                let _ = flight.coin.set_velocity(host, [0.0, 0.0, 0.0]);
+                self.spent.insert(flight.coin);
+                let coin = flight.coin;
+                let holders: Vec<u128> = self
+                    .held
+                    .iter()
+                    .filter(|(_, held)| {
+                        matches!(held.target, Target::Item { entity, .. } if entity == coin)
+                    })
+                    .map(|(uuid, _)| *uuid)
+                    .collect();
+                for uuid in holders {
+                    self.clear(uuid, "hit");
+                }
+                hits.push(hit);
+                continue;
+            }
+            flight.last = now;
+            flight.ticks_left = flight.ticks_left.saturating_sub(1);
+            if flight.ticks_left > 0 {
+                self.flights.push(flight);
+            }
+        }
+    }
+
+    /// Starts or refreshes the flight of a coin pushed this tick.
+    fn pushed_coin(&mut self, coin: EntityRef, shooter: EntityRef, at: Vec3) {
+        match self.flights.iter_mut().find(|f| f.coin == coin) {
+            Some(flight) => {
+                flight.shooter = shooter;
+                flight.ticks_left = FLIGHT_TICKS;
+            }
+            None => self.flights.push(Flight {
+                coin,
+                shooter,
+                last: at,
+                ticks_left: FLIGHT_TICKS,
+            }),
+        }
     }
 }
 
@@ -367,10 +431,13 @@ fn coin_victim(
     let end = [to.x, to.y, to.z];
     let speed = distance(start, to);
     let damage = physics::coin_damage(speed)?;
-    let wall = level
-        .clip(host, start, end, ClipBlock::Collider, ClipFluid::None)
-        .filter(|hit| !hit.miss)
-        .map_or(speed, |hit| distance(start, v3(hit.location)));
+    // A failed block read (a dynamic shape, an unloaded column) cancels the hit.
+    let clip = level.clip(host, start, end, ClipBlock::Collider, ClipFluid::None)?;
+    let wall = if clip.miss {
+        speed
+    } else {
+        distance(start, v3(clip.location))
+    };
     let victim = level
         .ray_trace_entities(host, start, end, COIN_MARGIN, Some(shooter))?
         .into_iter()
@@ -586,6 +653,7 @@ pub(crate) fn run_test_command(
         return;
     };
     let word = command.literals.get(1).map(String::as_str);
+    let mut changed_save = false;
     match (word, command.metal.and_then(parse_metal)) {
         (Some("off"), _) => {
             let (result, changed) =
@@ -593,6 +661,7 @@ pub(crate) fn run_test_command(
             if result == "ok" {
                 powers.clear(uuid, "off");
             }
+            changed_save = changed > 0;
             eprintln!("MISTBRN event=burn metal=all burn=off result={result} changed={changed}");
         }
         (Some("burn"), Some(metal)) => {
@@ -607,6 +676,7 @@ pub(crate) fn run_test_command(
             if changed > 0 {
                 powers.clear(uuid, "relit");
             }
+            changed_save = changed > 0;
             eprintln!(
                 "MISTBRN event=burn metal={} burn={} result={result} changed={changed}",
                 metal_name(metal),
@@ -622,6 +692,7 @@ pub(crate) fn run_test_command(
                     credit_reserve(state, accounting, &rules, metal, amount)
                 })
             });
+            changed_save = result.is_ok();
             eprintln!(
                 "MISTBRN event=test_credit metal={} milli={amount} result={}",
                 metal_name(metal),
@@ -630,7 +701,9 @@ pub(crate) fn run_test_command(
         }
         _ => eprintln!("MISTBRN event=test_command result=unknown"),
     }
-    if let Some(player) = host.player(uuid) {
+    // Only a command that changed the save writes it now; pending tick changes keep their
+    // own schedule.
+    if changed_save && let Some(player) = host.player(uuid) {
         session.flush(host, player);
     }
 }

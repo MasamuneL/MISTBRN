@@ -47,7 +47,7 @@ p4_check_log() {
     function check(ok, message) { if (!ok) print "  FAIL " message }
     function metrics(message) { print "check: " message }
     function stop_event() {
-      if (!stop_seen) block_samples_before_stop = block_samples
+      if (!stop_seen) { block_samples_before_stop = block_samples; stop_x = final_x }
       stop_seen++
     }
     BEGIN {
@@ -93,6 +93,10 @@ p4_check_log() {
     tokens[1] == "p4item" {
       if (!vector(fields["vel"], velocity)) { bad_item++; next }
       item_samples++
+      if (vector(fields["pos"], ipos)) {
+        if (item_samples == 1) first_item_x = ipos[1] + 0
+        if (ipos[1] + 0 > max_item_x) max_item_x = ipos[1] + 0
+      }
       # The mod logs the exact norm: three-decimal components can round above the cap.
       speed = number(fields["speed"]) ? fields["speed"] + 0 : norm(velocity[1], velocity[2], velocity[3])
       if (speed > max_item_speed) max_item_speed = speed
@@ -198,6 +202,9 @@ p4_check_log() {
         metrics(sprintf("max_item_speed=%.6f coin_hits=%d", max_item_speed, hits))
         check(!bad_item && item_samples > 0 && max_item_speed <= 2 + 1e-6, "expected clip speed <= 2.0")
         check(hits == 0, "a coin hit a body behind glass")
+        metrics(sprintf("coin_first_x=%.3f coin_max_x=%.3f", first_item_x, max_item_x))
+        check(max_item_x - first_item_x >= 1, "expected the clip to fly toward the glass (>= 1 block)")
+        check(max_item_x < 516, "the clip passed the glass face")
       } else if (scenario == "n6") {
         consumed = 25000 - observed
         metrics(sprintf("max_step=%.3f max_window=%.3f max_speed=%.3f final_x=%.3f reserve_iron=%s consumed_milli=%d expected_milli=%d",
@@ -206,9 +213,12 @@ p4_check_log() {
         check(max_window <= 1.45 + 1e-6, "expected mean flared x step over 4 ticks <= 1.45")
         check(number(observed) && abs(consumed - samples * 30) <= 30, "expected 30 milli per flared tick (+/- one tick)")
         check(samples >= 20 && final_x >= 531.5, "expected the flared pull to reach the block face (x >= 531.5)")
+        check(max_x < 532 && final_x <= 531.75, "player reached or entered the flared target block")
       } else {
         metrics(sprintf("stop_events=%d block_ticks_before=%d p4_after=%d block_ticks_after=%d",
             stop_seen, block_samples_before_stop, after_stop, blocks_after_stop))
+        metrics(sprintf("pulled_before_stop=%.3f", stop_x - first_x))
+        check(stop_x - first_x >= 0.3, "expected a measurable pull (>= 0.3) before the stop event")
         check(stop_seen == 1 && block_samples_before_stop > 0,
             "expected one " (scenario == "n7" ? "iron exhaustion" : "target clear for " reason) " during a block pull")
         if (scenario == "n7") {
