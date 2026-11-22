@@ -35,7 +35,8 @@ pub struct ForceRules {
     pub item_mass: f64,
     /// Below this downward share of the direction an on-ground item is not an anchor.
     pub anchor_down: f64,
-    /// Share of the vertical velocity removed each tick while the force lifts the player.
+    /// Share of the last vertical move removed each tick while the force lifts the player
+    /// (`player_velocity` is the client-held velocity of [`client_velocity`]).
     /// Falloff makes a hover a spring; this damps it near critical (2·√(accel/range) ≈ 0.17),
     /// and absorbs the client's late velocity reports.
     pub lift_damping: f64,
@@ -49,7 +50,7 @@ impl ForceRules {
         item_cap: 2.0,
         item_mass: 0.05,
         anchor_down: 0.5,
-        lift_damping: 0.15,
+        lift_damping: 0.25,
     };
     pub const FLARED: Self = Self {
         accel: 0.24,
@@ -196,7 +197,10 @@ fn step_unchecked(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, 
     if anchored {
         let mut player_delta = scale(toward, sign * a);
         if player_delta.y > 0.0 {
-            player_delta.y -= rules.lift_damping * input.player_velocity.y;
+            // Damp the last real move, not the held velocity: at rest the client holds
+            // gravity's -0.0784, and damping that would lift the player.
+            let moved = input.player_velocity.y / VERTICAL_DRAG + PLAYER_GRAVITY;
+            player_delta.y -= rules.lift_damping * moved;
         }
         let velocity = capped(
             input.player_velocity,

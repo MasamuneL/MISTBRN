@@ -108,6 +108,8 @@ impl Hooks for Allomancy {
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
         session.finish_drinks(host, runner.fail_vial());
         runner.tick(host, &mut session);
+        self.powers()
+            .apply_prepared(host, &session, event.context.tick.get());
     }
 
     fn level_tick_post(&self, side: HostSide<'_>, event: &mut LevelTickPostEvent) {

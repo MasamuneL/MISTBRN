@@ -14,7 +14,7 @@ use allomancy_core::{
     apply_command, credit_reserve, is_coin, is_metal, update_player,
 };
 use mod_api::{ClipBlock, ClipFluid, EntityRef, Host, LevelRef, PlayerRef, ServerHost};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 /// The middle of a standing player's body, above the feet.
 const BODY_MIDDLE: f64 = 0.9;
@@ -74,6 +74,9 @@ struct Held {
 /// engine, is what it can hit.
 struct Flight {
     coin: EntityRef,
+    /// The level it was pushed in: only that level's pass follows it (a parked level's coin
+    /// reads as gone).
+    level: LevelRef,
     shooter: EntityRef,
     last: Vec3,
     /// The speed the coin had at the end of the last tick: its next real move is at most this
@@ -86,6 +89,16 @@ struct Flight {
 const FLIGHT_TICKS: u8 = 40;
 /// Slack on a coin's expected move: item gravity (0.04) and rounding.
 const COIN_STEP_SLACK: f64 = 0.1;
+
+/// A force on a player against an anchor, waiting for the tick's end.
+struct Prepared {
+    metal: Metal,
+    rules: ForceRules,
+    target: Target,
+    point: Vec3,
+    body: Body,
+    direction: Direction,
+}
 
 /// A coin's hit, dealt after the tick's locks are released.
 pub(crate) struct Hit {
@@ -100,8 +113,11 @@ pub(crate) struct Hit {
 #[derive(Default)]
 pub(crate) struct Powers {
     held: BTreeMap<u128, Held>,
-    /// Coins that already hit: never a target again, so one coin hits once.
-    spent: HashSet<EntityRef>,
+    /// Coins that already hit, with their level: never a target again, so one coin hits once.
+    spent: HashMap<EntityRef, LevelRef>,
+    /// Forces on players against an anchor, prepared during their level's pass and applied at
+    /// the server tick's end, when the player's reported move of this tick has arrived.
+    prepared: BTreeMap<u128, Prepared>,
     flights: Vec<Flight>,
     /// Hits found during a teleport notice, dealt with the tick's own.
     pending_hits: Vec<Hit>,
@@ -160,9 +176,10 @@ impl Powers {
             .retain(|uuid, _| online.iter().any(|p| p.uuid() == *uuid));
         let read: &dyn Host = host;
         online.retain(|player| player.level(read) == Some(level));
+
         // A removed coin of this level is forgotten; coins of parked levels wait their pass.
         self.spent
-            .retain(|coin| coin.level(read) != Some(level) || coin.position(read).is_some());
+            .retain(|coin, at| *at != level || coin.position(read).is_some());
         // Last tick's coin moves are resolved first, with the pushers they had: a push this tick
         // must not take over a segment it did not cause.
         let mut hits = std::mem::take(&mut self.pending_hits);
@@ -243,7 +260,7 @@ impl Powers {
             return;
         }
         if self.held.get(&uuid).is_some_and(|held| {
-            matches!(held.target, Target::Item { entity, .. } if self.spent.contains(&entity))
+            matches!(held.target, Target::Item { entity, .. } if self.spent.contains_key(&entity))
         }) {
             // Another player's push already spent this coin on a body.
             self.clear(uuid, "hit");
@@ -323,11 +340,21 @@ impl Powers {
                 return;
             }
         };
-        if let Some(next) = outcome.player_velocity
-            && player.set_velocity(host, [next.x, next.y, next.z])
-            && outcome.player_delta.y > 0.0
-        {
-            let _ = body.reset_fall_distance(host);
+        if outcome.anchored {
+            // The player moves: applied at the tick's end with this tick's reported move
+            // (movement packets are handled after the levels tick).
+            self.prepared.insert(
+                uuid,
+                Prepared {
+                    metal,
+                    rules,
+                    target,
+                    point,
+                    body: target_body,
+                    direction,
+                },
+            );
+            return;
         }
         eprintln!(
             "MISTBRN p4 tick={tick} metal={} pos={} vel={} target={} dist={:.3} dv={} anchor={}",
@@ -358,7 +385,61 @@ impl Powers {
             fmt3(next)
         );
         if direction == Direction::Push && is_coin(id) {
-            self.pushed_coin(*entity, body, point, speed, tick);
+            self.pushed_coin(level, *entity, body, point, speed, tick);
+        }
+    }
+
+    /// Applies the forces prepared during the level passes, at the server tick's end, after
+    /// this tick's consumption: a metal that just went out applies nothing.
+    pub(crate) fn apply_prepared(
+        &mut self,
+        host: &mut dyn ServerHost,
+        session: &Session,
+        tick: u64,
+    ) {
+        for (uuid, prep) in std::mem::take(&mut self.prepared) {
+            if acting(session, uuid).map(|(metal, _)| metal) != Some(prep.metal) {
+                continue;
+            }
+            let Some(player) = host.player(uuid) else {
+                continue;
+            };
+            let read: &dyn Host = host;
+            let body = player.entity();
+            let (Some(feet), Some(velocity)) = (body.position(read), body.velocity(read)) else {
+                continue;
+            };
+            let input = StepInput {
+                player: Vec3 {
+                    x: feet[0],
+                    y: feet[1] + BODY_MIDDLE,
+                    z: feet[2],
+                },
+                player_velocity: physics::client_velocity(v3(velocity)),
+                target: prep.point,
+                target_velocity: Vec3::default(),
+                body: prep.body,
+                direction: prep.direction,
+            };
+            let Ok(outcome) = physics::step(&prep.rules, &input) else {
+                continue;
+            };
+            if let Some(next) = outcome.player_velocity
+                && player.set_velocity(host, [next.x, next.y, next.z])
+                && outcome.player_delta.y > 0.0
+            {
+                let _ = body.reset_fall_distance(host);
+            }
+            eprintln!(
+                "MISTBRN p4 tick={tick} metal={} pos={} vel={} target={} dist={:.3} dv={} anchor={}",
+                metal_name(prep.metal),
+                fmt3(v3(feet)),
+                fmt3(v3(velocity)),
+                prep.target.kind(),
+                outcome.distance,
+                fmt3(outcome.player_delta),
+                outcome.anchored
+            );
         }
     }
 
@@ -372,19 +453,16 @@ impl Powers {
     ) {
         for mut flight in std::mem::take(&mut self.flights) {
             let read: &dyn Host = host;
-            match flight.coin.level(read) {
-                // Another level's coin: followed during that level's pass.
-                Some(other) if other != level => {
-                    self.flights.push(flight);
-                    continue;
-                }
-                Some(_) => {}
-                None => continue, // removed
+            // Another level's coin: followed during that level's own pass.
+            if flight.level != level {
+                self.flights.push(flight);
+                continue;
             }
+            // In its own pass, a coin that is gone (picked up, removed) or left the level ends.
             let Some([x, y, z]) = flight.coin.position(read) else {
                 continue;
             };
-            if self.spent.contains(&flight.coin) {
+            if flight.coin.level(read) != Some(level) || self.spent.contains_key(&flight.coin) {
                 continue;
             }
             let now = Vec3 { x, y: y + 0.125, z };
@@ -401,7 +479,7 @@ impl Powers {
                 .velocity(read)
                 .map_or(0.0, |v| physics::norm(v3(v)));
             if let Some(hit) = found {
-                self.land(host, flight.coin);
+                self.land(host, flight.coin, level);
                 hits.push(hit);
                 continue;
             }
@@ -415,9 +493,9 @@ impl Powers {
 
     /// Ends a coin's flight at a body: it stops, is never a target again, and every player
     /// holding it lets go.
-    fn land(&mut self, host: &mut dyn ServerHost, coin: EntityRef) {
+    fn land(&mut self, host: &mut dyn ServerHost, coin: EntityRef, level: LevelRef) {
         let _ = coin.set_velocity(host, [0.0, 0.0, 0.0]);
-        self.spent.insert(coin);
+        self.spent.insert(coin, level);
         self.flights.retain(|f| f.coin != coin);
         let holders: Vec<u128> = self
             .held
@@ -449,13 +527,10 @@ impl Powers {
         };
         let read: &dyn Host = host;
         let flight = &self.flights[index];
-        let found = flight
-            .coin
-            .level(read)
-            .and_then(|level| flight_hit(read, level, flight, point(from)));
+        let found = flight_hit(read, flight.level, flight, point(from));
         if let Some(hit) = found {
-            let coin = flight.coin;
-            self.land(host, coin);
+            let (coin, level) = (flight.coin, flight.level);
+            self.land(host, coin, level);
             self.pending_hits.push(hit);
             return;
         }
@@ -463,8 +538,10 @@ impl Powers {
     }
 
     /// Starts or refreshes the flight of a coin pushed this tick to `speed`.
+    #[allow(clippy::too_many_arguments)]
     fn pushed_coin(
         &mut self,
+        level: LevelRef,
         coin: EntityRef,
         shooter: EntityRef,
         at: Vec3,
@@ -485,6 +562,7 @@ impl Powers {
                 );
                 self.flights.push(Flight {
                     coin,
+                    level,
                     shooter,
                     last: at,
                     expected: speed,
@@ -599,7 +677,7 @@ fn acquire(
     level: LevelRef,
     body: EntityRef,
     range: f64,
-    spent: &HashSet<EntityRef>,
+    spent: &HashMap<EntityRef, LevelRef>,
     report: bool,
 ) -> Option<Target> {
     let eye = body.eye_position(host)?;
@@ -637,7 +715,7 @@ fn acquire(
     let item = hits
         .into_iter()
         .take_while(|hit| hit.distance <= block_distance)
-        .filter(|hit| !spent.contains(&hit.entity))
+        .filter(|hit| !spent.contains_key(&hit.entity))
         .find_map(|hit| {
             let id = host.item_entity(hit.entity)?.stack(host)?.item().id(host);
             is_metal(&id).then_some(Target::Item {
