@@ -19,7 +19,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 | Plataforma | Estado |
 |---|---|
-| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md), [P3a](evidence/p3.md), [P3b](evidence/p3b.md) y [P4](evidence/p4.md) |
+| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md), [P3a](evidence/p3.md), [P3b](evidence/p3b.md), [P4](evidence/p4.md) y [P7a](evidence/p7a.md) |
 | Windows x64 | Pendiente: gate obligatorio de P10 |
 | Linux x64 | Pendiente: gate obligatorio de P10 |
 
@@ -39,6 +39,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 | Fuentes en chunks existentes | C6 | Muestras al minar y vial al abrir un cofre de botín. Toque de Seda devolvió los bloques de mena sin añadir muestras |
 | Cambio de mundo en el mismo proceso | C7 | Una carga por mundo. Al reabrir el segundo, la reserva, la transacción y los viales seguían en cero para el mismo jugador |
 | Fuerza de hierro y acero | N1–N11 (`docs/evidence/p4.md`) | `set_velocity` mueve al jugador (cliente) y a los ítems (servidor) con la colisión del motor; objetivos por `clip` y `ray_trace_entities` en `level_tick_post`; monedas que golpean según su desplazamiento real |
+| Teclas, paquetes y HUD | K1–K8 (`docs/evidence/p7a.md`) | Teclas propias reasignables, peticiones cliente→servidor con el emisor de la conexión, HUD por capa propia sincronizado desde el servidor |
 | Jugador sin cuenta | `horizon-ctl launch --game` | Juega offline con nombre generado; no usa la cuenta Microsoft |
 
 ## Límites conocidos
