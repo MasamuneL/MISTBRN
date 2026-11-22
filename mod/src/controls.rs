@@ -50,16 +50,27 @@ impl IPayloadHandler for ControlInbox {
         let Ok(player) = context.player() else {
             return Ok(());
         };
-        let uuid = player.uuid();
-        let decoded = decode_control(&payload.0);
-        let mut inbox = INBOX.lock().unwrap_or_else(PoisonError::into_inner);
-        let mine = inbox.iter().filter(|(owner, _)| *owner == uuid).count();
-        if mine < INBOX_PER_PLAYER && inbox.len() < INBOX_MAX {
-            inbox.push_back((uuid, decoded));
-        } else {
-            eprintln!("MISTBRN event=control op=any result=rate");
-        }
+        enqueue(player.uuid(), decode_control(&payload.0));
         Ok(())
+    }
+}
+
+/// Test runs only (`/mistbrn-test flood`): queue `count` valid "all off" requests for
+/// `uuid` through the same inbox limits a client's packets meet.
+pub(crate) fn flood(uuid: u128, count: u32) {
+    for _ in 0..count.min(1_000) {
+        let bytes = allomancy_core::encode_control(ControlRequest::Off);
+        enqueue(uuid, decode_control(&bytes));
+    }
+}
+
+fn enqueue(uuid: u128, decoded: Decoded) {
+    let mut inbox = INBOX.lock().unwrap_or_else(PoisonError::into_inner);
+    let mine = inbox.iter().filter(|(owner, _)| *owner == uuid).count();
+    if mine < INBOX_PER_PLAYER && inbox.len() < INBOX_MAX {
+        inbox.push_back((uuid, decoded));
+    } else {
+        eprintln!("MISTBRN event=control op=any result=inbox_full");
     }
 }
 

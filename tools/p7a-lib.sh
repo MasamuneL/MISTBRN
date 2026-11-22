@@ -34,9 +34,12 @@ k_expect_commands() {
 
 # k_screen NAME PATTERN: record the open screen; fail unless its JSON mentions PATTERN.
 k_screen() {
-  ctl screen > "$dir/$1.json" || true
-  if grep -aqi -- "$2" "$dir/$1.json"; then k_ok "$1 open ($2)"
-  else k_fail "$1: screen does not look like $2: $(head -c 300 "$dir/$1.json")"; fi
+  # `state` answers on the game tick; `screen` waits for a rendered frame, which a hidden
+  # test window may never draw.
+  ctl state > "$dir/$1.json" || true
+  local open; open="$(jq -c '.screen // empty' "$dir/$1.json" 2>/dev/null)"
+  if grep -qi -- "$2" <<< "$open"; then k_ok "$1 open: $open"
+  else k_fail "$1: screen '$open' does not look like $2"; fi
 }
 
 # k_pull_check: iron pulled by key — force samples between the key's lighting and its off,
@@ -46,7 +49,7 @@ k_pull_check() {
   out="$(LC_ALL=C awk '
     /MISTBRN event=control / && / command=activate:iron / && / result=ok / { on = 1; next }
     /MISTBRN event=control / && / command=off:all / && / result=ok / { if (on) off = 1; on = 0; next }
-    / MISTBRN p4 tick=/ {
+    /MISTBRN p4 tick=/ {
       if (off) { after++; next }
       if (!on) next
       for (i = 1; i <= NF; i++) if ($i ~ /^pos=/) { split(substr($i, 5), p, ","); x = p[1] + 0 }
@@ -69,7 +72,7 @@ k_pull_check() {
 k_flare_check() {
   local out ratio
   out="$(LC_ALL=C awk '
-    / MISTBRN hud pair=iron_steel / {
+    /MISTBRN hud pair=iron_steel / {
       for (i = 1; i <= NF; i++) if ($i ~ /^iron=/) { split(substr($i, 6), v, "/"); r = v[1] + 0; s = v[2] }
       if (prev_state == s && (s == "burning" || s == "flared") && prev > r) { sum[s] += prev - r; cnt[s]++ }
       prev = r; prev_state = s
@@ -87,7 +90,7 @@ k_flare_check() {
 
 # k_hud_last METAL: the last reserve the client HUD showed for METAL in launch 1.
 k_hud_last() {
-  grep -a " MISTBRN hud pair=" "$(log 1)" | tail -1 | tr ' ' '\n' | sed -n "s/^$1=\([0-9]*\)\/.*/\1/p"
+  grep -a "MISTBRN hud pair=" "$(log 1)" | tail -1 | tr ' ' '\n' | sed -n "s/^$1=\([0-9]*\)\/.*/\1/p"
 }
 
 # k_scenario: runs K1-K7; returns 1 for any other scenario name.
@@ -151,13 +154,15 @@ k_scenario() {
       server="$(field 2 report reserve_iron)"; hud="$(k_hud_last iron)"
       if [[ -n "$hud" && "$hud" == "$server" ]]; then k_ok "HUD reserve $hud = server $server"
       else k_fail "HUD reserve '$hud' != server '$server'"; fi
-      k_expect_count "HUD updates" " MISTBRN hud pair=iron_steel" 3 1000
+      k_expect_count "HUD updates" "MISTBRN hud pair=iron_steel" 3 1000
       if [[ -s "$dir/k6-hud.png" ]]; then k_ok "screenshot $dir/k6-hud.png (local, not versioned)"
       else k_fail "no screenshot"; fi ;;
     k7)  # Malformed bytes and a burst are dropped and logged; the session goes on.
       p4_fixture
       k_credit iron
-      k_key k 40
+      k_key k 80
+      # The transport paces a client's packets; flood the server inbox directly as well.
+      ctl command "mistbrn-test flood 20" >/dev/null; ctl wait 10 >/dev/null
       k_key z 10
       k_key g 10
       quit_game
@@ -166,8 +171,10 @@ k_scenario() {
       k_expect_count "rejected version" "result=rejected:version" 1 1
       k_expect_count "rejected op" "result=rejected:op" 1 1
       k_expect_count "rejected arg" "result=rejected:arg" 1 1
-      k_expect_count "rate limited" "op=any result=rate" 1 100
-      k_expect_count "offs within the budget" "command=off:all allowed=true result=ok changed=0" 1 8
+      # flood 20: 16 fit the player's inbox, 8 pass the budget, the other 8 are one rate line.
+      k_expect_count "inbox full" "op=any result=inbox_full" 4 4
+      k_expect_count "rate limited (logged once)" "op=any result=rate" 1 1
+      k_expect_count "offs within the budget" "command=off:all allowed=true result=ok changed=0" 9 28
       k_expect_count "session alive: Z still lights" "command=activate:iron allowed=true result=ok changed=1" 1 1 ;;
     *) return 1 ;;
   esac

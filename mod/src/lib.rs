@@ -168,6 +168,12 @@ impl Hooks for Allomancy {
             Some(CommandArgumentValue::Integer(value)) => Some(*value),
             _ => None,
         };
+        if command.literals.get(1).map(String::as_str) == Some("flood") {
+            if let Some(CommandArgumentValue::Integer(count)) = command.argument("count") {
+                controls::flood(player.uuid(), u32::try_from(*count).unwrap_or(0));
+            }
+            return Flow::Cancel;
+        }
         let test = p4::TestCommand {
             literals: &command.literals,
             metal: word("metal"),
