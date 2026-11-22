@@ -181,19 +181,20 @@ k_scenario() {
          # client would send it) is refused; putting metals out still passes.
       p4_fixture
       k_credit iron
+      ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 5 >/dev/null
       ctl setblock 514 100 512 chest >/dev/null; ctl wait 5 >/dev/null
       ctl interact 514 100 512 >/dev/null; ctl wait 10 >/dev/null
       k_screen k8-screen "chest|generic|container"
-      ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject toggle_second" >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
       ctl close >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
       quit_game
-      k_expect_count "refused with the chest open" "command=activate:iron allowed=false result=InputCaptured changed=0" 1 1
-      k_expect_count "off passes with the chest open" "command=off:all allowed=false result=ok" 1 1
-      k_expect_count "lit once closed" "command=activate:iron allowed=true result=ok changed=1" 1 1
-      k_expect_commands activate:iron=InputCaptured off:all=ok activate:iron=ok off:all=ok ;;
+      k_expect_count "refused with the chest open" "command=activate:steel allowed=false result=InputCaptured changed=0" 1 1
+      k_expect_count "off puts iron out with the chest open" "command=off:all allowed=false result=ok changed=1" 1 1
+      k_expect_count "lit with nothing open" "command=activate:iron allowed=true result=ok changed=1" 2 2
+      k_expect_commands activate:iron=ok activate:steel=InputCaptured off:all=ok activate:iron=ok off:all=ok ;;
     *) return 1 ;;
   esac
 }

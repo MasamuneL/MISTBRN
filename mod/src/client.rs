@@ -238,12 +238,14 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
     let lines = if others.is_empty() { 3.0 } else { 4.0 };
     let (x, top) = (4.0, height - 4.0 - lines * LINE - 4.0);
     let others_line = others.join("  ");
-    let width = PANEL_MIN_W.max(draw.text_width(&others_line) + 4.0);
-    draw.fill([x - 2.0, top - 2.0, width, lines * LINE + 4.0], PANEL);
     let mut title = tr(host, &format!("hud.mistbrn.pair.{}", pair_name(hud.pair)));
     if hud.pair != Pair::IronSteel {
         title = format!("{title} · {}", tr(host, "hud.mistbrn.unavailable"));
     }
+    let width = PANEL_MIN_W
+        .max(draw.text_width(&others_line) + 4.0)
+        .max(draw.text_width(&title) + 4.0);
+    draw.fill([x - 2.0, top - 2.0, width, lines * LINE + 4.0], PANEL);
     draw.text(&title, [x, top], TEXT, true);
     for (row, metal) in metals.into_iter().enumerate() {
         let y = top + LINE * (row as f32 + 1.0);
