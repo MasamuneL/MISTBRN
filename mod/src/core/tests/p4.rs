@@ -211,3 +211,59 @@ fn coin_damage_grows_with_speed() {
     assert_eq!(coin_damage(1.0), Some(6.0));
     assert_eq!(coin_damage(2.0), Some(10.0));
 }
+
+// Catches an undamped hover: lifted by a grounded coin, the vertical speed must be damped so
+// the player settles instead of bouncing (N3 saw 8 blocks of oscillation without it).
+#[test]
+fn a_lift_damps_vertical_speed_and_settles() {
+    let r = ForceRules::BURNING;
+    let (mut y, mut vy) = (1.0_f64, 0.0_f64);
+    let mut heights = Vec::new();
+    for _ in 0..400 {
+        let out = step(
+            &r,
+            &StepInput {
+                player: v(0.0, y, 0.0),
+                // The adapter's reading: the last move, corrected for gravity and drag.
+                player_velocity: client_velocity(v(0.0, vy, 0.0)),
+                target: v(0.0, 0.0, 0.0),
+                target_velocity: v(0.0, 0.0, 0.0),
+                body: Body::Item { on_ground: true },
+                direction: Direction::Push,
+            },
+        )
+        .unwrap();
+        // The client moves by the velocity it was sent and reports that move; gravity and
+        // drag follow the move (vanilla `travel`).
+        vy = out.player_velocity.unwrap().y;
+        y += vy;
+        heights.push(y);
+    }
+    let tail = &heights[300..];
+    let (low, high) = tail
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(l, h), &y| (l.min(y), h.max(y)));
+    assert!(high - low < 0.1, "still bouncing: {low}..{high}");
+    assert!(low > 3.0 && high < 8.0, "hover height {low}..{high}");
+    // A falling body is braked by the same damping, but never pushed past the cap.
+    let fall = step(
+        &r,
+        &StepInput {
+            player: v(0.0, 1.0, 0.0),
+            player_velocity: v(0.0, -0.5, 0.0),
+            target: v(0.0, 0.0, 0.0),
+            target_velocity: v(0.0, 0.0, 0.0),
+            body: Body::Item { on_ground: true },
+            direction: Direction::Push,
+        },
+    )
+    .unwrap();
+    assert!(fall.player_velocity.unwrap().y > -0.5);
+}
+
+#[test]
+fn client_velocity_applies_gravity_after_the_reported_move() {
+    let c = client_velocity(v(0.3, 0.0, -0.2));
+    assert!(close(c.x, 0.3) && close(c.z, -0.2));
+    assert!(close(c.y, -0.0784));
+}

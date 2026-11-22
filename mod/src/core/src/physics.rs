@@ -35,6 +35,10 @@ pub struct ForceRules {
     pub item_mass: f64,
     /// Below this downward share of the direction an on-ground item is not an anchor.
     pub anchor_down: f64,
+    /// Share of the vertical velocity removed each tick while the force lifts the player.
+    /// Falloff makes a hover a spring; this damps it near critical (2·√(accel/range) ≈ 0.17),
+    /// and absorbs the client's late velocity reports.
+    pub lift_damping: f64,
 }
 
 impl ForceRules {
@@ -45,6 +49,7 @@ impl ForceRules {
         item_cap: 2.0,
         item_mass: 0.05,
         anchor_down: 0.5,
+        lift_damping: 0.15,
     };
     pub const FLARED: Self = Self {
         accel: 0.24,
@@ -92,6 +97,21 @@ pub enum StepError {
     Coincident,
 }
 
+/// Vanilla's gravity and vertical air drag for a player (`LivingEntity.travel`).
+pub const PLAYER_GRAVITY: f64 = 0.08;
+pub const VERTICAL_DRAG: f64 = 0.98;
+
+/// The velocity the client holds after the move it last reported. The server reads that move
+/// (`getKnownMovement`), but the client then applied gravity and drag: setting the player's
+/// velocity from the bare report every tick would cancel gravity (N3 hovered at the range's
+/// edge). Horizontal friction is not modelled: under a force the player glides.
+pub fn client_velocity(reported: Vec3) -> Vec3 {
+    Vec3 {
+        y: (reported.y - PLAYER_GRAVITY) * VERTICAL_DRAG,
+        ..reported
+    }
+}
+
 /// The acceleration at a distance: full at the player, falling linearly to zero at the range.
 pub fn acceleration(rules: &ForceRules, distance: f64) -> f64 {
     if !(0.0..rules.range).contains(&distance) {
@@ -135,7 +155,10 @@ pub fn step(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, StepEr
         }
     };
     if anchored {
-        let player_delta = scale(toward, sign * a);
+        let mut player_delta = scale(toward, sign * a);
+        if player_delta.y > 0.0 {
+            player_delta.y -= rules.lift_damping * input.player_velocity.y;
+        }
         let velocity = capped(
             input.player_velocity,
             add(input.player_velocity, player_delta),

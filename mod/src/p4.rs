@@ -23,11 +23,25 @@ const COIN_DAMAGE: &str = "minecraft:thrown";
 
 #[derive(Clone, Debug, PartialEq)]
 enum Target {
-    Block { pos: [i32; 3], id: String },
-    Item { entity: EntityRef, id: String },
+    Block {
+        level: LevelRef,
+        pos: [i32; 3],
+        id: String,
+    },
+    Item {
+        level: LevelRef,
+        entity: EntityRef,
+        id: String,
+    },
 }
 
 impl Target {
+    fn level(&self) -> LevelRef {
+        match self {
+            Self::Block { level, .. } | Self::Item { level, .. } => *level,
+        }
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             Self::Block { .. } => "block",
@@ -79,7 +93,7 @@ impl Powers {
                 }
                 continue;
             };
-            self.act(host, player, metal, flared, tick);
+            self.act(host, session, player, metal, flared, tick);
         }
     }
 
@@ -100,6 +114,10 @@ impl Powers {
         session: &mut Session,
         uuid: u128,
     ) {
+        self.leave_level(host, session, uuid);
+    }
+
+    fn leave_level(&mut self, host: &mut dyn ServerHost, session: &mut Session, uuid: u128) {
         self.clear(uuid, "dimension");
         let Some(position) = host
             .player(uuid)
@@ -108,19 +126,20 @@ impl Powers {
             return;
         };
         for metal in [Metal::Iron, Metal::Steel] {
-            let ctx = snapshot(uuid, v3(position), true);
-            let _ = session.change(uuid, true, |saved| {
-                update_player(saved, |state, _| {
-                    let _ = apply_command(state, Command::Extinguish { metal: Some(metal) }, &ctx);
-                    Ok(())
-                })
-            });
+            run_core(
+                session,
+                uuid,
+                v3(position),
+                Command::Extinguish { metal: Some(metal) },
+            );
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn act(
         &mut self,
         host: &mut dyn ServerHost,
+        session: &mut Session,
         player: PlayerRef,
         metal: Metal,
         flared: bool,
@@ -136,7 +155,13 @@ impl Powers {
             return;
         };
         if let Entry::Vacant(slot) = self.targets.entry(uuid)
-            && let Some(target) = acquire(read, level, body, rules.range)
+            && let Some(target) = acquire(
+                read,
+                level,
+                body,
+                rules.range,
+                crate::scenario::enabled() && tick.is_multiple_of(20),
+            )
         {
             let at = target_point(read, level, &target).map_or_else(String::new, fmt3);
             let id = match &target {
@@ -156,6 +181,10 @@ impl Powers {
         let Some(target) = self.targets.get(&uuid).cloned() else {
             return;
         };
+        if target.level() != level {
+            // The tick can come before `player_changed_dimension`: the same clear.
+            return self.leave_level(host, session, uuid);
+        }
         let Some(point) = target_point(read, level, &target) else {
             let reason = match target {
                 Target::Block { .. } => "broken",
@@ -180,7 +209,7 @@ impl Powers {
         };
         let input = StepInput {
             player: player_point,
-            player_velocity: v3(velocity),
+            player_velocity: physics::client_velocity(v3(velocity)),
             target: point,
             target_velocity,
             body: target_body,
@@ -207,7 +236,7 @@ impl Powers {
             fmt3(outcome.player_delta),
             outcome.anchored
         );
-        if let (Some(next), Target::Item { entity, id }) = (outcome.target_velocity, &target) {
+        if let (Some(next), Target::Item { entity, id, .. }) = (outcome.target_velocity, &target) {
             let _ = entity.set_velocity(host, [next.x, next.y, next.z]);
             eprintln!(
                 "MISTBRN p4item tick={tick} entity={} pos={} vel={}",
@@ -266,7 +295,13 @@ impl Powers {
 
 /// The nearest metal along the view within `range`: an item before the first block, or that
 /// block. Blocks stop the ray: metal behind a wall is not reached.
-fn acquire(host: &dyn Host, level: LevelRef, body: EntityRef, range: f64) -> Option<Target> {
+fn acquire(
+    host: &dyn Host,
+    level: LevelRef,
+    body: EntityRef,
+    range: f64,
+    report: bool,
+) -> Option<Target> {
     let eye = body.eye_position(host)?;
     let look = body.view_vector(host)?;
     let end = [
@@ -274,9 +309,19 @@ fn acquire(host: &dyn Host, level: LevelRef, body: EntityRef, range: f64) -> Opt
         eye[1] + look[1] * range,
         eye[2] + look[2] * range,
     ];
-    let block = level
-        .clip(host, eye, end, ClipBlock::Outline, ClipFluid::None)
-        .filter(|hit| !hit.miss && !hit.world_border);
+    let clip = level.clip(host, eye, end, ClipBlock::Outline, ClipFluid::None);
+    if report {
+        let at = clip.map(|hit| {
+            let id = level.block(host, hit.block).map(|k| k.id(host));
+            format!("{:?}:{:?}:{id:?}", hit.miss, hit.block)
+        });
+        eprintln!(
+            "MISTBRN event=target_search eye={} look={} clip={at:?}",
+            fmt3(v3(eye)),
+            fmt3(v3(look))
+        );
+    }
+    let block = clip.filter(|hit| !hit.miss && !hit.world_border);
     let block_distance = block.map_or(range, |hit| {
         physics::norm(Vec3 {
             x: hit.location[0] - eye[0],
@@ -284,15 +329,34 @@ fn acquire(host: &dyn Host, level: LevelRef, body: EntityRef, range: f64) -> Opt
             z: hit.location[2] - eye[2],
         })
     });
-    let item = level
+    let hits = level
         .ray_trace_entities(host, eye, end, RAY_MARGIN, Some(body))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if report {
+        let kinds: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let kind = hit
+                    .entity
+                    .kind(host)
+                    .map(|k| k.id(host))
+                    .unwrap_or_default();
+                format!("{kind}@{:.2}", hit.distance)
+            })
+            .collect();
+        eprintln!(
+            "MISTBRN event=target_search_entities block_distance={block_distance:.3} hits={}",
+            kinds.join(";")
+        );
+    }
+    let item = hits
         .into_iter()
         .take_while(|hit| hit.distance <= block_distance)
         .find_map(|hit| {
             let stack = host.item_entity(hit.entity)?.stack(host)?;
             let id = stack.item().id(host);
             is_metal(&id).then_some(Target::Item {
+                level,
                 entity: hit.entity,
                 id,
             })
@@ -302,13 +366,17 @@ fn acquire(host: &dyn Host, level: LevelRef, body: EntityRef, range: f64) -> Opt
     }
     let hit = block?;
     let id = level.block(host, hit.block)?.id(host);
-    is_metal(&id).then_some(Target::Block { pos: hit.block, id })
+    is_metal(&id).then_some(Target::Block {
+        level,
+        pos: hit.block,
+        id,
+    })
 }
 
 /// Where the force acts on a target, `None` once it is no longer a metal target.
 fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec3> {
     match target {
-        Target::Block { pos, id } => {
+        Target::Block { pos, id, .. } => {
             let now = level.block(host, *pos)?.id(host);
             (now == *id).then(|| Vec3 {
                 x: f64::from(pos[0]) + 0.5,
@@ -324,15 +392,41 @@ fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec
     }
 }
 
-fn snapshot(uuid: u128, position: Vec3, gameplay_allowed: bool) -> WorldSnapshot {
+/// Applies one command through the core, with the player's own last tick (a snapshot older
+/// than it is refused as `StaleTick`). Returns the outcome as a log word.
+fn run_core(session: &mut Session, uuid: u128, position: Vec3, command: Command) -> String {
+    let mut outcome = Ok(());
+    let result = session.change(uuid, true, |saved| {
+        update_player(saved, |state, _| {
+            let tick = state.last_tick.unwrap_or(Tick(0));
+            let ctx = snapshot(uuid, position, tick);
+            outcome = apply_command(state, command, &ctx).map(|_| ());
+            Ok(())
+        })
+    });
+    let word = match (result, outcome) {
+        (Err(error), _) => error,
+        (Ok(()), Err(error)) => format!("{error:?}"),
+        (Ok(()), Ok(())) => "ok".into(),
+    };
+    if word != "ok" {
+        eprintln!("MISTBRN event=core_refused result={word}");
+    }
+    word
+}
+
+fn snapshot(uuid: u128, position: Vec3, tick: Tick) -> WorldSnapshot {
     WorldSnapshot {
-        tick: Tick(0),
+        tick,
         world_id: world_id(),
         actor: player_id(uuid),
         position,
         targets: Vec::new(),
         authority: Authority::Server,
-        input: InputContext { gameplay_allowed },
+        // Test commands and safety shutdowns only: P7a passes the client's real input state.
+        input: InputContext {
+            gameplay_allowed: true,
+        },
     }
 }
 
@@ -363,20 +457,11 @@ pub(crate) fn run_test_command(
     let Some(position) = player.entity().position(host).map(v3) else {
         return;
     };
-    let ctx = snapshot(uuid, position, true);
     let words: Vec<&str> = literals.iter().map(String::as_str).collect();
     match (words.get(1).copied(), metal.and_then(parse_metal)) {
         (Some("off"), _) => {
-            let result = session.change(uuid, true, |saved| {
-                update_player(saved, |state, _| {
-                    let _ = apply_command(state, Command::Extinguish { metal: None }, &ctx);
-                    Ok(())
-                })
-            });
-            eprintln!(
-                "MISTBRN event=burn metal=all burn=off result={}",
-                result.err().unwrap_or_else(|| "ok".into())
-            );
+            let result = run_core(session, uuid, position, Command::Extinguish { metal: None });
+            eprintln!("MISTBRN event=burn metal=all burn=off result={result}");
         }
         (Some("burn"), Some(metal)) => {
             let flared = mode == Some("flare");
@@ -385,18 +470,7 @@ pub(crate) fn run_test_command(
             } else {
                 Command::Activate { metal }
             };
-            let mut outcome = Ok(());
-            let result = session.change(uuid, true, |saved| {
-                update_player(saved, |state, _| {
-                    outcome = apply_command(state, command, &ctx).map(|_| ());
-                    Ok(())
-                })
-            });
-            let result = match (result, outcome) {
-                (Err(error), _) => error,
-                (Ok(()), Err(error)) => format!("{error:?}"),
-                (Ok(()), Ok(())) => "ok".into(),
-            };
+            let result = run_core(session, uuid, position, command);
             eprintln!(
                 "MISTBRN event=burn metal={} burn={} result={result}",
                 metal_name(metal),

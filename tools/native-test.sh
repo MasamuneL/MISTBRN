@@ -197,8 +197,8 @@ case "$scenario" in
     ctl wait 10 >/dev/null
     ctl command "gamemode survival" >/dev/null
     ctl command "mistbrn-test credit steel 25000" >/dev/null
-    ctl look 0 90 >/dev/null
     ctl command "tp @s 512.5 102 512.5" >/dev/null
+    ctl look 0 90 >/dev/null
     ctl command "mistbrn-test burn steel" >/dev/null
     ctl wait 160 >/dev/null
     p4_off
