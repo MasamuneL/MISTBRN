@@ -19,7 +19,7 @@ El código del mod y del núcleo no depende del sistema operativo. El SDK fijado
 
 | Plataforma | Estado |
 |---|---|
-| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md), [P3a](evidence/p3.md), [P3b](evidence/p3b.md), [P4](evidence/p4.md) y [P7a](evidence/p7a.md) |
+| macOS arm64 | Builds nativos y escenarios verificados en [P0b](evidence/p0b.md), [P2](evidence/p2.md), [P3a](evidence/p3.md), [P3b](evidence/p3b.md), [P4](evidence/p4.md), [P7a](evidence/p7a.md) y [V1](evidence/v1.md) |
 | Windows x64 | Pendiente: gate obligatorio de P10 |
 | Linux x64 | Pendiente: gate obligatorio de P10 |
 

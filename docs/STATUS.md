@@ -1,6 +1,6 @@
 # Estado — Masamune's MISTBRN
 
-Actualizado el 2026-11-21.
+Actualizado el 2026-11-22.
 
 ## Integrado en main (P7a, al integrar la PR #12)
 
@@ -15,19 +15,22 @@ Actualizado el 2026-11-21.
 
 El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P7a) fue `native-0a875da-4870250b4b03` (`p7a-5`, commit `63cf094`) en `mistbrn-dev`: K1–K8, N3, N7 y S1 PASS; N1 falló una vez por 0,001 (dos movimientos del cliente en un tick) y pasó en dos repeticiones. Recibos y corridas fuera del repo, en `~/Library/Application Support/MISTBRN-dev/`. Windows x64 y Linux x64 quedan para P10. [Compatibilidad](compatibility.md)
 
+## En curso: V1 (rama `feat/v1-unlock`)
+
+Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. Escenarios U1–U3 y `v1` (recorrido completo sin comandos de prueba) y regresión C2, S1, K1, K6, N1 PASS con el build `v1-1` (`native-0a875da-2974e2b92524`, `1b59711`). [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
+
 ## Reanudación
 
-Estado previsto tras integrar la PR #12 (escrito en la propia PR).
-
-- Rama activa: ninguna tras integrar `feat/p7a-hud`; `main` incluye P0b, P2, P3a, P3b, P4 y P7a.
-- Fase y paso: P7a cerrada; demo V1 sin empezar.
+- Rama activa: `feat/v1-unlock` (desde `main` `6d440f4`); worktree `../MISTBRN-v1` (`wip/v1-scenario`) solo para el escenario de Codex, ya integrado.
+- Fase y paso: V1, revisión de la PR (Codex + Gemini).
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: batería P7a en `63cf094` (ver arriba); Codex APROBADO en la 2.ª ronda y Gemini APROBADO en la 1.ª.
+- Último resultado: batería V1 con `v1-1`, todo PASS (U1 tras arreglar el harness, ver evidencia); captura del HUD revisada.
 
 ## Siguiente acción exacta
 
-1. Demo V1 (validación, sin rama): preparar metal, beber, usar hierro y acero con las teclas, consultar la reserva en el HUD y continuar tras guardar; lista V1 y evaluación humana del usuario.
-2. Pendientes abiertos: prueba de dos clientes de la cola de bebidas, las monedas y el presupuesto de peticiones (P9); mover las reglas de reserva y de fuerza a datos; márgenes estrechos de N1 (paso medio) y N3 (flotación).
+1. Revisión de la PR (Codex solo lectura + Gemini) y arreglos agrupados; si cambia `mod/`, nuevo build y batería completa.
+2. Evaluación humana del usuario con `docs/v1-guide.md`: criterio de cierre de V1. Merge solo con su aprobación tras ver la captura.
+3. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
 
 ## Próximos hitos
 
