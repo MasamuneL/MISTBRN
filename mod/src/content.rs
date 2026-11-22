@@ -1,8 +1,8 @@
 //! Connect item use and loot hooks to the P3 content rules.
-use allomancy_core::{FILLED_VIALS, Metal, chest_sample, ore_sample};
+use allomancy_core::{FILLED_VIALS, Metal, chest_sample, ore_sample, sample_count};
 use mod_api::{
     BlockDropsEvent, ClientHost, ContainerLootFilledEvent, GameMode, Hand, Host, ItemKey, ItemPart,
-    ItemStack, LevelHost, LivingEntityUseItemFinishEvent, PlayerRef, Registrar, ServerHost,
+    ItemStack, LevelHost, LivingEntityUseItemFinishEvent, PlayerRef, Registrar, ServerHost, Tag,
     UseAnimation, UseAnimationEvent, UseDurationEvent,
 };
 use std::collections::BTreeMap;
@@ -107,7 +107,9 @@ impl Content {
             .iter()
             .find(|drop| drop.stack.item() == *vanilla)?
             .clone();
-        drop.stack = self.stack(sample)?;
+        let fortune = event.tool.map_or(0, fortune_level);
+        let count = sample_count(fortune, event.dimension.key().id(), pos);
+        drop.stack = ItemStack::new(*self.keys.get(sample)?, u32::from(count))?;
         event.drops.push(drop);
         Some(())
     }
@@ -124,5 +126,24 @@ impl Content {
             .drops
             .push(self.stack(chest_sample(context.table, context.dimension, pos)?)?);
         Some(())
+    }
+}
+
+/// The tool's Fortune level from its `minecraft:enchantments` component (0 when absent).
+/// Accepts both the map form (`{"minecraft:fortune": 3}`) and the older `levels` wrapper.
+fn fortune_level(tool: &ItemStack) -> u8 {
+    let Some(Tag::Compound(enchantments)) = tool
+        .components()
+        .and_then(|components| components.as_nbt().get(&"minecraft:enchantments".into()))
+    else {
+        return 0;
+    };
+    let levels = match enchantments.get(&"levels".into()) {
+        Some(Tag::Compound(levels)) => levels,
+        _ => enchantments,
+    };
+    match levels.get(&"minecraft:fortune".into()) {
+        Some(Tag::Int(level)) => u8::try_from((*level).clamp(0, 255)).unwrap_or(0),
+        _ => 0,
     }
 }

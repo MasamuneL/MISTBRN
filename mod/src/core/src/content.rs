@@ -53,6 +53,16 @@ pub fn ore_sample(
         .then_some((vanilla, sample))
 }
 
+/// How many samples an eligible ore gives with a Fortune level: vanilla's ore-drop bonus
+/// (`ApplyBonusCount.oreDrops`), one plus `max(0, r - 1)` for `r` in `0..=fortune + 1`, drawn
+/// from the position so the same block always gives the same count. Fortune 0 gives 1,
+/// Fortune III gives 1 to 4 (2.2 on average). Levels above 3 count as 3.
+pub fn sample_count(fortune: u8, dimension: &str, pos: [i32; 3]) -> u8 {
+    let fortune = fortune.min(3);
+    let draw = location_hash(&format!("{dimension}#fortune"), pos) % (u64::from(fortune) + 2);
+    1 + draw.saturating_sub(1) as u8
+}
+
 /// Optional discovery on the first opening of selected vanilla structure containers.
 pub fn chest_sample(table: &str, dimension: &str, pos: [i32; 3]) -> Option<&'static str> {
     if !matches!(
