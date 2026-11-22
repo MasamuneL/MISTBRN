@@ -266,7 +266,7 @@ case "$scenario" in
     p4_fixture
     p4_iron_block 524
     p4_burn iron
-    ctl wait 8 >/dev/null
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
     ctl command "kill @s" >/dev/null
     ctl wait 20 >/dev/null; ctl respawn >/dev/null; ctl wait 40 >/dev/null
     ctl save >/dev/null; quit_game
@@ -277,7 +277,7 @@ case "$scenario" in
     p4_fixture
     p4_iron_block 524
     p4_burn iron
-    ctl wait 8 >/dev/null
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
     ctl command "execute in minecraft:the_nether run tp @s 0 100 0" >/dev/null
     ctl wait-for loaded --timeout 120 >/dev/null; ctl wait 40 >/dev/null
     ctl state > "$dir/nether-state.json"
@@ -290,7 +290,7 @@ case "$scenario" in
     p4_fixture
     p4_iron_block 524
     p4_burn iron
-    ctl wait 8 >/dev/null
+    ctl wait 15 >/dev/null  # long enough for a measurable pull before the stop
     ctl command "setblock 524 101 512 minecraft:air" >/dev/null
     ctl wait 40 >/dev/null
     p4_off; quit_game
