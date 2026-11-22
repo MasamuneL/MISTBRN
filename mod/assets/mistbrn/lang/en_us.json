@@ -56,5 +56,9 @@
   "key.mistbrn.toggle_second": "Burn second metal",
   "message.mistbrn.save_blocked": "Allomancy: saved data unreadable; it will not be modified.",
   "message.mistbrn.vial.failed": "Allomancy: the vial could not be drunk; nothing changed.",
-  "message.mistbrn.vial.reserve_full": "Allomancy: that reserve is full; the vial was not used."
+  "message.mistbrn.vial.reserve_full": "Allomancy: that reserve is full; the vial was not used.",
+  "item.mistbrn.primer_iron_steel": "Primer: Iron & Steel",
+  "message.mistbrn.primer.unlocked": "Allomancy: you can now burn iron and steel.",
+  "message.mistbrn.primer.known": "Allomancy: you already know iron and steel; the primer was kept.",
+  "message.mistbrn.primer.failed": "Allomancy: the primer could not be studied; nothing changed."
 }

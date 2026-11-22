@@ -1,5 +1,7 @@
 //! Connect item use and loot hooks to the P3 content rules.
-use allomancy_core::{FILLED_VIALS, Metal, chest_sample, ore_sample, sample_count};
+use allomancy_core::{
+    FILLED_VIALS, Metal, Pair, UNLOCK_ITEMS, chest_sample, ore_sample, sample_count,
+};
 use mod_api::{
     BlockDropsEvent, ClientHost, ContainerLootFilledEvent, GameMode, Hand, Host, ItemKey, ItemPart,
     ItemStack, LevelHost, LivingEntityUseItemFinishEvent, PlayerRef, Registrar, ServerHost, Tag,
@@ -21,7 +23,50 @@ pub(crate) struct Drink {
     pub metal: Metal,
 }
 
+/// One unlock item whose use finished, waiting for its transaction.
+pub(crate) struct Study {
+    pub player: PlayerRef,
+    pub slot: u32,
+    pub stack: ItemStack,
+    pub pair: Pair,
+}
+
+/// A finished use of one of our items, applied after the finish hook wrote the hand back.
+pub(crate) enum Finished {
+    Drink(Drink),
+    Study(Study),
+}
+
+impl Finished {
+    pub(crate) fn player(&self) -> PlayerRef {
+        match self {
+            Self::Drink(drink) => drink.player,
+            Self::Study(study) => study.player,
+        }
+    }
+
+    pub(crate) fn slot(&self) -> u32 {
+        match self {
+            Self::Drink(drink) => drink.slot,
+            Self::Study(study) => study.slot,
+        }
+    }
+}
+
 struct Vial;
+
+struct Primer;
+
+#[mod_api::horizon_part]
+impl ItemPart for Primer {
+    fn use_duration(&self, _: &dyn Host, event: &mut UseDurationEvent<'_>) {
+        event.duration = 32;
+    }
+
+    fn use_animation(&self, _: &dyn ClientHost, event: &mut UseAnimationEvent<'_>) {
+        *event.animation = UseAnimation::None;
+    }
+}
 
 #[mod_api::horizon_part]
 impl ItemPart for Vial {
@@ -39,6 +84,11 @@ impl Content {
         for (id, _) in FILLED_VIALS {
             let key = r.item_key(id);
             r.item_part(key, Vial);
+            self.keys.insert(id, key);
+        }
+        for (id, _) in UNLOCK_ITEMS {
+            let key = r.item_key(id);
+            r.item_part(key, Primer);
             self.keys.insert(id, key);
         }
         for id in [
@@ -59,11 +109,17 @@ impl Content {
         &self,
         host: &dyn ServerHost,
         event: &LivingEntityUseItemFinishEvent<'_>,
-    ) -> Option<Drink> {
+    ) -> Option<Finished> {
         let key = event.stack.item();
-        let metal = FILLED_VIALS
+        let is = |id: &str| self.keys.get(id) == Some(&key);
+        let item = FILLED_VIALS
             .iter()
-            .find_map(|(id, metal)| (self.keys.get(id) == Some(&key)).then_some(*metal))?;
+            .find_map(|&(id, metal)| is(id).then_some(Ok(metal)))
+            .or_else(|| {
+                UNLOCK_ITEMS
+                    .iter()
+                    .find_map(|&(id, pair)| is(id).then_some(Err(pair)))
+            })?;
         // This event gives an entity ID for a mob. A player is exposed
         // through the server's acting-player context during the callback.
         if event.entity.is_some() {
@@ -80,11 +136,20 @@ impl Content {
             Hand::Main => u32::try_from(player.selected_slot(host)?).ok()?,
             Hand::Off => OFFHAND_SLOT,
         };
-        Some(Drink {
-            player,
-            slot,
-            stack: event.stack.clone(),
-            metal,
+        let stack = event.stack.clone();
+        Some(match item {
+            Ok(metal) => Finished::Drink(Drink {
+                player,
+                slot,
+                stack,
+                metal,
+            }),
+            Err(pair) => Finished::Study(Study {
+                player,
+                slot,
+                stack,
+                pair,
+            }),
         })
     }
 

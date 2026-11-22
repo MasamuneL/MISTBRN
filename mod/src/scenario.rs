@@ -9,7 +9,7 @@ use crate::bridge::{Session, Slot, metal_name};
 use crate::content::Drink;
 use crate::save::{self, Blocked};
 use allomancy_core::{
-    BurnState, EMPTY_VIAL, Metal, SaveError, VIAL_MILLI, encode_save, update_player,
+    BurnState, EMPTY_VIAL, Metal, SaveError, UNLOCK_ITEMS, VIAL_MILLI, encode_save, update_player,
 };
 use mod_api::{Compound, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Tag};
 
@@ -211,10 +211,11 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         .dimension(read)
         .map_or("none".into(), |d| d.to_string());
     let common = format!(
-        "uuid={} vials={} empty_vials={} dimension={dimension} raw_hash={raw}",
+        "uuid={} vials={} empty_vials={} primers={} dimension={dimension} raw_hash={raw}",
         dashed_uuid(player.uuid()),
         item_count(read, player, IRON_VIAL),
-        item_count(read, player, EMPTY_VIAL)
+        item_count(read, player, EMPTY_VIAL),
+        item_count(read, player, UNLOCK_ITEMS[0].0)
     );
     match session.slot(player.uuid()) {
         Some(Slot::Blocked(blocked)) => {
@@ -222,11 +223,14 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         }
         Some(Slot::Active { saved, .. }) => {
             let iron = saved.state().metals[Metal::Iron.index()];
+            let steel = saved.state().metals[Metal::Steel.index()];
             format!(
-                "state=active reserve_iron={} burn_iron={} unlocked_iron={} remainder_iron={} revision={} last_transaction={} {common}",
+                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} remainder_iron={} revision={} last_transaction={} {common}",
                 iron.reserve_milli,
                 burn_name(iron.burn),
                 iron.unlocked,
+                steel.unlocked,
+                burn_name(steel.burn),
                 saved.accounting().remainder[Metal::Iron.index()],
                 saved.revision(),
                 saved.last_transaction(),

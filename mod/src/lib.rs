@@ -64,15 +64,15 @@ impl Hooks for Allomancy {
         event: &mut LivingEntityUseItemFinishEvent<'_>,
     ) {
         let HostSide::Server(host) = side else { return };
-        let drink = self
+        let finished = self
             .content
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .finish(host, event);
-        if let Some(drink) = drink {
+        if let Some(finished) = finished {
             // The finish hook will write its result back into the hand. Apply our
             // transactional inventory change after that write has finished.
-            self.session().queue_drink(drink);
+            self.session().queue_use(finished);
         }
     }
 

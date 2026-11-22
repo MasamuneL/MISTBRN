@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "mistbrn:item/primer_iron_steel"
+  }
+}

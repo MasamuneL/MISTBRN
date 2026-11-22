@@ -56,5 +56,9 @@
   "key.mistbrn.toggle_second": "Quemar segundo metal",
   "message.mistbrn.save_blocked": "Alomancia: datos guardados ilegibles; no se modificarán.",
   "message.mistbrn.vial.failed": "Alomancia: no se pudo beber el vial; no cambió nada.",
-  "message.mistbrn.vial.reserve_full": "Alomancia: esa reserva está llena; no se usó el vial."
+  "message.mistbrn.vial.reserve_full": "Alomancia: esa reserva está llena; no se usó el vial.",
+  "item.mistbrn.primer_iron_steel": "Cartilla: hierro y acero",
+  "message.mistbrn.primer.unlocked": "Alomancia: ya puedes quemar hierro y acero.",
+  "message.mistbrn.primer.known": "Alomancia: ya conoces el hierro y el acero; conservas la cartilla.",
+  "message.mistbrn.primer.failed": "Alomancia: no se pudo estudiar la cartilla; no cambió nada."
 }
