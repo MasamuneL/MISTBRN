@@ -838,13 +838,15 @@ fn parse_metal(name: &str) -> Option<Metal> {
 }
 
 /// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
-pub(crate) const TEST_COMMANDS: [&str; 5] = [
+pub(crate) const TEST_COMMANDS: [&str; 6] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
     "mistbrn-test off",
     "mistbrn-test credit <metal:word> <milli:integer>",
     // P7a (K7): queue that many key requests for the player, as a flooding client would.
     "mistbrn-test flood <count:integer>",
+    // P7a (K8): queue one key request as the client would (cycle, toggle_first, ..., off).
+    "mistbrn-test inject <op:word>",
 ];
 
 pub(crate) struct TestCommand<'a> {

@@ -638,7 +638,7 @@ case "$scenario" in
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
     expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
-  k[1-7])  # P7a keys and HUD (tools/p7a-lib.sh)
+  k[1-8])  # P7a keys and HUD (tools/p7a-lib.sh)
     k_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac

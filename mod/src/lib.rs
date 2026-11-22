@@ -94,7 +94,9 @@ impl Hooks for Allomancy {
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
-        *self.controls() = controls::Controls::default();
+        let mut controls = self.controls();
+        controls.purge_all();
+        *controls = controls::Controls::default();
     }
 
     fn server_tick(&self, host: &mut dyn ServerHost, event: &mut ServerTickEvent<'_>) {
@@ -174,6 +176,12 @@ impl Hooks for Allomancy {
             }
             return Flow::Cancel;
         }
+        if command.literals.get(1).map(String::as_str) == Some("inject") {
+            if let Some(CommandArgumentValue::String(op)) = command.argument("op") {
+                controls::inject(player.uuid(), op);
+            }
+            return Flow::Cancel;
+        }
         let test = p4::TestCommand {
             literals: &command.literals,
             metal: word("metal"),
@@ -202,7 +210,9 @@ impl Hooks for Allomancy {
     ) {
         self.powers()
             .changed_dimension(&mut self.session(), event.player);
-        self.controls().resend(event.player);
+        let mut controls = self.controls();
+        controls.purge(event.player);
+        controls.resend(event.player);
     }
 
     fn player_container_open(
@@ -234,6 +244,7 @@ impl Hooks for Allomancy {
     }
 
     fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
+        self.controls().purge(event.player);
         self.powers().died(event.player);
         self.session().died(host, event.player);
     }

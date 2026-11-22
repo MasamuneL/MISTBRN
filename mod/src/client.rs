@@ -21,8 +21,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 const MOD_ID: &str = "mistbrn";
 pub(crate) const HUD_LAYER: &str = "mistbrn:reserves";
 
+/// Read in this order each tick. V comes last: a metal key pressed in the same tick as V
+/// acts on the pair the player saw when pressing it.
 const KEYS: [(&str, &str, ControlRequest); 5] = [
-    ("cycle_pair", "key.keyboard.v", ControlRequest::CyclePair),
     (
         "toggle_first",
         "key.keyboard.z",
@@ -35,6 +36,7 @@ const KEYS: [(&str, &str, ControlRequest); 5] = [
     ),
     ("flare", "key.keyboard.r", ControlRequest::ToggleFlare),
     ("off", "key.keyboard.g", ControlRequest::Off),
+    ("cycle_pair", "key.keyboard.v", ControlRequest::CyclePair),
 ];
 /// Test runs only (`MISTBRN_TEST_SCENARIO=p4`): sends malformed requests and a burst (K7).
 const FUZZ_KEY: (&str, &str) = ("test_fuzz", "key.keyboard.k");
@@ -204,6 +206,8 @@ const BAR_FLARED: u32 = 0xFFFF_7030;
 const BAR_OFF: u32 = 0xFF80_8080;
 const BAR_W: f32 = 60.0;
 const LINE: f32 = 10.0;
+/// Wide enough for a pair's two rows (name, bar and state).
+const PANEL_MIN_W: f32 = 150.0;
 
 /// The reserve panel, bottom left: the selected pair with a bar per metal and its state, then
 /// the other unlocked metals in one line. Nothing while no metal is unlocked.
@@ -233,7 +237,9 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
         .collect();
     let lines = if others.is_empty() { 3.0 } else { 4.0 };
     let (x, top) = (4.0, height - 4.0 - lines * LINE - 4.0);
-    draw.fill([x - 2.0, top - 2.0, 150.0, lines * LINE + 4.0], PANEL);
+    let others_line = others.join("  ");
+    let width = PANEL_MIN_W.max(draw.text_width(&others_line) + 4.0);
+    draw.fill([x - 2.0, top - 2.0, width, lines * LINE + 4.0], PANEL);
     let mut title = tr(host, &format!("hud.mistbrn.pair.{}", pair_name(hud.pair)));
     if hud.pair != Pair::IronSteel {
         title = format!("{title} · {}", tr(host, "hud.mistbrn.unavailable"));
@@ -267,7 +273,7 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
         }
     }
     if !others.is_empty() {
-        draw.text(&others.join("  "), [x, top + LINE * 3.0], DIM, true);
+        draw.text(&others_line, [x, top + LINE * 3.0], DIM, true);
     }
 }
 

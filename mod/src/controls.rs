@@ -21,6 +21,7 @@ use mod_api::{
     ServerHost,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 pub(crate) const CONTROL_CHANNEL: &str = "mistbrn:control";
@@ -37,6 +38,8 @@ const RATE_LOG_TICKS: u64 = 20;
 type Decoded = Result<ControlRequest, ControlError>;
 
 static INBOX: Mutex<VecDeque<(u128, Decoded)>> = Mutex::new(VecDeque::new());
+/// Requests dropped by a full inbox since the last tick, logged once per tick outside the lock.
+static DROPPED: AtomicU64 = AtomicU64::new(0);
 
 struct ControlInbox;
 
@@ -64,13 +67,32 @@ pub(crate) fn flood(uuid: u128, count: u32) {
     }
 }
 
+/// Test runs only (`/mistbrn-test inject <op>`): queue one request as the player's client
+/// would send it, also while a screen is open (the client itself never sends then). K8 uses
+/// it to check the server's own input check.
+pub(crate) fn inject(uuid: u128, op: &str) {
+    let request = match op {
+        "cycle" => ControlRequest::CyclePair,
+        "toggle_first" => ControlRequest::Toggle(Side::First),
+        "toggle_second" => ControlRequest::Toggle(Side::Second),
+        "flare" => ControlRequest::ToggleFlare,
+        "off" => ControlRequest::Off,
+        _ => {
+            eprintln!("MISTBRN event=test_command result=unknown");
+            return;
+        }
+    };
+    let bytes = allomancy_core::encode_control(request);
+    enqueue(uuid, decode_control(&bytes));
+}
+
 fn enqueue(uuid: u128, decoded: Decoded) {
     let mut inbox = INBOX.lock().unwrap_or_else(PoisonError::into_inner);
     let mine = inbox.iter().filter(|(owner, _)| *owner == uuid).count();
     if mine < INBOX_PER_PLAYER && inbox.len() < INBOX_MAX {
         inbox.push_back((uuid, decoded));
     } else {
-        eprintln!("MISTBRN event=control op=any result=inbox_full");
+        DROPPED.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -89,8 +111,9 @@ pub(crate) struct Controls {
     /// Players with a container menu open (`player_container_open` / `_close`). The player's
     /// own inventory and the chat are client screens the server never hears of.
     menus: BTreeSet<u128>,
-    /// What each player's HUD last got, and when.
-    sent: BTreeMap<u128, (HudSnapshot, u64)>,
+    /// What each player's HUD last accepted (none until a send is queued) and the tick of
+    /// the last attempt: a refused send is retried after the interval.
+    sent: BTreeMap<u128, (Option<HudSnapshot>, u64)>,
 }
 
 fn op_name(request: ControlRequest) -> &'static str {
@@ -137,7 +160,23 @@ impl Controls {
         self.sent.remove(&uuid);
     }
 
+    /// Drops the player's waiting requests: one queued before a death, a dimension change or a
+    /// logout must not act after it.
+    pub(crate) fn purge(&mut self, uuid: u128) {
+        INBOX
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|(owner, _)| *owner != uuid);
+    }
+
+    /// A stopped server: nothing waiting belongs to the next world.
+    pub(crate) fn purge_all(&mut self) {
+        INBOX.lock().unwrap_or_else(PoisonError::into_inner).clear();
+        DROPPED.store(0, Ordering::Relaxed);
+    }
+
     pub(crate) fn logged_out(&mut self, uuid: u128) {
+        self.purge(uuid);
         self.budgets.remove(&uuid);
         self.rate_logged.remove(&uuid);
         self.menus.remove(&uuid);
@@ -152,6 +191,10 @@ impl Controls {
         powers: &mut Powers,
         tick: u64,
     ) {
+        let dropped = DROPPED.swap(0, Ordering::Relaxed);
+        if dropped > 0 {
+            eprintln!("MISTBRN event=control op=any result=inbox_full dropped={dropped}");
+        }
         let pending: Vec<(u128, Decoded)> = INBOX
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -246,17 +289,24 @@ impl Controls {
             let hud = HudSnapshot::from_state(saved.state(), saved.rules());
             let due = match self.sent.get(&uuid) {
                 None => true,
-                Some((last, at)) => *last != hud && tick.saturating_sub(*at) >= HUD_EVERY_TICKS,
+                Some((last, at)) => {
+                    *last != Some(hud) && tick.saturating_sub(*at) >= HUD_EVERY_TICKS
+                }
             };
             if !due {
                 continue;
             }
             let bytes = PayloadBytes(encode_hud(&hud).to_vec());
-            if let Err(error) = player.send_payload(host, &channel, bytes) {
-                // Retried after the interval rather than every tick.
-                eprintln!("MISTBRN event=hud_send_failed error={error:?}");
-            }
-            self.sent.insert(uuid, (hud, tick));
+            let accepted = match player.send_payload(host, &channel, bytes) {
+                Ok(_) => Some(hud),
+                Err(error) => {
+                    // Keep the last accepted snapshot: the next try comes after the interval
+                    // even when nothing changes any more.
+                    eprintln!("MISTBRN event=hud_send_failed error={error:?}");
+                    self.sent.get(&uuid).and_then(|(last, _)| *last)
+                }
+            };
+            self.sent.insert(uuid, (accepted, tick));
         }
     }
 }

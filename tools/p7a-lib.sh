@@ -173,10 +173,27 @@ k_scenario() {
       k_expect_count "rejected op" "result=rejected:op" 1 1
       k_expect_count "rejected arg" "result=rejected:arg" 1 1
       # flood 20: 16 fit the player's inbox, 8 pass the budget, the other 8 are one rate line.
-      k_expect_count "inbox full" "op=any result=inbox_full" 4 4
+      k_expect_count "inbox full" "op=any result=inbox_full dropped=4" 1 1
       k_expect_count "rate limited (logged once)" "op=any result=rate" 1 1
       k_expect_count "offs within the budget" "command=off:all allowed=true result=ok changed=0" 9 28
       k_expect_count "session alive: Z still lights" "command=activate:iron allowed=true result=ok changed=1" 1 1 ;;
+    k8)  # The server's own check: with a chest open, a request (injected, as a modified
+         # client would send it) is refused; putting metals out still passes.
+      p4_fixture
+      k_credit iron
+      ctl setblock 514 100 512 chest >/dev/null; ctl wait 5 >/dev/null
+      ctl interact 514 100 512 >/dev/null; ctl wait 10 >/dev/null
+      k_screen k8-screen "chest|generic|container"
+      ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
+      ctl close >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
+      quit_game
+      k_expect_count "refused with the chest open" "command=activate:iron allowed=false result=InputCaptured changed=0" 1 1
+      k_expect_count "off passes with the chest open" "command=off:all allowed=false result=ok" 1 1
+      k_expect_count "lit once closed" "command=activate:iron allowed=true result=ok changed=1" 1 1
+      k_expect_commands activate:iron=InputCaptured off:all=ok activate:iron=ok off:all=ok ;;
     *) return 1 ;;
   esac
 }
