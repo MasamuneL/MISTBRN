@@ -4,22 +4,28 @@
 //! ask `allomancy_core::physics::step` for the new velocities and hand them to the engine,
 //! which moves both bodies with its own collision. The core decides; this file observes and
 //! applies. Log lines follow the contract in `docs/plan.md` (P4).
+//!
+//! Coin hits are only collected during the tick and dealt by [`deal_hits`] once the caller
+//! has released its locks: a lethal hit fires death hooks that take those locks again.
 use crate::bridge::{Session, metal_name, player_id, world_id};
 use allomancy_core::physics::{self, Body, Direction, ForceRules, StepError, StepInput};
 use allomancy_core::{
-    Authority, BurnState, Command, InputContext, Metal, Tick, Vec3, WorldSnapshot, apply_command,
-    credit_reserve, is_coin, is_metal, update_player,
+    Authority, BurnState, Command, Effect, InputContext, Metal, Tick, Vec3, WorldSnapshot,
+    apply_command, credit_reserve, is_coin, is_metal, update_player,
 };
 use mod_api::{ClipBlock, ClipFluid, EntityRef, Host, LevelRef, PlayerRef, ServerHost};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, HashSet};
 
 /// The middle of a standing player's body, above the feet.
 const BODY_MIDDLE: f64 = 0.9;
 /// Entities are hit by a ray grown by this margin, as vanilla picks projectiles' targets.
 const RAY_MARGIN: f64 = 0.3;
+/// A coin hits bodies its move crosses, with this margin.
+const COIN_MARGIN: f64 = 0.1;
 /// Damage type of a coin's hit (`minecraft:thrown`, as a snowball's).
 const COIN_DAMAGE: &str = "minecraft:thrown";
+/// Slack before a block in front of a held target counts as an obstacle.
+const SIGHT_SLACK: f64 = 0.05;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Target {
@@ -42,6 +48,12 @@ impl Target {
         }
     }
 
+    fn id(&self) -> &str {
+        match self {
+            Self::Block { id, .. } | Self::Item { id, .. } => id,
+        }
+    }
+
     fn kind(&self) -> &'static str {
         match self {
             Self::Block { .. } => "block",
@@ -50,9 +62,31 @@ impl Target {
     }
 }
 
+/// A target held for one metal: lighting the other one (or relighting) drops it.
+#[derive(Clone, Debug)]
+struct Held {
+    metal: Metal,
+    target: Target,
+    /// Where an item target was last tick: its real move since then, already resolved by the
+    /// engine against blocks, is what a coin can hit.
+    last: Option<Vec3>,
+}
+
+/// A coin's hit, dealt after the tick's locks are released.
+pub(crate) struct Hit {
+    victim: EntityRef,
+    coin: EntityRef,
+    shooter: EntityRef,
+    kind: String,
+    speed: f64,
+    damage: f32,
+}
+
 #[derive(Default)]
 pub(crate) struct Powers {
-    targets: BTreeMap<u128, Target>,
+    held: BTreeMap<u128, Held>,
+    /// Coins that already hit: never a target again, so one coin hits once.
+    spent: HashSet<EntityRef>,
 }
 
 /// The metal a player acts with: iron or steel, burning or flared (the core lights one only).
@@ -74,31 +108,55 @@ fn fmt3(v: Vec3) -> String {
     format!("{:.3},{:.3},{:.3}", v.x, v.y, v.z)
 }
 
+fn distance(a: [f64; 3], b: Vec3) -> f64 {
+    physics::norm(Vec3 {
+        x: b.x - a[0],
+        y: b.y - a[1],
+        z: b.z - a[2],
+    })
+}
+
 impl Powers {
-    pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, session: &mut Session, tick: u64) {
+    /// One server tick of force. Returns the coin hits to deal once the locks are released.
+    pub(crate) fn tick(
+        &mut self,
+        host: &mut dyn ServerHost,
+        session: &mut Session,
+        tick: u64,
+    ) -> Vec<Hit> {
         let mut online = host.players().server_players();
         online.sort_by_key(|player| player.uuid());
-        self.targets
+        self.held
             .retain(|uuid, _| online.iter().any(|p| p.uuid() == *uuid));
+        let read: &dyn Host = host;
+        self.spent.retain(|coin| coin.position(read).is_some());
+        let mut hits = Vec::new();
         for player in online {
             let uuid = player.uuid();
-            let Some((metal, flared)) = acting(session, uuid) else {
-                if self.targets.contains_key(&uuid) {
-                    let empty = session.saved(uuid).is_some_and(|saved| {
-                        [Metal::Iron, Metal::Steel]
-                            .iter()
-                            .any(|m| saved.state().metals[m.index()].reserve_milli == 0)
-                    });
-                    self.clear(uuid, if empty { "exhausted" } else { "off" });
+            match acting(session, uuid) {
+                None => {
+                    if let Some(held) = self.held.get(&uuid) {
+                        let empty = session.saved(uuid).is_some_and(|saved| {
+                            saved.state().metals[held.metal.index()].reserve_milli == 0
+                        });
+                        self.clear(uuid, if empty { "exhausted" } else { "off" });
+                    }
                 }
-                continue;
-            };
-            self.act(host, session, player, metal, flared, tick);
+                Some((metal, flared)) => {
+                    if self.held.get(&uuid).is_some_and(|held| held.metal != metal) {
+                        self.clear(uuid, "switched");
+                    }
+                    if let Some(hit) = self.act(host, session, player, metal, flared, tick) {
+                        hits.push(hit);
+                    }
+                }
+            }
         }
+        hits
     }
 
-    fn clear(&mut self, uuid: u128, reason: &str) {
-        if self.targets.remove(&uuid).is_some() {
+    pub(crate) fn clear(&mut self, uuid: u128, reason: &str) {
+        if self.held.remove(&uuid).is_some() {
             eprintln!("MISTBRN event=target_cleared reason={reason}");
         }
     }
@@ -107,31 +165,19 @@ impl Powers {
         self.clear(uuid, "death");
     }
 
-    /// A new level: the target belongs to the old one. Iron and steel go out.
-    pub(crate) fn changed_dimension(
-        &mut self,
-        host: &mut dyn ServerHost,
-        session: &mut Session,
-        uuid: u128,
-    ) {
-        self.leave_level(host, session, uuid);
-    }
-
-    fn leave_level(&mut self, host: &mut dyn ServerHost, session: &mut Session, uuid: u128) {
+    /// A new level: the target belongs to the old one, and iron and steel go out. The shutdown
+    /// reads nothing from the game, so it cannot be skipped by a missing position.
+    pub(crate) fn changed_dimension(&mut self, session: &mut Session, uuid: u128) {
         self.clear(uuid, "dimension");
-        let Some(position) = host
-            .player(uuid)
-            .and_then(|player| player.entity().position(host))
-        else {
-            return;
-        };
-        for metal in [Metal::Iron, Metal::Steel] {
-            run_core(
-                session,
-                uuid,
-                v3(position),
-                Command::Extinguish { metal: Some(metal) },
-            );
+        let burning = acting(session, uuid).is_some();
+        let (result, changed) = run_core(
+            session,
+            uuid,
+            Vec3::default(),
+            Command::Extinguish { metal: None },
+        );
+        if burning || changed > 0 {
+            eprintln!("MISTBRN event=shutdown reason=dimension result={result} changed={changed}");
         }
     }
 
@@ -144,55 +190,59 @@ impl Powers {
         metal: Metal,
         flared: bool,
         tick: u64,
-    ) {
+    ) -> Option<Hit> {
         let uuid = player.uuid();
         let rules = ForceRules::for_flare(flared);
         let read: &dyn Host = host;
         let body = player.entity();
-        let (Some(level), Some(feet), Some(velocity)) =
-            (player.level(read), body.position(read), body.velocity(read))
-        else {
-            return;
+        let (Some(level), Some(feet), Some(velocity), Some(eye)) = (
+            player.level(read),
+            body.position(read),
+            body.velocity(read),
+            body.eye_position(read),
+        ) else {
+            return None;
         };
-        if let Entry::Vacant(slot) = self.targets.entry(uuid)
-            && let Some(target) = acquire(
-                read,
-                level,
-                body,
-                rules.range,
-                crate::scenario::enabled() && tick.is_multiple_of(20),
-            )
+        if self
+            .held
+            .get(&uuid)
+            .is_some_and(|held| held.target.level() != level)
         {
+            // The tick can come before `player_changed_dimension`: the same shutdown.
+            self.changed_dimension(session, uuid);
+            return None;
+        }
+        if !self.held.contains_key(&uuid) {
+            let report = crate::scenario::commands_enabled() && tick.is_multiple_of(20);
+            let target = acquire(read, level, body, rules.range, &self.spent, report)?;
             let at = target_point(read, level, &target).map_or_else(String::new, fmt3);
-            let id = match &target {
-                Target::Block { id, .. } | Target::Item { id, .. } => id.as_str(),
-            };
             eprintln!(
-                "MISTBRN event=target_acquired kind={} id={id} at={at}",
-                target.kind()
+                "MISTBRN event=target_acquired kind={} id={} at={at}",
+                target.kind(),
+                target.id()
             );
-            slot.insert(target);
+            self.held.insert(
+                uuid,
+                Held {
+                    metal,
+                    target,
+                    last: None,
+                },
+            );
         }
-        let player_point = Vec3 {
-            x: feet[0],
-            y: feet[1] + BODY_MIDDLE,
-            z: feet[2],
-        };
-        let Some(target) = self.targets.get(&uuid).cloned() else {
-            return;
-        };
-        if target.level() != level {
-            // The tick can come before `player_changed_dimension`: the same clear.
-            return self.leave_level(host, session, uuid);
-        }
+        let target = self.held.get(&uuid)?.target.clone();
         let Some(point) = target_point(read, level, &target) else {
             let reason = match target {
                 Target::Block { .. } => "broken",
                 Target::Item { .. } => "gone",
             };
             self.clear(uuid, reason);
-            return;
+            return None;
         };
+        if !in_sight(read, level, eye, point, &target) {
+            self.clear(uuid, "blocked");
+            return None;
+        }
         let (target_body, target_velocity) = match &target {
             Target::Block { .. } => (Body::Anchor, Vec3::default()),
             Target::Item { entity, .. } => (
@@ -208,7 +258,11 @@ impl Powers {
             Direction::Push
         };
         let input = StepInput {
-            player: player_point,
+            player: Vec3 {
+                x: feet[0],
+                y: feet[1] + BODY_MIDDLE,
+                z: feet[2],
+            },
             player_velocity: physics::client_velocity(v3(velocity)),
             target: point,
             target_velocity,
@@ -217,14 +271,20 @@ impl Powers {
         };
         let outcome = match physics::step(&rules, &input) {
             Ok(outcome) => outcome,
-            Err(StepError::OutOfRange) => return self.clear(uuid, "range"),
-            Err(StepError::NonFinite | StepError::Coincident) => return,
-        };
-        if let Some(next) = outcome.player_velocity {
-            let _ = player.set_velocity(host, [next.x, next.y, next.z]);
-            if outcome.player_delta.y > 0.0 {
-                let _ = body.reset_fall_distance(host);
+            Err(StepError::OutOfRange) => {
+                self.clear(uuid, "range");
+                return None;
             }
+            Err(StepError::NonFinite | StepError::Coincident | StepError::InvalidRules) => {
+                self.clear(uuid, "invalid");
+                return None;
+            }
+        };
+        if let Some(next) = outcome.player_velocity
+            && player.set_velocity(host, [next.x, next.y, next.z])
+            && outcome.player_delta.y > 0.0
+        {
+            let _ = body.reset_fall_distance(host);
         }
         eprintln!(
             "MISTBRN p4 tick={tick} metal={} pos={} vel={} target={} dist={:.3} dv={} anchor={}",
@@ -236,60 +296,116 @@ impl Powers {
             fmt3(outcome.player_delta),
             outcome.anchored
         );
-        if let (Some(next), Target::Item { entity, id, .. }) = (outcome.target_velocity, &target) {
-            let _ = entity.set_velocity(host, [next.x, next.y, next.z]);
-            eprintln!(
-                "MISTBRN p4item tick={tick} entity={} pos={} vel={}",
-                entity.id(),
-                fmt3(point),
-                fmt3(next)
-            );
-            if direction == Direction::Push && is_coin(id) {
-                self.coin_hit(host, level, body, *entity, point, next, uuid);
-            }
-        }
-    }
-
-    /// A pushed coin hurts the first living body its next move crosses, then stops.
-    #[allow(clippy::too_many_arguments)]
-    fn coin_hit(
-        &mut self,
-        host: &mut dyn ServerHost,
-        level: LevelRef,
-        shooter: EntityRef,
-        coin: EntityRef,
-        from: Vec3,
-        velocity: Vec3,
-        uuid: u128,
-    ) {
-        let speed = physics::norm(velocity);
-        let Some(damage) = physics::coin_damage(speed) else {
-            return;
-        };
-        let to = [
-            from.x + velocity.x,
-            from.y + velocity.y,
-            from.z + velocity.z,
-        ];
-        let read: &dyn Host = host;
-        let Some(hits) =
-            level.ray_trace_entities(read, [from.x, from.y, from.z], to, 0.1, Some(shooter))
+        let (Some(next), Target::Item { entity, id, .. }) = (outcome.target_velocity, &target)
         else {
-            return;
+            return None;
         };
-        let Some(victim) = hits.into_iter().map(|hit| hit.entity).find(|entity| {
+        let _ = entity.set_velocity(host, [next.x, next.y, next.z]);
+        let speed = physics::norm(next);
+        eprintln!(
+            "MISTBRN p4item tick={tick} entity={} pos={} vel={} speed={speed:.6}",
+            entity.id(),
+            fmt3(point),
+            fmt3(next)
+        );
+        if direction != Direction::Push || !is_coin(id) {
+            return None;
+        }
+        let last = self
+            .held
+            .get_mut(&uuid)
+            .and_then(|held| held.last.replace(point))?;
+        let read: &dyn Host = host;
+        let hit = coin_victim(read, level, body, *entity, last, point)?;
+        // The coin's flight ends at the body: it stops, and it is never a target again.
+        let _ = entity.set_velocity(host, [0.0, 0.0, 0.0]);
+        self.spent.insert(*entity);
+        self.clear(uuid, "hit");
+        Some(hit)
+    }
+}
+
+/// Deals the tick's coin hits. Call with no session or power lock held.
+pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) {
+    for hit in hits {
+        let read: &dyn Host = host;
+        let before = read.living(hit.victim).and_then(|l| l.health(read));
+        let dealt = hit.victim.hurt(
+            host,
+            COIN_DAMAGE,
+            hit.damage,
+            Some(hit.coin),
+            Some(hit.shooter),
+        );
+        let read: &dyn Host = host;
+        let after = read.living(hit.victim).and_then(|l| l.health(read));
+        let health = |h: Option<f32>| h.map_or_else(|| "none".into(), |h| format!("{h:.3}"));
+        eprintln!(
+            "MISTBRN event=coin_hit entity={} speed={:.6} damage={:.3} dealt={} health_before={} health_after={}",
+            hit.kind,
+            hit.speed,
+            hit.damage,
+            dealt == Some(true),
+            health(before),
+            health(after)
+        );
+    }
+}
+
+/// The first living body the coin's real move (`from` → `to`, last tick to this one) crossed,
+/// if it moved fast enough to hurt. The engine already stopped that move at blocks, so a body
+/// behind a wall is never on it; the clip guards the start inside a block.
+fn coin_victim(
+    host: &dyn Host,
+    level: LevelRef,
+    shooter: EntityRef,
+    coin: EntityRef,
+    from: Vec3,
+    to: Vec3,
+) -> Option<Hit> {
+    let start = [from.x, from.y, from.z];
+    let end = [to.x, to.y, to.z];
+    let speed = distance(start, to);
+    let damage = physics::coin_damage(speed)?;
+    let wall = level
+        .clip(host, start, end, ClipBlock::Collider, ClipFluid::None)
+        .filter(|hit| !hit.miss)
+        .map_or(speed, |hit| distance(start, v3(hit.location)));
+    let victim = level
+        .ray_trace_entities(host, start, end, COIN_MARGIN, Some(shooter))?
+        .into_iter()
+        .take_while(|hit| hit.distance < wall)
+        .map(|hit| hit.entity)
+        .find(|entity| {
             *entity != coin
-                && read
+                && host
                     .living(*entity)
-                    .is_some_and(|l| l.alive(read) == Some(true))
-        }) else {
-            return;
-        };
-        let kind = victim.kind(read).map(|k| k.id(read)).unwrap_or_default();
-        let _ = victim.hurt(host, COIN_DAMAGE, damage, Some(coin), Some(shooter));
-        let _ = coin.set_velocity(host, [0.0, 0.0, 0.0]);
-        eprintln!("MISTBRN event=coin_hit entity={kind} speed={speed:.3} damage={damage:.3}");
-        self.clear(uuid, "gone");
+                    .is_some_and(|l| l.alive(host) == Some(true))
+        })?;
+    Some(Hit {
+        victim,
+        coin,
+        shooter,
+        kind: victim.kind(host).map(|k| k.id(host)).unwrap_or_default(),
+        speed,
+        damage,
+    })
+}
+
+/// Whether nothing solid stands between the eyes and a held target.
+fn in_sight(host: &dyn Host, level: LevelRef, eye: [f64; 3], point: Vec3, target: &Target) -> bool {
+    let to = [point.x, point.y, point.z];
+    let Some(hit) = level.clip(host, eye, to, ClipBlock::Outline, ClipFluid::None) else {
+        return false;
+    };
+    if hit.miss {
+        return true;
+    }
+    match target {
+        Target::Block { pos, .. } => hit.block == *pos,
+        Target::Item { .. } => {
+            distance(eye, v3(hit.location)) + SIGHT_SLACK >= distance(eye, point)
+        }
     }
 }
 
@@ -300,61 +416,47 @@ fn acquire(
     level: LevelRef,
     body: EntityRef,
     range: f64,
+    spent: &HashSet<EntityRef>,
     report: bool,
 ) -> Option<Target> {
     let eye = body.eye_position(host)?;
     let look = body.view_vector(host)?;
+    if !v3(eye).is_finite() || !v3(look).is_finite() {
+        return None;
+    }
     let end = [
         eye[0] + look[0] * range,
         eye[1] + look[1] * range,
         eye[2] + look[2] * range,
     ];
     let clip = level.clip(host, eye, end, ClipBlock::Outline, ClipFluid::None);
-    if report {
-        let at = clip.map(|hit| {
-            let id = level.block(host, hit.block).map(|k| k.id(host));
-            format!("{:?}:{:?}:{id:?}", hit.miss, hit.block)
-        });
-        eprintln!(
-            "MISTBRN event=target_search eye={} look={} clip={at:?}",
-            fmt3(v3(eye)),
-            fmt3(v3(look))
-        );
-    }
     let block = clip.filter(|hit| !hit.miss && !hit.world_border);
-    let block_distance = block.map_or(range, |hit| {
-        physics::norm(Vec3 {
-            x: hit.location[0] - eye[0],
-            y: hit.location[1] - eye[1],
-            z: hit.location[2] - eye[2],
-        })
-    });
+    let block_distance = block.map_or(range, |hit| distance(eye, v3(hit.location)));
     let hits = level
         .ray_trace_entities(host, eye, end, RAY_MARGIN, Some(body))
         .unwrap_or_default();
     if report {
-        let kinds: Vec<String> = hits
+        let seen: Vec<String> = hits
             .iter()
             .map(|hit| {
-                let kind = hit
-                    .entity
-                    .kind(host)
-                    .map(|k| k.id(host))
-                    .unwrap_or_default();
-                format!("{kind}@{:.2}", hit.distance)
+                let kind = hit.entity.kind(host).map(|k| k.id(host));
+                format!("{}@{:.2}", kind.unwrap_or_default(), hit.distance)
             })
             .collect();
         eprintln!(
-            "MISTBRN event=target_search_entities block_distance={block_distance:.3} hits={}",
-            kinds.join(";")
+            "MISTBRN event=target_search eye={} look={} block={:?} block_distance={block_distance:.3} entities={}",
+            fmt3(v3(eye)),
+            fmt3(v3(look)),
+            block.map(|hit| hit.block),
+            seen.join(";")
         );
     }
     let item = hits
         .into_iter()
         .take_while(|hit| hit.distance <= block_distance)
+        .filter(|hit| !spent.contains(&hit.entity))
         .find_map(|hit| {
-            let stack = host.item_entity(hit.entity)?.stack(host)?;
-            let id = stack.item().id(host);
+            let id = host.item_entity(hit.entity)?.stack(host)?.item().id(host);
             is_metal(&id).then_some(Target::Item {
                 level,
                 entity: hit.entity,
@@ -373,7 +475,7 @@ fn acquire(
     })
 }
 
-/// Where the force acts on a target, `None` once it is no longer a metal target.
+/// Where the force acts on a target, `None` once it is no longer the metal it was.
 fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec3> {
     match target {
         Target::Block { pos, id, .. } => {
@@ -384,8 +486,11 @@ fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec
                 z: f64::from(pos[2]) + 0.5,
             })
         }
-        Target::Item { entity, .. } => {
-            host.item_entity(*entity)?.stack(host)?;
+        Target::Item { entity, id, .. } => {
+            let now = host.item_entity(*entity)?.stack(host)?.item().id(host);
+            if now != *id {
+                return None;
+            }
             let [x, y, z] = entity.position(host)?;
             Some(Vec3 { x, y: y + 0.125, z })
         }
@@ -393,26 +498,44 @@ fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec
 }
 
 /// Applies one command through the core, with the player's own last tick (a snapshot older
-/// than it is refused as `StaleTick`). Returns the outcome as a log word.
-fn run_core(session: &mut Session, uuid: u128, position: Vec3, command: Command) -> String {
-    let mut outcome = Ok(());
+/// than it is refused as `StaleTick`). The command is tried on a copy first: a refusal or a
+/// command that changes nothing leaves the save untouched (no revision, no write). Returns the
+/// outcome as a log word and the number of accepted changes.
+fn run_core(
+    session: &mut Session,
+    uuid: u128,
+    position: Vec3,
+    command: Command,
+) -> (String, usize) {
+    let Some(saved) = session.saved(uuid) else {
+        return ("not_active".into(), 0);
+    };
+    let mut probe = saved.state().clone();
+    let ctx = snapshot(uuid, position, probe.last_tick.unwrap_or(Tick(0)));
+    let effects: Vec<Effect> = match apply_command(&mut probe, command.clone(), &ctx) {
+        Ok(effects) => effects,
+        Err(error) => {
+            let word = format!("{error:?}");
+            eprintln!("MISTBRN event=core_refused result={word}");
+            return (word, 0);
+        }
+    };
+    if effects.is_empty() {
+        return ("ok".into(), 0);
+    }
     let result = session.change(uuid, true, |saved| {
         update_player(saved, |state, _| {
-            let tick = state.last_tick.unwrap_or(Tick(0));
-            let ctx = snapshot(uuid, position, tick);
-            outcome = apply_command(state, command, &ctx).map(|_| ());
+            let _ = apply_command(state, command, &ctx);
             Ok(())
         })
     });
-    let word = match (result, outcome) {
-        (Err(error), _) => error,
-        (Ok(()), Err(error)) => format!("{error:?}"),
-        (Ok(()), Ok(())) => "ok".into(),
-    };
-    if word != "ok" {
-        eprintln!("MISTBRN event=core_refused result={word}");
+    match result {
+        Ok(()) => ("ok".into(), effects.len()),
+        Err(error) => {
+            eprintln!("MISTBRN event=core_refused result={error}");
+            (error, 0)
+        }
     }
-    word
 }
 
 fn snapshot(uuid: u128, position: Vec3, tick: Tick) -> WorldSnapshot {
@@ -434,7 +557,7 @@ fn parse_metal(name: &str) -> Option<Metal> {
     Metal::ALL.into_iter().find(|m| metal_name(*m) == name)
 }
 
-/// `/mistbrn-test …` (registered only while `MISTBRN_TEST_SCENARIO` is set).
+/// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
 pub(crate) const TEST_COMMANDS: [&str; 4] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
@@ -442,43 +565,56 @@ pub(crate) const TEST_COMMANDS: [&str; 4] = [
     "mistbrn-test credit <metal:word> <milli:integer>",
 ];
 
-/// Runs one test command for `player`. Burning goes through the core's `apply_command`
-/// with the tick's last known state; crediting unlocks and credits without a vial.
+pub(crate) struct TestCommand<'a> {
+    pub(crate) literals: &'a [String],
+    pub(crate) metal: Option<&'a str>,
+    pub(crate) mode: Option<&'a str>,
+    pub(crate) milli: Option<i32>,
+}
+
+/// Runs one test command for `player`. Burning goes through the core's `apply_command`;
+/// crediting unlocks and credits without a vial (test runs only).
 pub(crate) fn run_test_command(
     host: &mut dyn ServerHost,
     session: &mut Session,
+    powers: &mut Powers,
     player: PlayerRef,
-    literals: &[String],
-    metal: Option<&str>,
-    mode: Option<&str>,
-    milli: Option<i32>,
+    command: &TestCommand<'_>,
 ) {
     let uuid = player.uuid();
     let Some(position) = player.entity().position(host).map(v3) else {
         return;
     };
-    let words: Vec<&str> = literals.iter().map(String::as_str).collect();
-    match (words.get(1).copied(), metal.and_then(parse_metal)) {
+    let word = command.literals.get(1).map(String::as_str);
+    match (word, command.metal.and_then(parse_metal)) {
         (Some("off"), _) => {
-            let result = run_core(session, uuid, position, Command::Extinguish { metal: None });
-            eprintln!("MISTBRN event=burn metal=all burn=off result={result}");
+            let (result, changed) =
+                run_core(session, uuid, position, Command::Extinguish { metal: None });
+            if result == "ok" {
+                powers.clear(uuid, "off");
+            }
+            eprintln!("MISTBRN event=burn metal=all burn=off result={result} changed={changed}");
         }
         (Some("burn"), Some(metal)) => {
-            let flared = mode == Some("flare");
-            let command = if flared {
+            let flared = command.mode == Some("flare");
+            let core = if flared {
                 Command::Flare { metal }
             } else {
                 Command::Activate { metal }
             };
-            let result = run_core(session, uuid, position, command);
+            let (result, changed) = run_core(session, uuid, position, core);
+            // A new lighting aims anew: the old target is not kept across it.
+            if changed > 0 {
+                powers.clear(uuid, "relit");
+            }
             eprintln!(
-                "MISTBRN event=burn metal={} burn={} result={result}",
+                "MISTBRN event=burn metal={} burn={} result={result} changed={changed}",
                 metal_name(metal),
                 if flared { "flared" } else { "burning" }
             );
         }
         (Some("credit"), Some(metal)) => {
-            let amount = i64::from(milli.unwrap_or(0));
+            let amount = i64::from(command.milli.unwrap_or(0));
             let result = session.change(uuid, true, |saved| {
                 let rules = saved.rules().clone();
                 update_player(saved, |state, accounting| {

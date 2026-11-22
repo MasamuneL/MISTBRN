@@ -58,6 +58,25 @@ impl ForceRules {
         ..Self::BURNING
     };
 
+    pub fn is_valid(&self) -> bool {
+        let values = [
+            self.accel,
+            self.range,
+            self.player_cap,
+            self.item_cap,
+            self.item_mass,
+            self.anchor_down,
+            self.lift_damping,
+        ];
+        values.iter().all(|v| v.is_finite())
+            && self.accel >= 0.0
+            && self.range > 0.0
+            && self.player_cap > 0.0
+            && self.item_cap > 0.0
+            && self.item_mass > 0.0
+            && (0.0..=1.0).contains(&self.lift_damping)
+    }
+
     pub fn for_flare(flared: bool) -> Self {
         if flared { Self::FLARED } else { Self::BURNING }
     }
@@ -95,6 +114,9 @@ pub enum StepError {
     OutOfRange,
     /// The player and the target are at the same point: no direction.
     Coincident,
+    /// Rules with a non-finite value, a non-positive range, cap or mass, or a damping outside
+    /// 0..=1.
+    InvalidRules,
 }
 
 /// Vanilla's gravity and vertical air drag for a player (`LivingEntity.travel`).
@@ -122,6 +144,23 @@ pub fn acceleration(rules: &ForceRules, distance: f64) -> f64 {
 
 /// One tick of force between the player and a target.
 pub fn step(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, StepError> {
+    let outcome = step_unchecked(rules, input)?;
+    let finite = |v: Option<Vec3>| v.is_none_or(Vec3::is_finite);
+    if outcome.distance.is_finite()
+        && outcome.player_delta.is_finite()
+        && finite(outcome.player_velocity)
+        && finite(outcome.target_velocity)
+    {
+        Ok(outcome)
+    } else {
+        Err(StepError::NonFinite)
+    }
+}
+
+fn step_unchecked(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, StepError> {
+    if !rules.is_valid() {
+        return Err(StepError::InvalidRules);
+    }
     if ![
         input.player,
         input.player_velocity,
@@ -175,11 +214,8 @@ pub fn step(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, StepEr
     // The item takes the change, scaled by its lightness. Pulled close, it slows so it settles
     // at the player to be picked up instead of flying through.
     let item_delta = scale(toward, -sign * a / rules.item_mass);
-    let mut velocity = capped(
-        input.target_velocity,
-        add(input.target_velocity, item_delta),
-        rules.item_cap,
-    );
+    // An item's cap is absolute: a coin already flying fast is not kept above it.
+    let mut velocity = limit(add(input.target_velocity, item_delta), rules.item_cap);
     if input.direction == Direction::Pull && distance < 1.5 {
         velocity = limit(velocity, distance * 0.5);
     }

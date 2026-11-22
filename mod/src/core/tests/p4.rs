@@ -267,3 +267,35 @@ fn client_velocity_applies_gravity_after_the_reported_move() {
     assert!(close(c.x, 0.3) && close(c.z, -0.2));
     assert!(close(c.y, -0.0784));
 }
+
+// Catches a coin kept above its cap (a fast coin hit for 14) and rules that produce NaN.
+#[test]
+fn item_cap_is_absolute_and_bad_rules_are_refused() {
+    let r = ForceRules::BURNING;
+    let mut fast = input(
+        v(1.5, 0.0, 0.0),
+        Body::Item { on_ground: false },
+        Direction::Push,
+    );
+    fast.target_velocity = v(3.0, 0.0, 0.0);
+    let out = step(&r, &fast).unwrap();
+    assert!(close(norm(out.target_velocity.unwrap()), 2.0));
+    let anchor = input(v(1.0, 0.0, 0.0), Body::Anchor, Direction::Pull);
+    for bad in [
+        ForceRules {
+            item_mass: 0.0,
+            ..r
+        },
+        ForceRules { range: 0.0, ..r },
+        ForceRules {
+            accel: f64::NAN,
+            ..r
+        },
+        ForceRules {
+            lift_damping: 2.0,
+            ..r
+        },
+    ] {
+        assert_eq!(step(&bad, &anchor), Err(StepError::InvalidRules));
+    }
+}

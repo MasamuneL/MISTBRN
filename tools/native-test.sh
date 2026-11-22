@@ -224,15 +224,26 @@ case "$scenario" in
     ctl command "time set midnight" >/dev/null
     ctl command "difficulty normal" >/dev/null
     ctl command 'summon zombie 520.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
-    health_before="$(p4_zombie_health before)"
     ctl command 'summon item 514 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
     ctl look-at 514 100.125 512.5 >/dev/null
     p4_burn steel
     ctl wait 30 >/dev/null
     p4_off
-    health_after="$(p4_zombie_health after)"
     quit_game
-    p4_check_log "$health_before" "$health_after" ;;
+    p4_check_log ;;
+  n5w)  # The same shot with glass between the clip and the zombie: the wall takes it.
+    p4_fixture
+    ctl command "time set midnight" >/dev/null
+    ctl command "difficulty normal" >/dev/null
+    ctl command 'summon zombie 520.5 100 512.5 {NoAI:1b,Tags:["mistbrn_p4"]}' >/dev/null
+    ctl command "fill 517 100 511 517 103 514 minecraft:glass" >/dev/null
+    ctl command 'summon item 514 100 512.5 {Item:{id:"mistbrn:clip",count:1},PickupDelay:32767}' >/dev/null
+    ctl look-at 514 100.125 512.5 >/dev/null
+    p4_burn steel
+    ctl wait 30 >/dev/null
+    p4_off
+    quit_game
+    p4_check_log ;;
   n6)  # Reach an anchor 20 blocks away while flared and spend triple the normal rate.
     p4_fixture
     p4_iron_block 532

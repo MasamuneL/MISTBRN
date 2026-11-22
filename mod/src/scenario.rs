@@ -91,14 +91,15 @@ pub(crate) struct Runner {
     fail_vial: bool,
 }
 
-/// Whether this is a test run: `MISTBRN_TEST_SCENARIO` names any scenario. Only then are the
-/// `/mistbrn-test` commands registered and run.
-pub(crate) fn enabled() -> bool {
-    std::env::var("MISTBRN_TEST_SCENARIO").is_ok_and(|name| !name.is_empty())
-}
-
 /// P4 scenarios drive everything through `/mistbrn-test`: the runner has nothing to do.
 const COMMANDS_ONLY: &str = "p4";
+
+/// Whether the `/mistbrn-test` commands exist: only with `MISTBRN_TEST_SCENARIO=p4` exactly.
+/// Their credit writes the save without a vial, so no other value (a typo, another scenario)
+/// turns them on.
+pub(crate) fn commands_enabled() -> bool {
+    std::env::var("MISTBRN_TEST_SCENARIO").as_deref() == Ok(COMMANDS_ONLY)
+}
 
 impl Runner {
     pub(crate) fn from_env() -> Self {

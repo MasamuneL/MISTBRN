@@ -31,16 +31,6 @@ p4_burn() {
 
 p4_off() { ctl command "mistbrn-test off" >/dev/null; }
 
-# Read the tagged zombie's Health through vanilla command feedback.
-p4_zombie_health() {
-  local phase="$1"
-  ctl command 'data get entity @e[type=minecraft:zombie,tag=mistbrn_p4,limit=1] Health' >/dev/null
-  ctl wait 3 >/dev/null
-  ctl messages > "$dir/zombie-$phase.json"
-  jq -r '[.chat[] | capture("entity data: (?<h>[0-9.]+)f") | .h] | first // "missing"' \
-    "$dir/zombie-$phase.json"
-}
-
 p4_fail() { echo "  FAIL $*" | tee -a "$dir/report.txt"; fails=$((fails + 1)); }
 
 # Read launch 1 in log order so events and their following samples need no shared tick field.
@@ -61,10 +51,10 @@ p4_check_log() {
       stop_seen++
     }
     BEGIN {
-      steel = scenario ~ /^n[235]$/
+      steel = scenario ~ /^n([235]|5w)$/
       metal = steel ? "steel" : "iron"
       burn = scenario == "n6" ? "flared" : "burning"
-      item = scenario ~ /^n[345]$/
+      item = scenario ~ /^n([345]|5w)$/
       kind = item ? "item" : "block"
       id = item ? (scenario == "n4" ? "minecraft:iron_ingot" : "mistbrn:clip") : "minecraft:iron_block"
       reason = scenario == "n8" ? "death" : (scenario == "n9" ? "dimension" : "broken")
@@ -81,8 +71,12 @@ p4_check_log() {
     }
     fields["event"] == "burn" && (fields["metal"] == metal || fields["metal"] == "all") && fields["result"] == "ok" {
       if (fields["burn"] == burn) burn_seen++
-      if (fields["burn"] == "off") off_seen++
+      if (fields["burn"] == "off") { off_seen++; off_changed = fields["changed"] }
     }
+    fields["event"] == "shutdown" && fields["reason"] == "dimension" && fields["result"] == "ok" {
+      shutdown_changed = fields["changed"]
+    }
+    fields["event"] == "target_cleared" && fields["reason"] == "exhausted" { exhausted_clear++ }
     fields["event"] == "target_acquired" && fields["kind"] == kind && fields["id"] == id {
       if (burn_seen && !off_seen && !stop_seen) acquired++
     }
@@ -92,13 +86,15 @@ p4_check_log() {
     }
     fields["event"] == "coin_hit" {
       hits++
-      if (fields["entity"] == "minecraft:zombie") zombie_hits++
+      if (fields["entity"] == "minecraft:zombie" && fields["dealt"] == "true") zombie_hits++
       hit_speed = fields["speed"]
+      health_before = fields["health_before"]; health_after = fields["health_after"]
     }
     tokens[1] == "p4item" {
       if (!vector(fields["vel"], velocity)) { bad_item++; next }
       item_samples++
-      speed = norm(velocity[1], velocity[2], velocity[3])
+      # The mod logs the exact norm: three-decimal components can round above the cap.
+      speed = number(fields["speed"]) ? fields["speed"] + 0 : norm(velocity[1], velocity[2], velocity[3])
       if (speed > max_item_speed) max_item_speed = speed
     }
     tokens[1] == "p4" {
@@ -153,7 +149,7 @@ p4_check_log() {
       check(acquired > 0, "expected to acquire " id)
       check(item ? item_targets > 0 : block_samples > 0, "expected a player tick with target=" kind)
       check(samples >= 2 && !gaps && !bad_player, "expected consecutive valid player ticks")
-      if (scenario ~ /^n[1-6]$/ || scenario == "n10")
+      if (scenario ~ /^n([1-6]|5w)$/ || scenario == "n10")
         check(off_seen > 0, "expected successful " metal " off")
       metrics(sprintf("p4_after_off=%d", after_off))
       check(!after_off, "found force applied after a successful off")
@@ -166,6 +162,7 @@ p4_check_log() {
         check(max_window <= 1.05 + 1e-6, "expected mean x step over 4 ticks <= 1.05")
         check(final_x <= 523.75, "expected final x <= block face - 0.25")
         check(max_x < 524, "player reached or entered the iron block")
+        check(samples >= 20 && final_x >= 523.5, "expected the pull to reach the block face (x >= 523.5)")
       } else if (scenario == "n2" || scenario == "n3") {
         low = high = scenario == "n2" ? tail_x[0] : tail_y[0]
         for (i = 1; i < 20 && i < samples; i++) {
@@ -190,12 +187,17 @@ p4_check_log() {
         check(!bad_item && item_samples > 0, "expected ingot motion in p4item")
         check(max_displacement <= 0.05 + 1e-6, "expected player displacement <= 0.05")
       } else if (scenario == "n5") {
-        metrics(sprintf("max_item_speed=%.3f hit_speed=%s coin_hits=%d zombie_health_before=%s zombie_health_after=%s",
-            max_item_speed, hit_speed, hits, observed, after))
+        metrics(sprintf("max_item_speed=%.6f hit_speed=%s coin_hits=%d zombie_health_before=%s zombie_health_after=%s",
+            max_item_speed, hit_speed, hits, health_before, health_after))
         check(!bad_item && item_samples > 0 && max_item_speed <= 2 + 1e-6, "expected clip speed <= 2.0")
         check(hits == 1 && zombie_hits == 1, "expected exactly one coin_hit on the zombie")
         check(number(hit_speed) && hit_speed + 0 <= 2, "expected coin_hit speed <= 2.0")
-        check(number(observed) && number(after) && observed + 0 > after + 0, "expected zombie health to decrease")
+        check(number(health_before) && number(health_after) && health_before + 0 > health_after + 0,
+            "expected zombie health to decrease (mod log)")
+      } else if (scenario == "n5w") {
+        metrics(sprintf("max_item_speed=%.6f coin_hits=%d", max_item_speed, hits))
+        check(!bad_item && item_samples > 0 && max_item_speed <= 2 + 1e-6, "expected clip speed <= 2.0")
+        check(hits == 0, "a coin hit a body behind glass")
       } else if (scenario == "n6") {
         consumed = 25000 - observed
         metrics(sprintf("max_step=%.3f max_window=%.3f max_speed=%.3f final_x=%.3f reserve_iron=%s consumed_milli=%d expected_milli=%d",
@@ -203,12 +205,18 @@ p4_check_log() {
         check(max_speed <= 1.45 + 1e-6, "expected flared player speed <= 1.45")
         check(max_window <= 1.45 + 1e-6, "expected mean flared x step over 4 ticks <= 1.45")
         check(number(observed) && abs(consumed - samples * 30) <= 30, "expected 30 milli per flared tick (+/- one tick)")
+        check(samples >= 20 && final_x >= 531.5, "expected the flared pull to reach the block face (x >= 531.5)")
       } else {
         metrics(sprintf("stop_events=%d block_ticks_before=%d p4_after=%d block_ticks_after=%d",
             stop_seen, block_samples_before_stop, after_stop, blocks_after_stop))
         check(stop_seen == 1 && block_samples_before_stop > 0,
             "expected one " (scenario == "n7" ? "iron exhaustion" : "target clear for " reason) " during a block pull")
-        if (scenario == "n7") check(samples >= 19 && samples <= 21, "expected iron exhaustion after 20 ticks (+/- one)")
+        if (scenario == "n7") {
+          check(samples >= 19 && samples <= 21, "expected iron exhaustion after 20 ticks (+/- one)")
+          check(exhausted_clear == 1, "expected target_cleared reason=exhausted")
+        }
+        if (scenario == "n9") check(shutdown_changed >= 1, "expected the dimension shutdown to put iron out")
+        if (scenario == "n10") check(off_changed == 1, "expected iron still burning after the block broke")
         if (scenario == "n10") check(!blocks_after_stop, "found block targeting after reason=broken")
         else check(!after_stop, "found player motion samples after the stop event")
       }

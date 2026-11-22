@@ -102,18 +102,22 @@ impl Hooks for Allomancy {
             return;
         }
         // A panic in an earlier tick must not silently stop every later one: keep the data.
-        let mut session = self.session();
-        session.tick(host, event.context.epoch.get(), event.context.tick.get());
-        let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
-        session.finish_drinks(host, runner.fail_vial());
-        runner.tick(host, &mut session);
-        self.powers()
-            .tick(host, &mut session, event.context.tick.get());
+        let hits = {
+            let mut session = self.session();
+            session.tick(host, event.context.epoch.get(), event.context.tick.get());
+            let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
+            session.finish_drinks(host, runner.fail_vial());
+            runner.tick(host, &mut session);
+            self.powers()
+                .tick(host, &mut session, event.context.tick.get())
+        };
+        // A lethal hit runs the death hooks, which take the session and power locks again.
+        p4::deal_hits(host, hits);
     }
 
     fn register_commands(&self, _: &mut dyn ServerHost, event: &mut RegisterCommandsEvent<'_>) {
         // Test commands exist only in test runs (P10 checks a normal world has none).
-        if scenario::enabled() {
+        if scenario::commands_enabled() {
             event.commands.extend(
                 p4::TEST_COMMANDS
                     .iter()
@@ -128,7 +132,7 @@ impl Hooks for Allomancy {
         event: &mut RunModCommandEvent<'_>,
     ) -> Flow {
         let command = event.command;
-        if !scenario::enabled()
+        if !scenario::commands_enabled()
             || command.literals.first().map(String::as_str) != Some("mistbrn-test")
         {
             return Flow::Continue;
@@ -144,25 +148,29 @@ impl Hooks for Allomancy {
             Some(CommandArgumentValue::Integer(value)) => Some(*value),
             _ => None,
         };
+        let test = p4::TestCommand {
+            literals: &command.literals,
+            metal: word("metal"),
+            mode: word("mode"),
+            milli,
+        };
         p4::run_test_command(
             host,
             &mut self.session(),
+            &mut self.powers(),
             *player,
-            &command.literals,
-            word("metal"),
-            word("mode"),
-            milli,
+            &test,
         );
         Flow::Cancel
     }
 
     fn player_changed_dimension(
         &self,
-        host: &mut dyn ServerHost,
+        _: &mut dyn ServerHost,
         event: &mut PlayerChangedDimensionEvent<'_>,
     ) {
         self.powers()
-            .changed_dimension(host, &mut self.session(), event.player);
+            .changed_dimension(&mut self.session(), event.player);
     }
 
     fn player_logged_in(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedInEvent<'_>) {
