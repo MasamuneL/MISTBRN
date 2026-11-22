@@ -201,6 +201,43 @@ Seis ítems con receta, arte original provisional y traducciones. Valores provis
 
 Ninguna receta del mod coincide con una vanilla: un lingote solo sigue dando pepitas (D1 lo comprueba). También cierra los pendientes de la revisión de P3a: una bebida por jugador y slot en cada tick, mensajes con claves de idioma y el límite de Toque de Seda documentado. P4 incorporará la interacción de las monedas con los empujones de acero y los cuchillos arrojadizos (necesitan entidad de proyectil propia). Escenarios: D1 fabrica los seis, D2 equipa capa y pendiente y los conserva tras relanzar, D3 llena la reserva y rechaza el quinto vial con mensaje traducido; regresión C2, C2b, C5 y S9.
 
+### P4 — Hierro y acero
+
+Aprobado el 2026-11-21. Superficie del pin sin fork: `PlayerRef::set_velocity` (el cliente mueve al jugador con su colisión), `EntityRef::{set_velocity,push,velocity,position,eye_position,view_vector,on_ground,reset_fall_distance,hurt}`, `LevelRef::{clip,block,ray_trace_entities,entities_in}`, `host.item_entity`, `register_commands`/`run_mod_command`, `player_died`, `player_changed_dimension`. No hay lectura de tags de bloque: la lista de metales es explícita.
+
+- **Metal** (`core/src/metals.rs`, ids exactos): bloques de hierro, oro y cobre (incluidas variantes oxidadas, enceradas y cortadas), raíles, calderos, yunques, tolva, campana, faroles, placas de presión de peso, `netherite_block`; ítems en el suelo de hierro, oro, cobre, malla y netherita, y del mod (lingotes, virutas, `clip`, `boxing`). Fuera de P4: mobs con armadura, gólems y minecarts.
+- **Física** (`core/src/physics.rs`, pura): `dir` jugador→objetivo; hierro tira (+dir), acero empuja (−dir). `a(d) = A·(1 − d/R)`, A = 0,12 bloques/tick² (0,24 avivado), R = 16 (24 avivado). Bloque = ancla (todo el Δv al jugador); ítem = masa 0,05 (Δv al ítem) salvo ítem `on_ground` empujado hacia abajo (`dir.y < −0,5`): ancla (salto con moneda). Topes: jugador ≤ 1,0 bloque/tick (1,4 avivado), ítem ≤ 2,0. Moneda a > 0,5 bloques/tick que cruza un ser vivo: daño `2 + 4·|v|` (`minecraft:thrown`), la moneda se para. Fuerza hacia arriba sobre el jugador → `reset_fall_distance`.
+- **Objetivo**: al empezar a arder o sin objetivo, rayo desde los ojos según la mirada hasta R; el impacto metálico más cercano (bloque por `clip`, entidad por `ray_trace_entities` con margen 0,3); no atraviesa bloques. Se mantiene mientras sea válido; si no, `target_cleared` y la combustión sigue.
+- **Núcleo**: `Activate`/`Flare` habilitados solo para Iron y Steel. Hasta P7a, arder = actuar; si arden ambos, gana el último activado. Consumo de P2 (10 milésimas/tick, ×3 avivado), con o sin objetivo. Muerte limpia objetivo y reserva; cambio de dimensión limpia objetivo y apaga hierro y acero.
+- **Activación de prueba**: comando `/mistbrn-test burn <iron|steel> [flare]`, `/mistbrn-test off`, `/mistbrn-test credit <metal> <milli>` (desbloquea y acredita sin vial). Se registra solo con `MISTBRN_TEST_SCENARIO` definida (valor `p4` en estos escenarios).
+
+Contrato de log (lo leen los escenarios):
+```text
+MISTBRN event=burn metal=<iron|steel> burn=<burning|flared|off> result=<ok|<RuleError>>
+MISTBRN event=target_acquired kind=<block|item> id=<namespace:path> at=<x>,<y>,<z>
+MISTBRN event=target_cleared reason=<broken|gone|range|dimension|death|off|exhausted>
+MISTBRN p4 tick=<n> metal=<iron|steel> pos=<x>,<y>,<z> vel=<x>,<y>,<z> target=<block|item|none> dist=<d> dv=<x>,<y>,<z> anchor=<true|false>
+MISTBRN p4item tick=<n> entity=<id> pos=<x>,<y>,<z> vel=<x>,<y>,<z>
+MISTBRN event=coin_hit entity=<namespace:path> speed=<v> damage=<f>
+MISTBRN event=exhausted metal=<iron|steel>
+```
+Flotantes con 3 decimales; `pos`/`vel` del jugador son las del servidor en ese tick.
+
+| Escenario | Montaje (plataforma de piedra en y = 100, creativo salvo N3) | Esperado |
+|---|---|---|
+| N1 tirón | `iron_block` a 12 bloques en +x, mirándolo, `burn iron` | x crece; Δx por tick ≤ 1,05; x final ≤ cara − 0,25; nunca dentro del bloque |
+| N2 muro | `iron_block` delante, vidrio 4 bloques detrás, `burn steel` | x se para contra el vidrio (cara + 0,3 ± 0,05) |
+| N3 moneda | supervivencia, `clip` bajo los pies, mirando abajo, `burn steel` | y sube y flota (oscilación ≤ 1); vy ≤ tope; al apagar cae |
+| N4 ítem | `iron_ingot` a 6 bloques, `burn iron` | el ítem llega y se recoge; el jugador se mueve ≤ 0,05 |
+| N5 proyectil | zombi `NoAI` a 8 bloques, `clip` 1,5 delante, `burn steel` | moneda ≤ 2,0; salud del zombi baja; un `coin_hit` |
+| N6 avivado | N1 a 20 bloques con `flare` | Δx ≤ 1,45; consumo ×3 |
+| N7 agotamiento | `credit iron 200`, N1 | `exhausted metal=iron` a los 20 ticks; sin `p4` después |
+| N8 muerte | N1, `kill @s` a mitad, `respawn` | `target_cleared reason=death`; reserva 0; sin `p4` después |
+| N9 dimensión | N1, `execute in minecraft:the_nether run tp @s 0 100 0` | `reason=dimension`; hierro Off |
+| N10 inválido | N1, `setblock` del bloque a aire a mitad | `reason=broken`; ningún `p4` con `target=block` después |
+
+Gates: `tools/check.sh`, N1–N10 en un build con árbol limpio, regresión S1, S5, S8, S9 y C2, evidencia `docs/evidence/p4.md` y dos revisiones. Valores de ensayo, no de balance.
+
 ---
 
 ## Archivos críticos
