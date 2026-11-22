@@ -15,6 +15,14 @@ v1_craft_primer() {
 
 # v1_use ITEM: finish one held use in Survival.
 v1_use() {
+  local screen _
+  # A use sent with any screen open never starts: close until the game is back to playing.
+  for _ in 1 2 3; do
+    screen="$(ctl state | jq -r '.screen | if . == null then "playing" elif type == "string" then . else (.kind // .name // tojson) end')"
+    [[ "$screen" == playing ]] && break
+    ctl close >/dev/null || true; ctl wait 10 >/dev/null
+  done
+  [[ "$screen" == playing ]] || k_fail "screen '$screen' still open before using $1"
   ctl select "$1" >/dev/null; ctl wait 5 >/dev/null
   ctl inventory > "$dir/before-use-$v1_uses.json" || true
   ctl use-item --hold 1.8 > "$dir/use-$v1_uses.json" || true
