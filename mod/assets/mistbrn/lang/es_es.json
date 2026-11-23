@@ -48,7 +48,7 @@
   "item.mistbrn.zinc_ingot": "Lingote de zinc",
   "itemGroup.mistbrn.allomancy": "Alomancia",
   "key.category.mistbrn.allomancy": "Alomancia",
-  "key.mistbrn.cycle_pair": "Siguiente pareja de metales",
+  "key.mistbrn.cycle_pair": "Rueda de parejas (mantener) / siguiente (toque)",
   "key.mistbrn.flare": "Avivar",
   "key.mistbrn.off": "Apagar todo",
   "key.mistbrn.test_fuzz": "Prueba: peticiones inválidas",
@@ -60,5 +60,6 @@
   "item.mistbrn.primer_iron_steel": "Cartilla: hierro y acero",
   "message.mistbrn.primer.unlocked": "Alomancia: ya puedes quemar hierro y acero.",
   "message.mistbrn.primer.known": "Alomancia: ya conoces el hierro y el acero; conservas la cartilla.",
-  "message.mistbrn.primer.failed": "Alomancia: no se pudo estudiar la cartilla; no cambió nada."
+  "message.mistbrn.primer.failed": "Alomancia: no se pudo estudiar la cartilla; no cambió nada.",
+  "hud.mistbrn.wheel_hint": "Mantén V · apunta · suelta para elegir"
 }

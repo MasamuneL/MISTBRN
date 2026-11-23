@@ -18,12 +18,16 @@ fn rules() -> ReserveRules {
     }
 }
 
-const REQUESTS: [ControlRequest; 5] = [
+const REQUESTS: [ControlRequest; 9] = [
     ControlRequest::CyclePair,
     ControlRequest::Toggle(Side::First),
     ControlRequest::Toggle(Side::Second),
     ControlRequest::ToggleFlare,
     ControlRequest::Off,
+    ControlRequest::SelectPair(Pair::IronSteel),
+    ControlRequest::SelectPair(Pair::TinPewter),
+    ControlRequest::SelectPair(Pair::ZincBrass),
+    ControlRequest::SelectPair(Pair::CopperBronze),
 ];
 
 #[test]
@@ -45,13 +49,13 @@ fn control_rejects_every_other_length() {
     }
 }
 
-// Every byte string of the right length decodes only when it is one of the five requests.
+// Every byte string of the right length decodes only when it is one of the nine requests.
 #[test]
 fn control_rejects_every_unknown_byte() {
     let valid: Vec<[u8; 3]> = REQUESTS.iter().map(|r| encode_control(*r)).collect();
     for version in [0u8, 1, 2, 255] {
         for op in 0..=255u8 {
-            for arg in [0u8, 1, 2, 255] {
+            for arg in [0u8, 1, 2, 3, 4, 255] {
                 let bytes = [version, op, arg];
                 let decoded = decode_control(&bytes);
                 if valid.contains(&bytes) {
@@ -60,7 +64,7 @@ fn control_rejects_every_unknown_byte() {
                 }
                 let expected = if version != CONTROL_VERSION {
                     ControlError::Version(version)
-                } else if (1..=4).contains(&op) {
+                } else if (1..=5).contains(&op) {
                     ControlError::Arg { op, arg }
                 } else {
                     ControlError::Op(op)
@@ -244,4 +248,42 @@ fn hud_rejects_malformed_bytes() {
     assert_eq!(poke(3, 3), Err(HudError::Burn(3)));
     // Reserve above capacity.
     assert_eq!(poke(2 + 5, 0xFF), Err(HudError::Reserve));
+}
+
+#[test]
+fn select_pair_names_that_pair_on_the_wire_and_in_the_command() {
+    let state = state();
+    for (code, pair) in PAIRS.into_iter().enumerate() {
+        let bytes = encode_control(ControlRequest::SelectPair(pair));
+        assert_eq!(bytes, [CONTROL_VERSION, 5, code as u8]);
+        assert_eq!(
+            resolve_control(&state, ControlRequest::SelectPair(pair)),
+            Some(Command::SelectPair { pair })
+        );
+    }
+    assert_eq!(
+        decode_control(&[CONTROL_VERSION, 5, 4]),
+        Err(ControlError::Arg { op: 5, arg: 4 })
+    );
+}
+
+#[test]
+fn selecting_a_locked_pair_is_allowed_and_lights_nothing() {
+    let mut state = PlayerState::new(PlayerId::new("p"), WorldId::new("local"));
+    let command = resolve_control(&state, ControlRequest::SelectPair(Pair::ZincBrass)).unwrap();
+    let snapshot = WorldSnapshot {
+        tick: Tick(1),
+        world_id: WorldId::new("local"),
+        actor: PlayerId::new("p"),
+        position: Vec3::default(),
+        targets: vec![],
+        authority: Authority::Server,
+        input: InputContext {
+            gameplay_allowed: true,
+        },
+    };
+    let effects = apply_command(&mut state, command, &snapshot).unwrap();
+    assert_eq!(state.selected_pair, Pair::ZincBrass);
+    assert!(state.metals.iter().all(|m| m.burn == BurnState::Off));
+    assert_eq!(effects.len(), 1);
 }

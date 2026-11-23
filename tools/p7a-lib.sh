@@ -93,7 +93,7 @@ k_hud_last() {
   grep -a "MISTBRN hud pair=" "$(log 1)" | tail -1 | tr ' ' '\n' | sed -n "s/^$1=\([0-9]*\)\/.*/\1/p"
 }
 
-# k_scenario: runs K1-K7; returns 1 for any other scenario name.
+# k_scenario: runs K1-K9; returns 1 for any other scenario name.
 k_scenario() {
   local server hud
   case "$scenario" in
@@ -124,6 +124,27 @@ k_scenario() {
       k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" pair:zinc_brass=ok \
         pair:copper_bronze=ok pair:iron_steel=ok activate:iron=ok off:all=ok
       k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100 ;;
+    k9)  # Hold V: the pair wheel opens; a click on its right slot chooses tin/pewter, Z then
+      # acts on tin. Its GUI size comes from the mod's log (event=wheel_open gui=WxH).
+      p4_fixture
+      k_credit iron
+      ctl key v down >/dev/null; ctl wait 5 >/dev/null
+      k_screen k9-wheel '"mod"'
+      local gui w h
+      gui="$({ grep -a "MISTBRN event=wheel_open gui=" "$(log 1)" || true; } | tail -1 | sed 's/.*gui=//')"
+      w="${gui%x*}"; h="${gui#*x}"
+      [[ -n "$gui" ]] || k_fail "the wheel logged no GUI size"
+      ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
+      ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 + 44 }')" \
+        "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 }')" >/dev/null || k_fail "click on the wheel failed"
+      ctl wait 5 >/dev/null
+      ctl key v up >/dev/null; ctl wait 5 >/dev/null
+      k_screen k9-closed playing
+      k_key z; k_key g
+      quit_game
+      k_expect_count "wheel chose tin/pewter" "MISTBRN event=wheel result=select:tin_pewter" 1 1
+      k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" off:all=ok
+      if [[ -s "$dir/k9-wheel.png" ]]; then k_ok "screenshot $dir/k9-wheel.png (local, not versioned)"; fi ;;
     k4|k5)  # Nothing lights with the chat (K4) or the inventory (K5) open; it does once closed.
       p4_fixture
       k_credit iron

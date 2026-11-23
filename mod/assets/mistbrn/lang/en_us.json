@@ -48,7 +48,7 @@
   "item.mistbrn.zinc_ingot": "Zinc Ingot",
   "itemGroup.mistbrn.allomancy": "Allomancy",
   "key.category.mistbrn.allomancy": "Allomancy",
-  "key.mistbrn.cycle_pair": "Next metal pair",
+  "key.mistbrn.cycle_pair": "Pair wheel (hold) / next pair (tap)",
   "key.mistbrn.flare": "Flare",
   "key.mistbrn.off": "Extinguish all",
   "key.mistbrn.test_fuzz": "Test: malformed requests",
@@ -60,5 +60,6 @@
   "item.mistbrn.primer_iron_steel": "Primer: Iron & Steel",
   "message.mistbrn.primer.unlocked": "Allomancy: you can now burn iron and steel.",
   "message.mistbrn.primer.known": "Allomancy: you already know iron and steel; the primer was kept.",
-  "message.mistbrn.primer.failed": "Allomancy: the primer could not be studied; nothing changed."
+  "message.mistbrn.primer.failed": "Allomancy: the primer could not be studied; nothing changed.",
+  "hud.mistbrn.wheel_hint": "Hold V · point · release to choose"
 }

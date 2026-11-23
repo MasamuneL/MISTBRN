@@ -643,7 +643,7 @@ case "$scenario" in
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
     expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
-  k[1-8])  # P7a keys and HUD (tools/p7a-lib.sh)
+  k[1-9])  # P7a keys, HUD and the pair wheel (tools/p7a-lib.sh)
     k_scenario ;;
   u[1-5]|v1)  # V1 primer and player path (tools/v1-lib.sh)
     v1_scenario ;;

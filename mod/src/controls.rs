@@ -77,6 +77,7 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         "toggle_second" => ControlRequest::Toggle(Side::Second),
         "flare" => ControlRequest::ToggleFlare,
         "off" => ControlRequest::Off,
+        "select_tin_pewter" => ControlRequest::SelectPair(Pair::TinPewter),
         _ => {
             eprintln!("MISTBRN event=test_command result=unknown");
             return;
@@ -123,6 +124,7 @@ fn op_name(request: ControlRequest) -> &'static str {
         ControlRequest::Toggle(Side::Second) => "toggle_second",
         ControlRequest::ToggleFlare => "flare",
         ControlRequest::Off => "off",
+        ControlRequest::SelectPair(_) => "select",
     }
 }
 

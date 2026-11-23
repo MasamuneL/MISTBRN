@@ -8,6 +8,7 @@ mod bridge;
 mod client;
 mod content;
 mod controls;
+mod hud;
 mod p4;
 mod save;
 mod scenario;
@@ -20,7 +21,8 @@ use mod_api::{
     PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
     PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
     RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
-    RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    RunModCommandEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -266,6 +268,34 @@ impl Hooks for Allomancy {
 
     fn gui_layer_draw(&self, host: &dyn ClientHost, event: &mut GuiLayerDrawEvent<'_>) {
         client::draw(host, event.layer, event.draw);
+    }
+
+    fn screen_render_post(&self, host: &dyn ClientHost, event: &mut ScreenRenderPostEvent<'_>) {
+        client::screen_draw(host, event.draw);
+    }
+
+    fn screen_key_released_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenKeyReleasedPreEvent<'_>,
+    ) -> Flow {
+        if client::key_released(host, event.key) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
+    }
+
+    fn screen_mouse_button_pressed_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenMouseButtonPressedPreEvent<'_>,
+    ) -> Flow {
+        if client::mouse_pressed(host, event.button) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
     }
 
     fn client_player_logging_out(

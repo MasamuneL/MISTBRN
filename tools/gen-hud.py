@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the reserve HUD's sprite sheet (mod/assets/mistbrn/textures/gui/hud.png).
+"""Generate the reserve HUD's sprite sheet (mod/assets/mistbrn/textures/gui/hud.png, 128x64).
 
 Original pixel art for this mod: a bevelled pewter frame with brass studs, framed bars with
 gradient fills, metal gems, a lock and two flames. Standard library only (zlib + struct).
@@ -11,7 +11,7 @@ import struct
 import sys
 import zlib
 
-W, H = 128, 32
+W, H = 128, 64
 px = [[(0, 0, 0, 0)] * W for _ in range(H)]
 
 
@@ -144,6 +144,73 @@ GEM = [
 for index, (hi, mid, lo) in enumerate(METALS):
     light = tuple((a + b) // 2 for a, b in zip(hexc(hi)[:3], hexc(mid)[:3])) + (255,)
     art(8 * index, 24, GEM, {"o": OUTLINE, "H": hexc(hi), "L": light, "M": hexc(mid), "S": hexc(lo)})
+
+
+# --- Wheel slots, 24x24 (SPRITE_SLOT at 0,32 silver, 24,32 brass = current, 48,32 hovered) ----
+def slot(x0, hi, mid, lo, glow=None):
+    rect(x0 + 1, 33, 22, 22, hexc("10131a", 0xD8))  # window
+    rect(x0 + 1, 32, 22, 1, OUTLINE); rect(x0 + 1, 55, 22, 1, OUTLINE)
+    rect(x0, 33, 1, 22, OUTLINE); rect(x0 + 23, 33, 1, 22, OUTLINE)
+    rect(x0 + 1, 33, 22, 1, hi); rect(x0 + 1, 33, 1, 22, hi)
+    rect(x0 + 1, 54, 22, 1, lo); rect(x0 + 22, 33, 1, 22, lo)
+    rect(x0 + 2, 34, 20, 1, mid); rect(x0 + 2, 34, 1, 20, mid)
+    rect(x0 + 2, 53, 20, 1, mid); rect(x0 + 21, 34, 1, 20, mid)
+    rect(x0 + 3, 35, 18, 1, OUTLINE); rect(x0 + 3, 35, 1, 18, OUTLINE)
+    rect(x0 + 3, 52, 18, 1, OUTLINE); rect(x0 + 20, 35, 1, 18, OUTLINE)
+    for cx, cy in ((x0 + 1, 33), (x0 + 21, 33), (x0 + 1, 53), (x0 + 21, 53)):  # corner knobs
+        put(cx, cy, hi); put(cx + 1, cy, mid); put(cx, cy + 1, mid); put(cx + 1, cy + 1, lo)
+    if glow:
+        rect(x0 + 4, 36, 16, 1, glow); rect(x0 + 4, 36, 1, 16, glow)
+        rect(x0 + 4, 51, 16, 1, glow); rect(x0 + 19, 36, 1, 16, glow)
+
+
+slot(0, hexc("e8ecf4"), hexc("a8aebc"), hexc("5a606c"))
+slot(24, BRASS_HI, BRASS, BRASS_LO)
+slot(48, hexc("ffffff"), hexc("d8e4f4"), hexc("8a96a8"), glow=hexc("cfe0ff", 0x90))
+
+# --- Centre ring 24x24 (SPRITE_RING at 72,32): an octagon of pewter ---------------------------
+RING = [
+    "........oooooooo........",
+    "......ooHHHHHHHHoo......",
+    ".....oHPoooooooooPHo....",
+    "....oHPo........oPHo....",
+    "...oHPo..........oPHo...",
+    "..oHPo............oPHo..",
+    ".oHPo..............oPHo.",
+    "oHPo................oPHo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    "oHPo................oPLo",
+    ".oHPo..............oPLo.",
+    "..oHPo............oPLo..",
+    "...oHPo..........oPLo...",
+    "....oHPo........oPLo....",
+    ".....oPPoooooooooPLo....",
+    "......ooLLLLLLLLoo......",
+    "........oooooooo........",
+    "........................",
+]
+art(72, 32, RING, {"o": OUTLINE, "H": PEWTER_HI, "P": PEWTER, "L": PEWTER_LO})
+
+# --- Big metal gems 8x8 for the wheel (SPRITE_BIG_METAL at 0,56 + 8 * index) -----------------
+BIG = [
+    "..oooo..",
+    ".oHHLMo.",
+    "oHHLMMMo",
+    "oHLMMMSo",
+    "oLMMMSSo",
+    "oMMMSSSo",
+    ".oMSSSo.",
+    "..oooo..",
+]
+for index, (hi, mid, lo) in enumerate(METALS):
+    light = tuple((a + b) // 2 for a, b in zip(hexc(hi)[:3], hexc(mid)[:3])) + (255,)
+    art(8 * index, 56, BIG, {"o": OUTLINE, "H": hexc(hi), "L": light, "M": hexc(mid), "S": hexc(lo)})
 
 
 def png(rows):
