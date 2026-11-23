@@ -269,10 +269,17 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
     if hud.pair != Pair::IronSteel {
         title = format!("{title} · {}", tr(host, "hud.mistbrn.unavailable"));
     }
-    let width = PANEL_MIN_W
+    // A metal row: gem and name column, framed bar, flame and the longest state word in
+    // the game's language. The panel never gets narrower than that.
+    let state_w = draw
+        .text_width(&tr(host, "hud.mistbrn.burning"))
+        .max(draw.text_width(&tr(host, "hud.mistbrn.flared")));
+    let row_w = (BAR_COLUMN + SPRITE_FRAME[2] + 3.0 + SPRITE_FLAME[2] + 2.0 + state_w + 2.0 * PAD)
+        .max(PANEL_MIN_W);
+    let width = row_w
         .max(draw.text_width(&others_line) + 2.0 * PAD)
         .max(draw.text_width(&title) + 2.0 * PAD)
-        .min((gui_width / 2.0 - BOSS_BAR_HALF - 6.0).max(PANEL_MIN_W));
+        .min((gui_width / 2.0 - BOSS_BAR_HALF - 6.0).max(row_w));
     let panel = [2.0, 2.0, width, lines * LINE + 2.0 * PAD - 2.0];
     let textured = nine_slice(draw, panel);
     if !textured {
