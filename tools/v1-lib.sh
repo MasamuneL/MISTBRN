@@ -53,8 +53,10 @@ v1_scenario() {
   case "$scenario" in
     u1)  # Craft and use one primer; both unlocks survive a save and a relaunch.
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
-      # Cleared lane: spawn terrain (leaves) can hide the crafting table's faces.
+      # Cleared lane: spawn terrain (leaves) can hide the crafting table's faces. Let the player
+      # settle after the teleport, or the table is aimed at from below the floor.
       v1_pull_fixture
+      ctl wait 20 >/dev/null
       ctl command "gamemode survival" >/dev/null
       ctl give book 1 >/dev/null; ctl give iron_ingot 2 >/dev/null; ctl give coal 2 >/dev/null
       ctl wait 10 >/dev/null
