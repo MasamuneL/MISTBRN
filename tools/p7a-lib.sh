@@ -93,6 +93,21 @@ k_hud_last() {
   grep -a "MISTBRN hud pair=" "$(log 1)" | tail -1 | tr ' ' '\n' | sed -n "s/^$1=\([0-9]*\)\/.*/\1/p"
 }
 
+# k_gui_size PNG: the GUI size in GUI pixels ("W H") for a window screenshot, as the game
+# scales it: options.txt guiScale, or for auto (0) the largest scale that keeps 320x240.
+k_gui_size() {
+  local hex fw fh scale
+  hex="$(od -An -tx1 -j16 -N8 "$1" 2>/dev/null | tr -d '[:space:]')" || return 0
+  [[ ${#hex} == 16 ]] || return 0
+  fw=$((16#${hex:0:8})); fh=$((16#${hex:8:8}))
+  scale="$(sed -n 's/^guiScale://p' "$dir/options.txt" 2>/dev/null | tail -1)"
+  if [[ -z "$scale" || "$scale" == 0 ]]; then
+    scale=1
+    while (( fw / (scale + 1) >= 320 && fh / (scale + 1) >= 240 )); do scale=$((scale + 1)); done
+  fi
+  awk -v fw="$fw" -v fh="$fh" -v s="$scale" 'BEGIN { printf "%.2f %.2f", fw / s, fh / s }'
+}
+
 # k_scenario: runs K1-K9; returns 1 for any other scenario name.
 k_scenario() {
   local server hud
@@ -132,16 +147,11 @@ k_scenario() {
       k_screen k9-wheel '"mod"'
       # The screenshot waits for a drawn frame, so the wheel has logged its size by then.
       ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
-      ctl screen > "$dir/k9-screen.json" 2>/dev/null || true
-      # The game's log reaches its file late: wait for the wheel's size line.
-      local gui="" w h _
-      for _ in $(seq 1 20); do
-        gui="$({ grep -a "MISTBRN event=wheel_open gui=" "$(log 1)" || true; } | tail -1 | sed 's/.*gui=//')"
-        [[ -n "$gui" ]] && break
-        ctl wait 2 >/dev/null
-      done
-      w="${gui%x*}"; h="${gui#*x}"
-      [[ -n "$gui" ]] || k_fail "the wheel logged no GUI size"
+      # The game's log reaches its file only later, so the GUI size comes from the screenshot.
+      local gui w h
+      gui="$(k_gui_size "$dir/k9-wheel.png")"
+      w="${gui% *}"; h="${gui#* }"
+      [[ -n "$gui" ]] || k_fail "no GUI size from the screenshot"
       ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 + 44 }')" \
         "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 }')" >/dev/null || k_fail "click on the wheel failed"
       ctl wait 5 >/dev/null
