@@ -132,8 +132,14 @@ k_scenario() {
       k_screen k9-wheel '"mod"'
       # The screenshot waits for a drawn frame, so the wheel has logged its size by then.
       ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
-      local gui w h
-      gui="$({ grep -a "MISTBRN event=wheel_open gui=" "$(log 1)" || true; } | tail -1 | sed 's/.*gui=//')"
+      ctl screen > "$dir/k9-screen.json" 2>/dev/null || true
+      # The game's log reaches its file late: wait for the wheel's size line.
+      local gui="" w h _
+      for _ in $(seq 1 20); do
+        gui="$({ grep -a "MISTBRN event=wheel_open gui=" "$(log 1)" || true; } | tail -1 | sed 's/.*gui=//')"
+        [[ -n "$gui" ]] && break
+        ctl wait 2 >/dev/null
+      done
       w="${gui%x*}"; h="${gui#*x}"
       [[ -n "$gui" ]] || k_fail "the wheel logged no GUI size"
       ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 + 44 }')" \
