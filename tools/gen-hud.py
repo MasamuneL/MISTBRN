@@ -145,8 +145,9 @@ def draw_atlas():
     # Bar frames, fills and endpoint marker. The coordinates match mod/src/hud.rs.
     bar_frame(16, 0, BRASS_HIGH, BRASS_MID, BRASS_LOW)
     bar_frame(96, 8, COPPER_HIGH, COPPER_MID, COPPER_LOW)
-    fill(8, (color("FFE9B0"), color("D5B36B"), color("A88A4D"), BRASS_LOW), (1, 2))
-    fill(12, tuple(map(color, ("FFD9A8", "E8914F", "B85E2C", "73361C"))), (0, 1, 2))
+    # Burning reads as warm yellow, flared as orange: both clearly apart from the steel "off".
+    fill(8, tuple(map(color, ("FFF0A8", "F2C744", "C9961E", "7A5814"))), (1, 2))
+    fill(12, tuple(map(color, ("FFD49A", "F28A34", "C2561A", "6E2E14"))), (0, 1, 2))
     fill(16, (color("A8AEB7"), color("848B95"), color("656B74"), STEEL_LOW), (2,))
 
     art(80, 0, (
@@ -180,7 +181,7 @@ def draw_atlas():
         "oemcmeo",
         "oeemeeo",
         ".ooooo.",
-    ), {"o": OUTLINE, "e": color("946538"), "m": color("D4A351"), "c": color("FFE9B0")})
+    ), {"o": OUTLINE, "e": color("9A6A1C"), "m": color("F2C744"), "c": color("FFF0A8")})
     art(104, 0, (
         "..o....",
         ".omo.o.",
@@ -190,7 +191,7 @@ def draw_atlas():
         "omccmeo",
         ".oemmo.",
         "..ooo..",
-    ), {"o": OUTLINE, "e": color("9E4426"), "m": color("E8914F"), "c": color("FFE6BF")})
+    ), {"o": OUTLINE, "e": color("9A3A18"), "m": color("F28A34"), "c": color("FFE2B0")})
 
     # Small reserve tiles and big wheel tiles in Metal::ALL order.
     for index, palette in enumerate(METALS):
