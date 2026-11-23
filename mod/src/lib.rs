@@ -271,7 +271,7 @@ impl Hooks for Allomancy {
     }
 
     fn screen_render_post(&self, host: &dyn ClientHost, event: &mut ScreenRenderPostEvent<'_>) {
-        client::screen_draw(host, event.draw);
+        client::screen_draw(host, event.screen.mouse, event.draw);
     }
 
     fn screen_key_released_pre(
@@ -291,7 +291,7 @@ impl Hooks for Allomancy {
         host: &dyn ClientHost,
         event: &mut ScreenMouseButtonPressedPreEvent<'_>,
     ) -> Flow {
-        if client::mouse_pressed(host, event.button) {
+        if client::mouse_pressed(host, event.screen.mouse, event.button) {
             Flow::Cancel
         } else {
             Flow::Continue

@@ -259,11 +259,12 @@ pub(crate) fn draw_wheel(
             true,
         );
     }
+    // The hint goes above the title: below the wheel sit the chat and the hotbar.
     let hint = tr(host, "hud.mistbrn.wheel_hint");
-    let bottom = cy + WHEEL_RADIUS + SLOT[3] / 2.0 + 8.0;
+    let hint_y = cy - WHEEL_RADIUS - SLOT[3] / 2.0 - 38.0;
     draw.text(
         &hint,
-        [cx - draw.text_width(&hint) / 2.0, bottom],
+        [cx - draw.text_width(&hint) / 2.0, hint_y],
         DIM,
         true,
     );

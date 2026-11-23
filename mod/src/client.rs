@@ -61,8 +61,9 @@ struct Wheel {
     opened: u64,
     hovered: Option<Pair>,
     action: Option<WheelAction>,
-    /// Its GUI size is logged once, on the first frame (scenarios click its slots from it).
-    logged: bool,
+    /// The GUI size of the last frame (clicks pick their slot against it); logged once, on
+    /// the first frame, for scenarios that click its slots.
+    size: Option<[f32; 2]>,
 }
 
 struct ClientState {
@@ -187,7 +188,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
                         opened: state.ticks,
                         hovered: None,
                         action: None,
-                        logged: false,
+                        size: None,
                     });
                 } else {
                     eprintln!("MISTBRN event=key key={id}");
@@ -238,6 +239,27 @@ fn wheel_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Ve
     } else if !wheel_open(host) && state.ticks > wheel.opened + 1 {
         state.wheel = None;
         eprintln!("MISTBRN event=wheel result=closed");
+    } else if wheel_open(host) && !wheel_key_down(host) {
+        // V is up: the screen's release event may not come (a key let go as the screen opened,
+        // a release the window never saw), so the key's own state decides, once a tick.
+        let ticks = state.ticks;
+        wheel.action = Some(release_action(wheel, ticks));
+    }
+}
+
+/// The physical key bound to the wheel is held (with a screen open, mappings read as up).
+fn wheel_key_down(host: &dyn ClientHost) -> bool {
+    host.mod_key(MOD_ID, WHEEL_KEY)
+        .is_some_and(|(key, _)| host.is_key_down(&key))
+}
+
+/// What letting V go does: the slot under the cursor; in the centre, a quick tap is the next
+/// pair (as before the wheel) and a long hold changes nothing.
+fn release_action(wheel: &Wheel, ticks: u64) -> WheelAction {
+    match wheel.hovered {
+        Some(pair) => WheelAction::Select(pair),
+        None if ticks.saturating_sub(wheel.opened) <= TAP_TICKS => WheelAction::Cycle,
+        None => WheelAction::Close,
     }
 }
 
@@ -278,7 +300,9 @@ pub(crate) fn draw(_: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) 
     if layer != HUD_LAYER {
         return;
     }
-    if let Some(hud) = state().hud {
+    let state = state();
+    // The wheel shows the reserves itself; the bars would sit under its hint.
+    if let (Some(hud), None) = (state.hud, state.wheel.as_ref()) {
         hud::draw_reserves(draw, &hud);
     }
 }
@@ -288,29 +312,27 @@ fn wheel_open(host: &dyn ClientHost) -> bool {
 }
 
 /// Over our own screen (the wheel): track the slot under the cursor and draw it.
-pub(crate) fn screen_draw(host: &dyn ClientHost, draw: &mut dyn DrawContext) {
+pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut dyn DrawContext) {
     if !wheel_open(host) {
         return;
     }
-    let hovered = hud::hovered(draw.size(), host.cursor());
+    let size = draw.size();
+    let hovered = hud::hovered(size, pointer);
     let hud = {
         let mut state = state();
         if let Some(wheel) = state.wheel.as_mut() {
             wheel.hovered = hovered;
-            if !wheel.logged {
-                wheel.logged = true;
-                let [w, h] = draw.size();
-                eprintln!("MISTBRN event=wheel_open gui={w}x{h}");
+            if wheel.size.is_none() {
+                eprintln!("MISTBRN event=wheel_open gui={}x{}", size[0], size[1]);
             }
+            wheel.size = Some(size);
         }
         state.hud
     };
     hud::draw_wheel(host, draw, hud.as_ref(), hovered);
 }
 
-/// V let go over the wheel: choose the slot under the cursor; in the centre, a quick tap
-/// moves to the next pair as before the wheel and a long hold changes nothing. True when the
-/// release was ours.
+/// V let go over the wheel (`release_action`). True when the release was ours.
 pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
     if !wheel_open(host)
         || host
@@ -324,24 +346,22 @@ pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
     let mut state = state();
     let ticks = state.ticks;
     if let Some(wheel) = state.wheel.as_mut() {
-        wheel.action.get_or_insert(match wheel.hovered {
-            Some(pair) => WheelAction::Select(pair),
-            None if ticks.saturating_sub(wheel.opened) <= TAP_TICKS => WheelAction::Cycle,
-            None => WheelAction::Close,
-        });
+        let action = release_action(wheel, ticks);
+        wheel.action.get_or_insert(action);
     }
     true
 }
 
-/// A left click over the wheel chooses the slot under the cursor. True when it was ours.
-pub(crate) fn mouse_pressed(host: &dyn ClientHost, button: i32) -> bool {
+/// A left click over the wheel chooses the slot under the pointer. True when it was ours.
+pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i32) -> bool {
     if !wheel_open(host) || button != 0 {
         return false;
     }
     let mut state = state();
     if let Some(wheel) = state.wheel.as_mut()
-        && let Some(pair) = wheel.hovered
+        && let Some(pair) = wheel.size.and_then(|size| hud::hovered(size, pointer))
     {
+        wheel.hovered = Some(pair);
         wheel.action.get_or_insert(WheelAction::Select(pair));
     }
     true

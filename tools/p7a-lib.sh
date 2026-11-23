@@ -130,11 +130,12 @@ k_scenario() {
       k_credit iron
       ctl key v down >/dev/null; ctl wait 5 >/dev/null
       k_screen k9-wheel '"mod"'
+      # The screenshot waits for a drawn frame, so the wheel has logged its size by then.
+      ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
       local gui w h
       gui="$({ grep -a "MISTBRN event=wheel_open gui=" "$(log 1)" || true; } | tail -1 | sed 's/.*gui=//')"
       w="${gui%x*}"; h="${gui#*x}"
       [[ -n "$gui" ]] || k_fail "the wheel logged no GUI size"
-      ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
       ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 + 44 }')" \
         "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 }')" >/dev/null || k_fail "click on the wheel failed"
       ctl wait 5 >/dev/null
