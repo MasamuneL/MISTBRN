@@ -1,6 +1,6 @@
 # Estado — Masamune's MISTBRN
 
-Actualizado el 2026-11-22.
+Actualizado el 2026-11-23.
 
 ## Integrado en main (P7a, al integrar la PR #12)
 
@@ -17,14 +17,14 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## En curso: V1 (rama `feat/v1-unlock`, PR #13)
 
-Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. HUD nuevo junto al hotbar, solo con la pareja actual, y rueda de parejas en V (op 5 «elegir pareja»); assets originales acordados y aprobados por Claude y Codex. Batería final con el build `v1-10` (`8033aa0`): U1–U5, v1, K1–K9, C2, S1 y N1, 18/18 PASS. Revisión de código: Codex y Gemini APROBADO en las dos rondas. [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
+Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. La cartilla selecciona su pareja y las teclas que no pueden actuar avisan sobre el hotbar (arreglos tras la partida del usuario). HUD nuevo junto al hotbar, solo con la pareja actual, y rueda de parejas en V (op 5 «elegir pareja»); assets originales acordados y aprobados por Claude y Codex. Batería final con el build `v1-12` (`3544cca`): U1–U5, v1, K1–K9, C2, S1 y N1, 18/18 PASS. Revisión de código: Codex y Gemini APROBADO en las tres rondas. [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
 
 ## Reanudación
 
 - Rama activa: `feat/v1-unlock` (desde `main` `6d440f4`); worktree `../MISTBRN-v1` (`wip/v1-scenario`) solo para el escenario de Codex, ya integrado.
 - Fase y paso: V1, PR #13 revisada y con la batería final en verde; falta la evaluación humana y la aprobación del merge.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: batería final con `v1-10`, 18/18 PASS; capturas `runs/v1-10-{v1,k9,k6}` revisadas.
+- Último resultado: batería final con `v1-12`, 18/18 PASS; captura `runs/v1-12-v1/v1-hud.png` revisada. El build `v1-12` está seleccionado en `mistbrn-dev` para la evaluación del usuario.
 
 ## Siguiente acción exacta
 
