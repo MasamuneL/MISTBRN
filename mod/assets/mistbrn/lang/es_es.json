@@ -61,5 +61,8 @@
   "message.mistbrn.primer.unlocked": "Alomancia: ya puedes quemar hierro y acero.",
   "message.mistbrn.primer.known": "Alomancia: ya conoces el hierro y el acero; conservas la cartilla.",
   "message.mistbrn.primer.failed": "Alomancia: no se pudo estudiar la cartilla; no cambió nada.",
-  "hud.mistbrn.wheel_hint": "Mantén V · apunta · suelta para elegir"
+  "hud.mistbrn.wheel_hint": "Mantén V · apunta · suelta para elegir",
+  "message.mistbrn.metal_locked": "%s bloqueado · mantén V para cambiar de pareja",
+  "message.mistbrn.metal_empty": "%s: sin reserva · bebe un vial",
+  "message.mistbrn.nothing_burning": "Nada arde para avivar"
 }

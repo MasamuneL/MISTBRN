@@ -13,12 +13,12 @@
 use crate::bridge::{Session, metal_name};
 use crate::p4::{Powers, run_core_with};
 use allomancy_core::{
-    BurnState, Command, ControlError, ControlRequest, HudSnapshot, Pair, RequestBudget, Side, Vec3,
-    decode_control, encode_hud, resolve_control,
+    BurnState, Command, ControlError, ControlRequest, HudSnapshot, Metal, Pair, RequestBudget,
+    Side, Vec3, decode_control, encode_hud, resolve_control,
 };
 use mod_api::{
-    Host, IPayloadContext, IPayloadHandler, PayloadBytes, PayloadHandleError, PayloadId, Registrar,
-    ServerHost,
+    Host, IPayloadContext, IPayloadHandler, PayloadBytes, PayloadHandleError, PayloadId, PlayerRef,
+    Registrar, ServerHost, Text,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -115,6 +115,20 @@ pub(crate) struct Controls {
     /// What each player's HUD last accepted (none until a send is queued) and the tick of
     /// the last attempt: a refused send is retried after the interval.
     sent: BTreeMap<u128, (Option<HudSnapshot>, u64)>,
+}
+
+/// One line over the player's hotbar, with the metal's name when there is one.
+fn hint(host: &mut dyn ServerHost, player: PlayerRef, key: &str, metal: Option<Metal>) {
+    let args = metal
+        .map(|metal| {
+            vec![Text::translate(
+                format!("hud.mistbrn.metal.{}", metal_name(metal)),
+                Vec::new(),
+            )]
+        })
+        .unwrap_or_default();
+    eprintln!("MISTBRN event=hint key={key}");
+    let _ = player.action_bar(host, Text::translate(key, args));
 }
 
 fn op_name(request: ControlRequest) -> &'static str {
@@ -254,6 +268,7 @@ impl Controls {
         };
         let Some(command) = resolve_control(saved.state(), request) else {
             eprintln!("MISTBRN event=control op={op} result=nothing_burning changed=0");
+            hint(host, player, "message.mistbrn.nothing_burning", None);
             return;
         };
         let newly_lit = match &command {
@@ -263,6 +278,10 @@ impl Controls {
             _ => false,
         };
         let name = command_name(&command);
+        let lit_metal = match command {
+            Command::Activate { metal } | Command::Flare { metal } => Some(metal),
+            _ => None,
+        };
         let off = matches!(command, Command::Extinguish { .. });
         let position = Vec3 { x, y, z };
         let (result, changed) = run_core_with(session, uuid, position, command, allowed);
@@ -278,6 +297,15 @@ impl Controls {
             "MISTBRN event=control op={op} command={name} allowed={allowed} result={result} \
              changed={changed}"
         );
+        // A key that could not act says why, over the hotbar (none for a captured input: the
+        // player is in a menu and pressed nothing there).
+        if let Some(metal) = lit_metal {
+            if result.starts_with("MetalLocked") {
+                hint(host, player, "message.mistbrn.metal_locked", Some(metal));
+            } else if result.starts_with("EmptyReserve") {
+                hint(host, player, "message.mistbrn.metal_empty", Some(metal));
+            }
+        }
     }
 
     /// Sends each active player's HUD when it changed since the last send.

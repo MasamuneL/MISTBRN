@@ -61,5 +61,8 @@
   "message.mistbrn.primer.unlocked": "Allomancy: you can now burn iron and steel.",
   "message.mistbrn.primer.known": "Allomancy: you already know iron and steel; the primer was kept.",
   "message.mistbrn.primer.failed": "Allomancy: the primer could not be studied; nothing changed.",
-  "hud.mistbrn.wheel_hint": "Hold V · point · release to choose"
+  "hud.mistbrn.wheel_hint": "Hold V · point · release to choose",
+  "message.mistbrn.metal_locked": "%s is locked · hold V to change pair",
+  "message.mistbrn.metal_empty": "%s: no reserve · drink a vial",
+  "message.mistbrn.nothing_burning": "Nothing is burning to flare"
 }

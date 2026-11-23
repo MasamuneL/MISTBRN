@@ -59,10 +59,16 @@ v1_scenario() {
       ctl give book 1 >/dev/null; ctl give iron_ingot 2 >/dev/null; ctl give coal 2 >/dev/null
       ctl wait 10 >/dev/null
       v1_craft_primer
+      # Another pair selected first (a tap of V): studying the primer selects its own pair.
+      k_key v 10
       v1_use mistbrn:primer_iron_steel
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1[[:space:]]*$'
+      expect_log 1 'MISTBRN event=control op=cycle command=pair:tin_pewter allowed=true result=ok'
+      if [[ "$({ grep -a "MISTBRN hud pair=" "$(log 1)" || true; } | tail -1)" == *"pair=iron_steel "* ]]; then
+        k_ok "the primer selected iron/steel"
+      else k_fail "the HUD did not come back to iron/steel after the primer"; fi
       expect 2 report state=active unlocked_iron=true unlocked_steel=true primers=0 last_transaction=1 burn_iron=off \
         reserve_iron=0 ;;
     u2)  # A second primer refuses an unlocked pair and stays in the inventory.

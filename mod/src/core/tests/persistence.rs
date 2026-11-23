@@ -452,6 +452,11 @@ fn write_schema_1_fixture() {
 #[test]
 fn an_unlock_unlocks_the_pair_once_and_keeps_fuel() {
     let mut saved = fresh();
+    update_player(&mut saved, |state, _| {
+        state.selected_pair = Pair::TinPewter;
+        Ok(())
+    })
+    .unwrap();
     let credit = prepare_credit(&saved, Metal::Iron, 25_000).unwrap();
     commit_credit(&mut saved, credit).unwrap();
     let before = saved.clone();
@@ -467,6 +472,11 @@ fn an_unlock_unlocks_the_pair_once_and_keeps_fuel() {
     assert_eq!(
         saved.state().metals[Metal::Iron.index()].reserve_milli,
         25_000
+    );
+    assert_eq!(
+        saved.state().selected_pair,
+        Pair::IronSteel,
+        "the learned pair is selected"
     );
     assert_eq!(saved.last_transaction(), 2);
     assert_eq!(saved.revision(), before.revision() + 1);

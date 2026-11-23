@@ -23,10 +23,11 @@ Materiales (por chat): `/give @s glass 2`, `/give @s iron_ingot 3`, `/give @s co
    - Libro + lingote de hierro + lingote de acero → «Cartilla: hierro y acero».
    - La cartilla es provisional: la progresión de P5/P6 la sustituirá.
 3. **Beber el vial**: mantén clic derecho hasta que termine. Recuperas el vial vacío y la reserva de hierro sube a 25 000 (aún sin barras: el hierro está bloqueado).
-4. **Estudiar la cartilla**: mantén clic derecho. El chat dice «Alomancia: ya puedes quemar hierro y acero.» y aparecen dos barras encima de la de hambre (hierro arriba, acero abajo), la de hierro al 25 %. Una segunda cartilla no se consume: «…ya conoces el hierro y el acero; conservas la cartilla.»
+4. **Estudiar la cartilla**: mantén clic derecho. El chat dice «Alomancia: ya puedes quemar hierro y acero.» y aparecen dos barras encima de la de hambre (hierro arriba, acero abajo), la de hierro al 25 %. La cartilla además selecciona la pareja hierro/acero. Una segunda cartilla no se consume: «…ya conoces el hierro y el acero; conservas la cartilla.»
 5. **Tirón**: coloca el bloque de hierro a unos 10 bloques, míralo y pulsa **Z** para quemar hierro. Te acerca al bloque y te detiene en su cara. Con **R** avivas (más fuerza, triple gasto); otra R vuelve a quemar normal.
 6. **Apagar**: pulsa **G** (apaga todo) o otra vez **Z** (solo hierro). La fuerza para.
 7. **Acero** (opcional): con **X** quemas acero, que empuja en sentido contrario. No tienes reserva de acero: date `/give @s iron_ingot 1`, `/give @s coal 2` y `/give @s cobblestone 1`, fabrica otro lingote de acero, virutas de acero (lingote de acero + adoquín) y el vial de acero (virutas + el segundo vial vacío); bébelo, mira el bloque y pulsa X.
+Si Z, X o R no pueden actuar, un aviso encima del hotbar dice por qué (metal bloqueado, sin reserva o nada que avivar).
 8. **Bloqueos**: con el chat (T) o el inventario (E) abiertos, ninguna tecla de alomancia (Z, X, R, G, V) actúa.
 9. **Guardar y volver**: sal al menú y vuelve a entrar al mundo. La reserva se conserva, los poderes están apagados y no tienes viales ni cartillas de más.
 

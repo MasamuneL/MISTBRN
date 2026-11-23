@@ -138,7 +138,8 @@ k_scenario() {
       quit_game
       k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" pair:zinc_brass=ok \
         pair:copper_bronze=ok pair:iron_steel=ok activate:iron=ok off:all=ok
-      k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100 ;;
+      k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100
+      k_expect_count "locked tin said why over the hotbar" "MISTBRN event=hint key=message.mistbrn.metal_locked" 1 1 ;;
     k9)  # Hold V: the pair wheel opens; a click on its bottom slot chooses zinc/brass (not the
       # next pair, so a tap read as a cycle cannot pass) and closes the wheel while V is still
       # held; Z then acts on zinc. The GUI size comes from the screenshot (k_gui_size).

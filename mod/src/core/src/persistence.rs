@@ -223,7 +223,7 @@ pub fn prepare_credit(
 
 /// Prepares unlocking both metals of `pair` as transaction `last_transaction + 1`, for an
 /// unlock item consumed in the same host transaction (V1, provisional until P5/P6 progression).
-/// Reserves and burns are untouched. A pair already fully unlocked is `AlreadyUnlocked`, so the
+/// The pair becomes the selected one; reserves and burns are untouched. A pair already fully unlocked is `AlreadyUnlocked`, so the
 /// caller keeps the item. Committed with `commit_credit`, under the same exactly-once rules.
 pub fn prepare_unlock(saved: &SavedPlayer, pair: Pair) -> Result<PreparedCredit, SaveError> {
     validate_save(saved)?;
@@ -243,6 +243,8 @@ pub fn prepare_unlock(saved: &SavedPlayer, pair: Pair) -> Result<PreparedCredit,
         for metal in metals {
             next.state.metals[metal.index()].unlocked = true;
         }
+        // The pair just learned becomes the selected one: its keys act on it at once.
+        next.state.selected_pair = pair;
         next.last_transaction = seq;
         Ok(())
     })?;
