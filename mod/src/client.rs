@@ -71,6 +71,9 @@ struct ClientState {
     hud: Option<HudSnapshot>,
     ticks: u64,
     wheel: Option<Wheel>,
+    /// Set when the wheel closes while V is still physically held: V must be let go before it
+    /// opens the wheel again (its auto-repeat would otherwise reopen it at once).
+    wheel_latched: bool,
 }
 
 static STATE: Mutex<ClientState> = Mutex::new(ClientState {
@@ -78,6 +81,7 @@ static STATE: Mutex<ClientState> = Mutex::new(ClientState {
     hud: None,
     ticks: 0,
     wheel: None,
+    wheel_latched: false,
 });
 
 fn state() -> std::sync::MutexGuard<'static, ClientState> {
@@ -175,14 +179,19 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
     state.ticks += 1;
     let mut sends = Vec::new();
     wheel_tick(host, &mut state, &mut sends);
+    if state.wheel_latched && !wheel_key_down(host) {
+        state.wheel_latched = false;
+    }
     for (index, (id, _, request)) in KEYS.iter().enumerate() {
         if pressed(host, index, id, &mut state.was_down) {
             if !allowed {
                 eprintln!("MISTBRN event=key key={id} result=blocked");
             } else if *id == WHEEL_KEY {
-                // V opens the wheel; the choice is sent when it closes. Without our screen
-                // (another one opening first), V is the plain next-pair key.
-                if host.mod_screen_open(MOD_ID) {
+                // V opens the wheel; the choice is sent when it closes. Nothing is sent if the
+                // wheel cannot open (another screen won) or V was not let go since it closed.
+                if state.wheel_latched {
+                    eprintln!("MISTBRN event=key key={id} result=held");
+                } else if host.mod_screen_open(MOD_ID) {
                     eprintln!("MISTBRN event=key key={id} result=wheel");
                     state.wheel = Some(Wheel {
                         opened: state.ticks,
@@ -191,8 +200,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
                         size: None,
                     });
                 } else {
-                    eprintln!("MISTBRN event=key key={id}");
-                    sends.push(encode_control(*request).to_vec());
+                    eprintln!("MISTBRN event=key key={id} result=no_wheel");
                 }
             } else {
                 eprintln!("MISTBRN event=key key={id}");
@@ -221,6 +229,13 @@ fn wheel_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Ve
     };
     if let Some(action) = wheel.action.take() {
         state.wheel = None;
+        state.wheel_latched = wheel_key_down(host);
+        // A choice made in a hook counts only if the wheel is still ours and the window still
+        // has focus on this tick: Escape, another screen or a lost focus in between cancel it.
+        if !wheel_open(host) || !host.window_focused() {
+            eprintln!("MISTBRN event=wheel result=cancelled");
+            return;
+        }
         host.mod_screen_close(MOD_ID);
         let request = match action {
             WheelAction::Select(pair) if state.hud.map(|hud| hud.pair) != Some(pair) => {
@@ -238,12 +253,13 @@ fn wheel_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Ve
         }
     } else if !wheel_open(host) && state.ticks > wheel.opened + 1 {
         state.wheel = None;
+        state.wheel_latched = wheel_key_down(host);
         eprintln!("MISTBRN event=wheel result=closed");
     } else if wheel_open(host) && !wheel_key_down(host) {
         // V is up: the screen's release event may not come (a key let go as the screen opened,
         // a release the window never saw), so the key's own state decides, once a tick.
         let ticks = state.ticks;
-        wheel.action = Some(release_action(wheel, ticks));
+        wheel.action = Some(release_action(wheel, host.cursor(), ticks));
     }
 }
 
@@ -255,8 +271,13 @@ fn wheel_key_down(host: &dyn ClientHost) -> bool {
 
 /// What letting V go does: the slot under the cursor; in the centre, a quick tap is the next
 /// pair (as before the wheel) and a long hold changes nothing.
-fn release_action(wheel: &Wheel, ticks: u64) -> WheelAction {
-    match wheel.hovered {
+fn release_action(wheel: &Wheel, cursor: [f32; 2], ticks: u64) -> WheelAction {
+    // Where the pointer is now, not where the last frame saw it.
+    let hovered = match wheel.size {
+        Some(size) => hud::hovered(size, cursor),
+        None => wheel.hovered,
+    };
+    match hovered {
         Some(pair) => WheelAction::Select(pair),
         None if ticks.saturating_sub(wheel.opened) <= TAP_TICKS => WheelAction::Cycle,
         None => WheelAction::Close,
@@ -292,6 +313,7 @@ pub(crate) fn logged_out() {
     let mut state = state();
     state.hud = None;
     state.wheel = None;
+    state.wheel_latched = false;
     state.was_down = [false; KEYS.len() + 1];
 }
 
@@ -346,7 +368,7 @@ pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
     let mut state = state();
     let ticks = state.ticks;
     if let Some(wheel) = state.wheel.as_mut() {
-        let action = release_action(wheel, ticks);
+        let action = release_action(wheel, host.cursor(), ticks);
         wheel.action.get_or_insert(action);
     }
     true

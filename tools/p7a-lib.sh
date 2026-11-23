@@ -139,28 +139,29 @@ k_scenario() {
       k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" pair:zinc_brass=ok \
         pair:copper_bronze=ok pair:iron_steel=ok activate:iron=ok off:all=ok
       k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100 ;;
-    k9)  # Hold V: the pair wheel opens; a click on its right slot chooses tin/pewter, Z then
-      # acts on tin. Its GUI size comes from the mod's log (event=wheel_open gui=WxH).
+    k9)  # Hold V: the pair wheel opens; a click on its bottom slot chooses zinc/brass (not the
+      # next pair, so a tap read as a cycle cannot pass) and closes the wheel while V is still
+      # held; Z then acts on zinc. The GUI size comes from the screenshot (k_gui_size).
       p4_fixture
       k_credit iron
       ctl key v down >/dev/null; ctl wait 5 >/dev/null
       k_screen k9-wheel '"mod"'
-      # The screenshot waits for a drawn frame, so the wheel has logged its size by then.
       ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
       # The game's log reaches its file only later, so the GUI size comes from the screenshot.
       local gui w h
       gui="$(k_gui_size "$dir/k9-wheel.png")"
       w="${gui% *}"; h="${gui#* }"
       [[ -n "$gui" ]] || k_fail "no GUI size from the screenshot"
-      ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 + 44 }')" \
-        "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 }')" >/dev/null || k_fail "click on the wheel failed"
+      ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 }')" \
+        "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 + 44 }')" >/dev/null || k_fail "click on the wheel failed"
       ctl wait 5 >/dev/null
+      k_screen k9-closed-by-click playing
       ctl key v up >/dev/null; ctl wait 5 >/dev/null
-      k_screen k9-closed playing
       k_key z; k_key g
       quit_game
-      k_expect_count "wheel chose tin/pewter" "MISTBRN event=wheel result=select:tin_pewter" 1 1
-      k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" off:all=ok
+      k_expect_count "wheel chose zinc/brass" "MISTBRN event=wheel result=select:zinc_brass" 1 1
+      k_expect_count "one wheel choice" "MISTBRN event=wheel result=" 1 1
+      k_expect_commands pair:zinc_brass=ok "activate:zinc=MetalLocked(Zinc)" off:all=ok
       if [[ -s "$dir/k9-wheel.png" ]]; then k_ok "screenshot $dir/k9-wheel.png (local, not versioned)"; fi ;;
     k4|k5)  # Nothing lights with the chat (K4) or the inventory (K5) open; it does once closed.
       p4_fixture
@@ -224,6 +225,7 @@ k_scenario() {
       ctl interact 514 100 512 >/dev/null; ctl wait 10 >/dev/null
       k_screen k8-screen "chest|generic|container"
       ctl command "mistbrn-test inject toggle_second" >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject select_tin_pewter" >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
       ctl close >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 10 >/dev/null
@@ -232,7 +234,8 @@ k_scenario() {
       k_expect_count "refused with the chest open" "command=activate:steel allowed=false result=InputCaptured changed=0" 1 1
       k_expect_count "off puts iron out with the chest open" "command=off:all allowed=false result=ok changed=1" 1 1
       k_expect_count "lit with nothing open" "command=activate:iron allowed=true result=ok changed=1" 2 2
-      k_expect_commands activate:iron=ok activate:steel=InputCaptured off:all=ok activate:iron=ok off:all=ok ;;
+      k_expect_commands activate:iron=ok activate:steel=InputCaptured pair:tin_pewter=InputCaptured \
+        off:all=ok activate:iron=ok off:all=ok ;;
     *) return 1 ;;
   esac
 }

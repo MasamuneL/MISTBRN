@@ -209,6 +209,8 @@ pub(crate) fn draw_wheel(
         if !textured {
             let color = if Some(pair) == hovered {
                 0xE0F0_F0F0
+            } else if Some(pair) == selected {
+                0xD0A0_9060
             } else {
                 0xC030_3440
             };
