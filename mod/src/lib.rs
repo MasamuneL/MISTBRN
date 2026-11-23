@@ -8,6 +8,7 @@ mod bridge;
 mod client;
 mod content;
 mod controls;
+mod hud;
 mod p4;
 mod save;
 mod scenario;
@@ -20,7 +21,8 @@ use mod_api::{
     PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
     PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
     RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
-    RunModCommandEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    RunModCommandEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -64,15 +66,15 @@ impl Hooks for Allomancy {
         event: &mut LivingEntityUseItemFinishEvent<'_>,
     ) {
         let HostSide::Server(host) = side else { return };
-        let drink = self
+        let finished = self
             .content
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .finish(host, event);
-        if let Some(drink) = drink {
+        if let Some(finished) = finished {
             // The finish hook will write its result back into the hand. Apply our
             // transactional inventory change after that write has finished.
-            self.session().queue_drink(drink);
+            self.session().queue_use(finished);
         }
     }
 
@@ -116,7 +118,7 @@ impl Hooks for Allomancy {
         let mut session = self.session();
         session.tick(host, event.context.epoch.get(), event.context.tick.get());
         let mut runner = self.scenario.lock().unwrap_or_else(PoisonError::into_inner);
-        session.finish_drinks(host, runner.fail_vial());
+        session.finish_uses(host, runner.fail_use());
         runner.tick(host, &mut session);
         let tick = event.context.tick.get();
         let mut powers = self.powers();
@@ -266,6 +268,34 @@ impl Hooks for Allomancy {
 
     fn gui_layer_draw(&self, host: &dyn ClientHost, event: &mut GuiLayerDrawEvent<'_>) {
         client::draw(host, event.layer, event.draw);
+    }
+
+    fn screen_render_post(&self, host: &dyn ClientHost, event: &mut ScreenRenderPostEvent<'_>) {
+        client::screen_draw(host, event.screen.mouse, event.draw);
+    }
+
+    fn screen_key_released_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenKeyReleasedPreEvent<'_>,
+    ) -> Flow {
+        if client::key_released(host, event.key) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
+    }
+
+    fn screen_mouse_button_pressed_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenMouseButtonPressedPreEvent<'_>,
+    ) -> Flow {
+        if client::mouse_pressed(host, event.screen.mouse, event.button) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
     }
 
     fn client_player_logging_out(

@@ -1,11 +1,13 @@
 //! Keys and the reserve HUD (P7a), client side.
 //!
-//! Five rebindable keys (Options > Controls > Masamune's MISTBRN): V next pair, Z / X toggle
+//! Five rebindable keys (Options > Controls > Masamune's MISTBRN): V the pair wheel (hold,
+//! point, let go; a tap is the next pair), Z / X toggle
 //! the pair's first / second metal, R toggle flaring, G all off. A key sends one
 //! `mistbrn:control` request per press, and only while playing with nothing over the world
 //! and the window focused: the chat, the inventory and every other screen block it. Holding a
 //! key does not repeat it. The server decides; the HUD only draws what the server last sent.
 use crate::controls::{CONTROL_CHANNEL, pair_name};
+use crate::hud;
 use crate::{bridge::metal_name, scenario};
 use allomancy_core::{
     BurnState, ControlRequest, HudSnapshot, Metal, Pair, Side, decode_hud, encode_control,
@@ -14,7 +16,6 @@ use allomancy_core::{
 use mod_api::{
     ClientHost, DrawContext, GuiLayer, GuiLayerPlacement, IPayloadContext, IPayloadHandler,
     KeyConflictContext, KeyRegistration, PayloadBytes, PayloadHandleError, PayloadId, Registrar,
-    Text,
 };
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -43,14 +44,44 @@ const FUZZ_KEY: (&str, &str) = ("test_fuzz", "key.keyboard.k");
 /// Clicks taken per key per tick at most; the rest wait (a held key auto-repeats).
 const CLICKS_PER_TICK: u32 = 64;
 
+/// The key that opens the pair wheel (`cycle_pair`, V by default).
+const WHEEL_KEY: &str = "cycle_pair";
+/// A release this soon after opening, with the cursor in the centre, is a tap: next pair.
+const TAP_TICKS: u64 = 5;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WheelAction {
+    Select(Pair),
+    Cycle,
+    Close,
+}
+
+/// The open pair wheel: when it opened, the slot under the cursor, what to do on the next tick.
+struct Wheel {
+    opened: u64,
+    hovered: Option<Pair>,
+    action: Option<WheelAction>,
+    /// The GUI size of the last frame (clicks pick their slot against it); logged once, on
+    /// the first frame, for scenarios that click its slots.
+    size: Option<[f32; 2]>,
+}
+
 struct ClientState {
     was_down: [bool; KEYS.len() + 1],
     hud: Option<HudSnapshot>,
+    ticks: u64,
+    wheel: Option<Wheel>,
+    /// Set when the wheel closes while V is still physically held: V must be let go before it
+    /// opens the wheel again (its auto-repeat would otherwise reopen it at once).
+    wheel_latched: bool,
 }
 
 static STATE: Mutex<ClientState> = Mutex::new(ClientState {
     was_down: [false; KEYS.len() + 1],
     hud: None,
+    ticks: 0,
+    wheel: None,
+    wheel_latched: false,
 });
 
 fn state() -> std::sync::MutexGuard<'static, ClientState> {
@@ -145,14 +176,35 @@ fn send(host: &mut dyn ClientHost, bytes: Vec<u8>) {
 pub(crate) fn tick(host: &mut dyn ClientHost) {
     let allowed = host.playing() && host.window_focused();
     let mut state = state();
+    state.ticks += 1;
     let mut sends = Vec::new();
+    wheel_tick(host, &mut state, &mut sends);
+    if state.wheel_latched && !wheel_key_down(host) {
+        state.wheel_latched = false;
+    }
     for (index, (id, _, request)) in KEYS.iter().enumerate() {
         if pressed(host, index, id, &mut state.was_down) {
-            if allowed {
+            if !allowed {
+                eprintln!("MISTBRN event=key key={id} result=blocked");
+            } else if *id == WHEEL_KEY {
+                // V opens the wheel; the choice is sent when it closes. Nothing is sent if the
+                // wheel cannot open (another screen won) or V was not let go since it closed.
+                if state.wheel_latched {
+                    eprintln!("MISTBRN event=key key={id} result=held");
+                } else if host.mod_screen_open(MOD_ID) {
+                    eprintln!("MISTBRN event=key key={id} result=wheel");
+                    state.wheel = Some(Wheel {
+                        opened: state.ticks,
+                        hovered: None,
+                        action: None,
+                        size: None,
+                    });
+                } else {
+                    eprintln!("MISTBRN event=key key={id} result=no_wheel");
+                }
+            } else {
                 eprintln!("MISTBRN event=key key={id}");
                 sends.push(encode_control(*request).to_vec());
-            } else {
-                eprintln!("MISTBRN event=key key={id} result=blocked");
             }
         }
     }
@@ -166,6 +218,77 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
     drop(state);
     for bytes in sends {
         send(host, bytes);
+    }
+}
+
+/// Applies the wheel's choice (made in a screen hook, which cannot close the screen) and
+/// forgets a wheel that something else closed (Escape, another screen).
+fn wheel_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Vec<Vec<u8>>) {
+    let Some(wheel) = state.wheel.as_mut() else {
+        return;
+    };
+    if let Some(action) = wheel.action.take() {
+        state.wheel = None;
+        state.wheel_latched = wheel_key_down(host);
+        // A choice made in a hook counts only if the wheel is still ours and the window still
+        // has focus on this tick: Escape, another screen or a lost focus in between cancel it.
+        if !wheel_open(host) || !host.window_focused() {
+            eprintln!("MISTBRN event=wheel result=cancelled");
+            return;
+        }
+        host.mod_screen_close(MOD_ID);
+        let request = match action {
+            WheelAction::Select(pair) if state.hud.map(|hud| hud.pair) != Some(pair) => {
+                Some(ControlRequest::SelectPair(pair))
+            }
+            WheelAction::Select(_) | WheelAction::Close => None,
+            WheelAction::Cycle => Some(ControlRequest::CyclePair),
+        };
+        match request {
+            Some(request) => {
+                eprintln!("MISTBRN event=wheel result={}", wheel_word(action));
+                sends.push(encode_control(request).to_vec());
+            }
+            None => eprintln!("MISTBRN event=wheel result=unchanged"),
+        }
+    } else if !wheel_open(host) && state.ticks > wheel.opened + 1 {
+        state.wheel = None;
+        state.wheel_latched = wheel_key_down(host);
+        eprintln!("MISTBRN event=wheel result=closed");
+    } else if wheel_open(host) && !wheel_key_down(host) {
+        // V is up: the screen's release event may not come (a key let go as the screen opened,
+        // a release the window never saw), so the key's own state decides, once a tick.
+        let ticks = state.ticks;
+        wheel.action = Some(release_action(wheel, host.cursor(), ticks));
+    }
+}
+
+/// The physical key bound to the wheel is held (with a screen open, mappings read as up).
+fn wheel_key_down(host: &dyn ClientHost) -> bool {
+    host.mod_key(MOD_ID, WHEEL_KEY)
+        .is_some_and(|(key, _)| host.is_key_down(&key))
+}
+
+/// What letting V go does: the slot under the cursor; in the centre, a quick tap is the next
+/// pair (as before the wheel) and a long hold changes nothing.
+fn release_action(wheel: &Wheel, cursor: [f32; 2], ticks: u64) -> WheelAction {
+    // Where the pointer is now, not where the last frame saw it.
+    let hovered = match wheel.size {
+        Some(size) => hud::hovered(size, cursor),
+        None => wheel.hovered,
+    };
+    match hovered {
+        Some(pair) => WheelAction::Select(pair),
+        None if ticks.saturating_sub(wheel.opened) <= TAP_TICKS => WheelAction::Cycle,
+        None => WheelAction::Close,
+    }
+}
+
+fn wheel_word(action: WheelAction) -> String {
+    match action {
+        WheelAction::Select(pair) => format!("select:{}", pair_name(pair)),
+        WheelAction::Cycle => "cycle".into(),
+        WheelAction::Close => "close".into(),
     }
 }
 
@@ -189,103 +312,79 @@ fn fuzz_requests() -> Vec<Vec<u8>> {
 pub(crate) fn logged_out() {
     let mut state = state();
     state.hud = None;
+    state.wheel = None;
+    state.wheel_latched = false;
     state.was_down = [false; KEYS.len() + 1];
 }
 
-fn tr(host: &dyn ClientHost, key: &str) -> String {
-    host.text_string(&Text::translate(key, Vec::new()))
-        .unwrap_or_else(|_| key.into())
-}
-
-const PANEL: u32 = 0x9000_0000;
-const TEXT: u32 = 0xFFE0_E0E0;
-const DIM: u32 = 0xFF90_9090;
-const BAR_BACK: u32 = 0xFF30_3030;
-const BAR_BURNING: u32 = 0xFFC8_A050;
-const BAR_FLARED: u32 = 0xFFFF_7030;
-const BAR_OFF: u32 = 0xFF80_8080;
-const BAR_W: f32 = 60.0;
-const LINE: f32 = 10.0;
-/// Wide enough for a pair's two rows (name, bar and state).
-const PANEL_MIN_W: f32 = 150.0;
-/// Half of vanilla's boss bar, centred at the top.
-const BOSS_BAR_HALF: f32 = 91.0;
-
-/// The reserve panel, top left (clear of the chat, the hotbar and the bars above it, and
-/// narrower than the space left of a boss bar): the selected pair with a bar per metal and its state, then
-/// the other unlocked metals in one line. Nothing while no metal is unlocked.
-pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
+/// The reserve layer: the selected pair beside the hotbar (`hud::draw_reserves`).
+pub(crate) fn draw(_: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
     if layer != HUD_LAYER {
         return;
     }
-    let Some(hud) = state().hud else {
-        return;
-    };
-    if !hud.metals.iter().any(|metal| metal.unlocked) {
-        return;
-    }
-    let [gui_width, _] = draw.size();
-    let metals = pair_metals(hud.pair);
-    let others: Vec<String> = Metal::ALL
-        .into_iter()
-        .filter(|metal| !metals.contains(metal) && hud.metals[metal.index()].unlocked)
-        .map(|metal| {
-            let entry = hud.metals[metal.index()];
-            format!(
-                "{} {}%",
-                tr(host, &format!("hud.mistbrn.metal.{}", metal_name(metal))),
-                percent(entry.reserve_milli, entry.capacity_milli)
-            )
-        })
-        .collect();
-    let lines = if others.is_empty() { 3.0 } else { 4.0 };
-    let (x, top) = (4.0, 4.0);
-    let others_line = others.join("  ");
-    let mut title = tr(host, &format!("hud.mistbrn.pair.{}", pair_name(hud.pair)));
-    if hud.pair != Pair::IronSteel {
-        title = format!("{title} · {}", tr(host, "hud.mistbrn.unavailable"));
-    }
-    let width = PANEL_MIN_W
-        .max(draw.text_width(&others_line) + 4.0)
-        .max(draw.text_width(&title) + 4.0)
-        .min((gui_width / 2.0 - BOSS_BAR_HALF - 6.0).max(PANEL_MIN_W));
-    draw.fill([x - 2.0, top - 2.0, width, lines * LINE + 4.0], PANEL);
-    draw.text(&title, [x, top], TEXT, true);
-    for (row, metal) in metals.into_iter().enumerate() {
-        let y = top + LINE * (row as f32 + 1.0);
-        let entry = hud.metals[metal.index()];
-        let name = tr(host, &format!("hud.mistbrn.metal.{}", metal_name(metal)));
-        draw.text(&name, [x, y], if entry.unlocked { TEXT } else { DIM }, true);
-        let bar_x = x + 44.0;
-        if !entry.unlocked {
-            draw.text(&tr(host, "hud.mistbrn.locked"), [bar_x, y], DIM, true);
-            continue;
-        }
-        draw.fill([bar_x, y + 2.0, BAR_W, 4.0], BAR_BACK);
-        let filled = BAR_W * percent(entry.reserve_milli, entry.capacity_milli) as f32 / 100.0;
-        let color = match entry.burn {
-            BurnState::Off => BAR_OFF,
-            BurnState::Burning => BAR_BURNING,
-            BurnState::Flared => BAR_FLARED,
-        };
-        draw.fill([bar_x, y + 2.0, filled, 4.0], color);
-        let label = match entry.burn {
-            BurnState::Off => None,
-            BurnState::Burning => Some("hud.mistbrn.burning"),
-            BurnState::Flared => Some("hud.mistbrn.flared"),
-        };
-        if let Some(label) = label {
-            draw.text(&tr(host, label), [bar_x + BAR_W + 4.0, y], color, true);
-        }
-    }
-    if !others.is_empty() {
-        draw.text(&others_line, [x, top + LINE * 3.0], DIM, true);
+    let state = state();
+    // The wheel shows the reserves itself; the bars would sit under its hint.
+    if let (Some(hud), None) = (state.hud, state.wheel.as_ref()) {
+        hud::draw_reserves(draw, &hud);
     }
 }
 
-fn percent(reserve: u32, capacity: u32) -> u32 {
-    if capacity == 0 {
-        return 0;
+fn wheel_open(host: &dyn ClientHost) -> bool {
+    host.mod_screen() == Some(MOD_ID)
+}
+
+/// Over our own screen (the wheel): track the slot under the cursor and draw it.
+pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut dyn DrawContext) {
+    if !wheel_open(host) {
+        return;
     }
-    u32::try_from(u64::from(reserve) * 100 / u64::from(capacity)).unwrap_or(100)
+    let size = draw.size();
+    let hovered = hud::hovered(size, pointer);
+    let hud = {
+        let mut state = state();
+        if let Some(wheel) = state.wheel.as_mut() {
+            wheel.hovered = hovered;
+            if wheel.size.is_none() {
+                eprintln!("MISTBRN event=wheel_open gui={}x{}", size[0], size[1]);
+            }
+            wheel.size = Some(size);
+        }
+        state.hud
+    };
+    hud::draw_wheel(host, draw, hud.as_ref(), hovered);
+}
+
+/// V let go over the wheel (`release_action`). True when the release was ours.
+pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
+    if !wheel_open(host)
+        || host
+            .mod_key(MOD_ID, WHEEL_KEY)
+            .map(|(bound, _)| bound)
+            .as_deref()
+            != Some(key)
+    {
+        return false;
+    }
+    let mut state = state();
+    let ticks = state.ticks;
+    if let Some(wheel) = state.wheel.as_mut() {
+        let action = release_action(wheel, host.cursor(), ticks);
+        wheel.action.get_or_insert(action);
+    }
+    true
+}
+
+/// A left click over the wheel chooses the slot under the pointer. True when it was ours.
+pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i32) -> bool {
+    if !wheel_open(host) || button != 0 {
+        return false;
+    }
+    let mut state = state();
+    if let Some(wheel) = state.wheel.as_mut()
+        && let Some(pair) = wheel.size.and_then(|size| hud::hovered(size, pointer))
+    {
+        wheel.hovered = Some(pair);
+        wheel.action.get_or_insert(WheelAction::Select(pair));
+    }
+    true
 }

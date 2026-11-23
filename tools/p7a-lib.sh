@@ -22,7 +22,7 @@ k_expect_count() {
 
 # k_commands: the server's key commands of launch 1, in order, as command=result words.
 k_commands() {
-  grep -a "MISTBRN event=control " "$(log 1)" | sed -n 's/.* command=\([^ ]*\) .* result=\([^ ]*\) .*/\1=\2/p' | tr '\n' ' '
+  { grep -a "MISTBRN event=control " "$(log 1)" || true; } | sed -n 's/.* command=\([^ ]*\) .* result=\([^ ]*\) .*/\1=\2/p' | tr '\n' ' '
 }
 
 # k_expect_commands WORDS...: exactly this sequence of command=result.
@@ -93,7 +93,22 @@ k_hud_last() {
   grep -a "MISTBRN hud pair=" "$(log 1)" | tail -1 | tr ' ' '\n' | sed -n "s/^$1=\([0-9]*\)\/.*/\1/p"
 }
 
-# k_scenario: runs K1-K7; returns 1 for any other scenario name.
+# k_gui_size PNG: the GUI size in GUI pixels ("W H") for a window screenshot, as the game
+# scales it: options.txt guiScale, or for auto (0) the largest scale that keeps 320x240.
+k_gui_size() {
+  local hex fw fh scale
+  hex="$(od -An -tx1 -j16 -N8 "$1" 2>/dev/null | tr -d '[:space:]')" || return 0
+  [[ ${#hex} == 16 ]] || return 0
+  fw=$((16#${hex:0:8})); fh=$((16#${hex:8:8}))
+  scale="$(sed -n 's/^guiScale://p' "$dir/options.txt" 2>/dev/null | tail -1)"
+  if [[ -z "$scale" || "$scale" == 0 ]]; then
+    scale=1
+    while (( fw / (scale + 1) >= 320 && fh / (scale + 1) >= 240 )); do scale=$((scale + 1)); done
+  fi
+  awk -v fw="$fw" -v fh="$fh" -v s="$scale" 'BEGIN { printf "%.2f %.2f", fw / s, fh / s }'
+}
+
+# k_scenario: runs K1-K9; returns 1 for any other scenario name.
 k_scenario() {
   local server hud
   case "$scenario" in
@@ -123,7 +138,32 @@ k_scenario() {
       quit_game
       k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" pair:zinc_brass=ok \
         pair:copper_bronze=ok pair:iron_steel=ok activate:iron=ok off:all=ok
-      k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100 ;;
+      k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100
+      k_expect_count "locked tin said why over the hotbar" "MISTBRN event=hint key=message.mistbrn.metal_locked shown=true" 1 1 ;;
+    k9)  # Hold V: the pair wheel opens; a click on its bottom slot chooses zinc/brass (not the
+      # next pair, so a tap read as a cycle cannot pass) and closes the wheel while V is still
+      # held; Z then acts on zinc. The GUI size comes from the screenshot (k_gui_size).
+      p4_fixture
+      k_credit iron
+      ctl key v down >/dev/null; ctl wait 5 >/dev/null
+      k_screen k9-wheel '"mod"'
+      ctl --timeout 30 screenshot "$dir/k9-wheel.png" >/dev/null || k_fail "wheel screenshot failed"
+      # The game's log reaches its file only later, so the GUI size comes from the screenshot.
+      local gui w h
+      gui="$(k_gui_size "$dir/k9-wheel.png")"
+      w="${gui% *}"; h="${gui#* }"
+      [[ -n "$gui" ]] || k_fail "no GUI size from the screenshot"
+      ctl click-at "$(awk -v w="$w" 'BEGIN { printf "%d", w / 2 }')" \
+        "$(awk -v h="$h" 'BEGIN { printf "%d", h / 2 + 44 }')" >/dev/null || k_fail "click on the wheel failed"
+      ctl wait 5 >/dev/null
+      k_screen k9-closed-by-click playing
+      ctl key v up >/dev/null; ctl wait 5 >/dev/null
+      k_key z; k_key g
+      quit_game
+      k_expect_count "wheel chose zinc/brass" "MISTBRN event=wheel result=select:zinc_brass" 1 1
+      k_expect_count "one wheel choice" "MISTBRN event=wheel result=" 1 1
+      k_expect_commands pair:zinc_brass=ok "activate:zinc=MetalLocked(Zinc)" off:all=ok
+      if [[ -s "$dir/k9-wheel.png" ]]; then k_ok "screenshot $dir/k9-wheel.png (local, not versioned)"; fi ;;
     k4|k5)  # Nothing lights with the chat (K4) or the inventory (K5) open; it does once closed.
       p4_fixture
       k_credit iron
@@ -186,7 +226,10 @@ k_scenario() {
       ctl interact 514 100 512 >/dev/null; ctl wait 10 >/dev/null
       k_screen k8-screen "chest|generic|container"
       ctl command "mistbrn-test inject toggle_second" >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject select_tin_pewter" >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
+      # R with nothing burning and the chest open: nothing to do, and no hint over the hotbar.
+      ctl command "mistbrn-test inject flare" >/dev/null; ctl wait 5 >/dev/null
       ctl close >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
@@ -194,7 +237,10 @@ k_scenario() {
       k_expect_count "refused with the chest open" "command=activate:steel allowed=false result=InputCaptured changed=0" 1 1
       k_expect_count "off puts iron out with the chest open" "command=off:all allowed=false result=ok changed=1" 1 1
       k_expect_count "lit with nothing open" "command=activate:iron allowed=true result=ok changed=1" 2 2
-      k_expect_commands activate:iron=ok activate:steel=InputCaptured off:all=ok activate:iron=ok off:all=ok ;;
+      k_expect_count "R with the chest open found nothing burning" "op=flare result=nothing_burning" 1 1
+      k_expect_count "no hint with the chest open" "MISTBRN event=hint " 0 0
+      k_expect_commands activate:iron=ok activate:steel=InputCaptured pair:tin_pewter=InputCaptured \
+        off:all=ok activate:iron=ok off:all=ok ;;
     *) return 1 ;;
   esac
 }

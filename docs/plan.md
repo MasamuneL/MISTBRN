@@ -170,7 +170,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | P3b accesorios | `feat/p3b-accessories` | P3a | monedas, capa de bruma y accesorios (ver abajo) | Validador de contenido; en juego: fabricar cada accesorio y equipar la capa; pendientes de la revisión de P3a cerrados |
 | P4 hierro/acero | `feat/p4-iron-steel` | P2, P3a | tirón/empujón sobre metales y anclajes, límites de velocidad, colisión del motor, cancelación por muerte/dimensión/objetivo inválido | N1–N11 y regresión 17/17 en `p4-22`, dos revisiones. [Evidencia](evidence/p4.md) |
 | P7a controles/HUD mínimo | `feat/p7a-hud` | P4 | V selecciona pareja, Z/X activa, R aviva, G apaga; HUD de reservas; sin activación con chat/menú | K1–K8 y regresión en `p7a-5`, captura revisada, dos revisiones. [Evidencia](evidence/p7a.md) |
-| V1 demo | — (validación) | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |
+| V1 demo | `feat/v1-unlock` | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |
 | P5 habilidades/investigación | `feat/p5-progress` | V1 | árboles, experiencia por práctica, investigación con pistas; **esquema de guardado 2 + migración 1→2** | Tests core + fixture v1 migrado; escenario en juego |
 | P6 hitos | `feat/p6-milestones` | P5 | fragmentos ligados a bastión, guardián, ciudad antigua, dragona; reclamo único por jugador | Duplicados rechazados en core y en juego |
 | P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario |
@@ -252,6 +252,13 @@ Aprobado el 2026-11-21. Superficie del pin sin fork: `Registrar::register_key_ma
 - **Límite**: el servidor no ve el chat ni el inventario propio (pantallas del cliente); ese bloqueo depende del cliente. Un cliente modificado solo podría hacer lo que ya puede con la pantalla cerrada.
 
 ---
+
+### V1 — Desbloqueo provisional y demo
+
+- **Decisión del usuario (2026-11-22)**: beber no desbloquea. Un ítem desbloquea la pareja: `mistbrn:primer_iron_steel` («Cartilla: hierro y acero»), receta sin forma libro + lingote de hierro + lingote de acero. **Provisional hasta P5/P6**: la progresión decidirá cómo se obtiene (el diseño propone un tutorial para hierro y acero); las otras parejas no tienen cartilla.
+- Uso mantenido de 32 ticks, solo en supervivencia o aventura, por la misma cola que los viales (un uso por jugador y slot por tick). El fin del uso consume una cartilla y desbloquea los dos metales en una `host.transaction`, con `prepare_unlock` + `commit_credit` (una sola aplicación, como un crédito). Si la pareja ya estaba desbloqueada se rechaza sin consumir. Sin cambio de esquema: `unlocked` ya se guarda y la muerte lo conserva.
+- Escenarios U1 (fabricar y usar; persiste), U2 (repetición rechazada), U3 (fallo inyectado), U4/U5 (corte sin guardar y tras guardar) y `v1` (recorrido completo sin modo de prueba, con captura del HUD). Guía de juego a mano: `docs/v1-guide.md`.
+- HUD (petición del usuario): barras de la pareja actual encima del hambre y rueda de parejas al mantener V (pantalla propia del mod; op 5 «elegir pareja» en `mistbrn:control`). Hoja de sprites original generada por `tools/gen-hud.py`; un cambio de assets solo entra si lo aprueban Claude y Codex. K9 prueba la rueda.
 
 ## Archivos críticos
 - Nuevos/movidos: `mod/horizon-mod.toml`, `mod/Cargo.toml`, `mod/src/{lib,bridge,save,scenario}.rs`, `mod/src/core/src/{reserves,persistence}.rs`, `mod/src/core/tests/{reserves,persistence}.rs`, `tools/{fetch-sdk,build-native,native-test,check}.sh`, `docs/{plan,design,compatibility,contracts,STATUS,history}.md`, `docs/evidence/{p0b,p2}.md`.

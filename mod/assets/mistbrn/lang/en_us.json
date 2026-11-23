@@ -48,7 +48,7 @@
   "item.mistbrn.zinc_ingot": "Zinc Ingot",
   "itemGroup.mistbrn.allomancy": "Allomancy",
   "key.category.mistbrn.allomancy": "Allomancy",
-  "key.mistbrn.cycle_pair": "Next metal pair",
+  "key.mistbrn.cycle_pair": "Pair wheel (hold) / next pair (tap)",
   "key.mistbrn.flare": "Flare",
   "key.mistbrn.off": "Extinguish all",
   "key.mistbrn.test_fuzz": "Test: malformed requests",
@@ -56,5 +56,13 @@
   "key.mistbrn.toggle_second": "Burn second metal",
   "message.mistbrn.save_blocked": "Allomancy: saved data unreadable; it will not be modified.",
   "message.mistbrn.vial.failed": "Allomancy: the vial could not be drunk; nothing changed.",
-  "message.mistbrn.vial.reserve_full": "Allomancy: that reserve is full; the vial was not used."
+  "message.mistbrn.vial.reserve_full": "Allomancy: that reserve is full; the vial was not used.",
+  "item.mistbrn.primer_iron_steel": "Primer: Iron & Steel",
+  "message.mistbrn.primer.unlocked": "Allomancy: you can now burn iron and steel.",
+  "message.mistbrn.primer.known": "Allomancy: you already know iron and steel; the primer was kept.",
+  "message.mistbrn.primer.failed": "Allomancy: the primer could not be studied; nothing changed.",
+  "hud.mistbrn.wheel_hint": "Hold V · point · release to choose",
+  "message.mistbrn.metal_locked": "%s is locked · hold V to change pair",
+  "message.mistbrn.metal_empty": "%s: no reserve · drink a vial",
+  "message.mistbrn.nothing_burning": "Nothing is burning to flare"
 }

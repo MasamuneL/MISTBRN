@@ -1,11 +1,13 @@
 //! Server-side session: loads each online player's save, runs the core every server tick,
 //! persists changes and applies credits transactionally with the inventory.
-use crate::content::Drink;
+use crate::content::{Drink, Finished, Study};
+use crate::controls::pair_name;
 use crate::save::{self, Blocked, Loaded};
 use allomancy_core::{
     Authority, BurnState, EMPTY_VIAL, InputContext, Metal, PlayerId, ReserveRules, SaveError,
     SavedPlayer, Tick, TransactionSeq, VIAL_MILLI, Vec3, WorldId, WorldSnapshot, advance_tick,
-    commit_credit, consume_reserves, on_death, on_reconnect, prepare_credit, update_player,
+    commit_credit, consume_reserves, on_death, on_reconnect, prepare_credit, prepare_unlock,
+    update_player,
 };
 use mod_api::{
     GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
@@ -57,7 +59,8 @@ pub(crate) struct Session {
     epoch: Option<u64>,
     players: BTreeMap<u128, Slot>,
     reports: u8,
-    drinks: Vec<Drink>,
+    /// Finished uses of our items (vials and unlock items), applied once the hand is written.
+    uses: Vec<Finished>,
 }
 
 /// Chat line from the mod's translations (`assets/mistbrn/lang`), never a raw error code.
@@ -82,6 +85,24 @@ pub(crate) fn refusal_message(error: &str) -> Option<&'static str> {
         Some("message.mistbrn.vial.reserve_full")
     } else {
         Some("message.mistbrn.vial.failed")
+    }
+}
+
+/// Why an unlock item was not used. Only `Failed` changed nothing for a reason worth reporting
+/// as a failure; the item stays in every case.
+pub(crate) enum Refusal {
+    AlreadyUnlocked,
+    NotInSlot,
+    Failed(String),
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AlreadyUnlocked => f.write_str("AlreadyUnlocked"),
+            Self::NotInSlot => f.write_str("item_not_in_slot"),
+            Self::Failed(reason) => f.write_str(reason),
+        }
     }
 }
 
@@ -192,7 +213,7 @@ impl Session {
     /// Death: reserves cleared in memory at once and written as soon as the player can be
     /// written (now if alive enough, else after the respawn).
     pub(crate) fn died(&mut self, host: &mut dyn ServerHost, uuid: u128) {
-        self.drinks.retain(|drink| drink.player.uuid() != uuid);
+        self.uses.retain(|queued| queued.player().uuid() != uuid);
         if self.change(uuid, true, on_death).is_ok() {
             eprintln!("MISTBRN event=death_cleared");
             if let Some(player) = host.player(uuid) {
@@ -226,31 +247,30 @@ impl Session {
     }
 
     pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
-        self.drinks.retain(|drink| drink.player.uuid() != uuid);
+        self.uses.retain(|queued| queued.player().uuid() != uuid);
         if let Some(player) = host.player(uuid) {
             self.flush(host, player);
         }
         self.players.remove(&uuid);
     }
 
-    /// Queues one finished drink. The finish hook can be heard more than once for one use (on a
-    /// server it may fire for every player of the world): one drink per player and slot per tick.
-    pub(crate) fn queue_drink(&mut self, drink: Drink) {
-        if !self
-            .drinks
-            .iter()
-            .any(|queued| queued.player.uuid() == drink.player.uuid() && queued.slot == drink.slot)
-        {
-            self.drinks.push(drink);
+    /// Queues one finished use (vial or unlock item). The finish hook can be heard more than
+    /// once for one use (on a server it may fire for every player of the world): one use per
+    /// player and slot per tick.
+    pub(crate) fn queue_use(&mut self, finished: Finished) {
+        if !self.uses.iter().any(|queued| {
+            queued.player().uuid() == finished.player().uuid() && queued.slot() == finished.slot()
+        }) {
+            self.uses.push(finished);
         }
     }
 
-    pub(crate) fn finish_drinks(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
-        for drink in std::mem::take(&mut self.drinks) {
-            let Some(player) = host.player(drink.player.uuid()) else {
+    pub(crate) fn finish_uses(&mut self, host: &mut dyn ServerHost, fail_inside: bool) {
+        for finished in std::mem::take(&mut self.uses) {
+            let Some(player) = host.player(finished.player().uuid()) else {
                 continue;
             };
-            if player.entity() != drink.player.entity()
+            if player.entity() != finished.player().entity()
                 || !matches!(
                     player.game_mode(host),
                     Some(GameMode::Survival | GameMode::Adventure)
@@ -258,6 +278,13 @@ impl Session {
             {
                 continue;
             }
+            let drink = match finished {
+                Finished::Drink(drink) => drink,
+                Finished::Study(study) => {
+                    self.finish_study(host, player, study, fail_inside);
+                    continue;
+                }
+            };
             let metal = metal_name(drink.metal);
             match self.credit_from_slot(host, drink, VIAL_MILLI, fail_inside) {
                 Ok(seq) => eprintln!("MISTBRN event=vial_credit metal={metal} seq={}", seq.0),
@@ -267,6 +294,93 @@ impl Session {
                         tell(host, player, key);
                     }
                 }
+            }
+        }
+    }
+
+    fn finish_study(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        study: Study,
+        fail_inside: bool,
+    ) {
+        let pair = pair_name(study.pair);
+        match self.unlock_from_slot(host, study, fail_inside) {
+            Ok(seq) => {
+                eprintln!("MISTBRN event=unlock pair={pair} seq={}", seq.0);
+                tell(host, player, "message.mistbrn.primer.unlocked");
+            }
+            Err(refusal) => {
+                eprintln!("MISTBRN event=unlock_refused pair={pair} reason={refusal}");
+                match refusal {
+                    Refusal::AlreadyUnlocked => tell(host, player, "message.mistbrn.primer.known"),
+                    // The item moved: nothing was used, nothing to say.
+                    Refusal::NotInSlot => {}
+                    Refusal::Failed(_) => tell(host, player, "message.mistbrn.primer.failed"),
+                }
+            }
+        }
+    }
+
+    /// Consume one unlock item and persist its pair's unlock together (provisional V1 unlock,
+    /// replaced by P5/P6 progression). Same exactly-once path as a vial credit; a pair already
+    /// unlocked keeps the item. `fail_inside` injects a failure after all writes (tests).
+    pub(crate) fn unlock_from_slot(
+        &mut self,
+        host: &mut dyn ServerHost,
+        study: Study,
+        fail_inside: bool,
+    ) -> Result<TransactionSeq, Refusal> {
+        let Study {
+            player,
+            slot,
+            stack: expected,
+            pair,
+        } = study;
+        let uuid = player.uuid();
+        if host.transaction_current().is_some() {
+            return Err(Refusal::Failed("nested_transaction".into()));
+        }
+        if slot_stack(host, player, slot).as_ref() != Some(&expected) {
+            return Err(Refusal::NotInSlot);
+        }
+        let Some(Slot::Active {
+            saved,
+            dirty,
+            urgent,
+            since_write,
+        }) = self.players.get_mut(&uuid)
+        else {
+            return Err(Refusal::Failed("not_active".into()));
+        };
+        let prepared = prepare_unlock(saved, pair).map_err(|error| match error {
+            SaveError::AlreadyUnlocked => Refusal::AlreadyUnlocked,
+            other => Refusal::Failed(format!("{other:?}")),
+        })?;
+        host.transaction(|host, _tx| {
+            let stack = slot_stack(host, player, slot)
+                .filter(|stack| *stack == expected)
+                .ok_or(Refusal::NotInSlot)?;
+            player
+                .set_inventory_slot(host, slot, stack.shrink(1))
+                .map_err(|e| Refusal::Failed(format!("set_slot:{e:?}")))?;
+            save::write(host, player, prepared.candidate()).map_err(Refusal::Failed)?;
+            if fail_inside {
+                return Err(Refusal::Failed("injected_failure".into()));
+            }
+            Ok(())
+        })?;
+        match commit_credit(saved, prepared) {
+            Ok(seq) => {
+                *dirty = false;
+                *urgent = false;
+                *since_write = 0;
+                Ok(seq)
+            }
+            Err(error) => {
+                self.block(host, uuid, Blocked::Decode(error));
+                Err(Refusal::Failed(format!("commit_after_host:{error:?}")))
             }
         }
     }
@@ -355,7 +469,7 @@ impl Session {
             // the process keeps players loaded at login, which belong to this world.
             if self.epoch.is_some() {
                 self.players.clear();
-                self.drinks.clear();
+                self.uses.clear();
             }
             self.epoch = Some(epoch);
             self.reports = 0;

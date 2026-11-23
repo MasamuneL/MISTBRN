@@ -66,6 +66,18 @@ pub enum Pair {
     CopperBronze,
 }
 
+impl Pair {
+    /// The pair's two metals, in `Metal::ALL` order.
+    pub fn metals(self) -> [Metal; 2] {
+        match self {
+            Self::IronSteel => [Metal::Iron, Metal::Steel],
+            Self::TinPewter => [Metal::Tin, Metal::Pewter],
+            Self::ZincBrass => [Metal::Zinc, Metal::Brass],
+            Self::CopperBronze => [Metal::Copper, Metal::Bronze],
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Vec3 {
     pub x: f64,

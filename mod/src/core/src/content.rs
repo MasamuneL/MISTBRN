@@ -1,7 +1,10 @@
 //! Content IDs and balance rules shared by the game adapter and tests.
-use crate::Metal;
+use crate::{Metal, Pair};
 
 pub const EMPTY_VIAL: &str = "mistbrn:vial_empty";
+/// Unlock items: each one unlocks both metals of its pair when its use finishes. Provisional
+/// for the V1 demo; P5/P6 progression replaces how they are obtained (docs/plan.md).
+pub const UNLOCK_ITEMS: [(&str, Pair); 1] = [("mistbrn:primer_iron_steel", Pair::IronSteel)];
 pub const VIAL_MILLI: i64 = 25_000;
 pub const FILLED_VIALS: [(&str, Metal); 8] = [
     ("mistbrn:vial_iron", Metal::Iron),

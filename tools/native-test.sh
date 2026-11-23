@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run one in-game scenario against the dev instance's native build and check its report lines.
 # Usage: tools/native-test.sh <scenario> [run-name]
+# V1 scenarios: u1 (craft), u2 (repeat), u3 (rollback), u4/u5 (hard cut), v1 (player path).
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
@@ -10,9 +11,11 @@ source "$(dirname "$0")/lib.sh"
 source "$(dirname "$0")/p4-lib.sh"
 # shellcheck source=tools/p7a-lib.sh
 source "$(dirname "$0")/p7a-lib.sh"
+# shellcheck source=tools/v1-lib.sh
+source "$(dirname "$0")/v1-lib.sh"
 require jq grep cksum
 
-scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
+scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name] (V1: u1-u5, v1)"
 [[ "$scenario" == s11 ]] && require python3
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
@@ -441,7 +444,9 @@ case "$scenario" in
       expect_log 2 "MISTBRN event=vial_credit metal=iron seq=1"
     fi
     case "$scenario" in
-      c2|c4) expect 3 report state=active reserve_iron=25000 last_transaction=1 vials=2 empty_vials=1 ;;
+      # Drinking credits but never unlocks (V1: unlocks come from the primer).
+      c2|c4) expect 3 report state=active reserve_iron=25000 last_transaction=1 vials=2 empty_vials=1 \
+        unlocked_iron=false unlocked_steel=false ;;
       c3|c5) expect 3 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
     esac
     if [[ "$scenario" == c2 ]]; then
@@ -638,8 +643,10 @@ case "$scenario" in
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
     expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
-  k[1-8])  # P7a keys and HUD (tools/p7a-lib.sh)
+  k[1-9])  # P7a keys, HUD and the pair wheel (tools/p7a-lib.sh)
     k_scenario ;;
+  u[1-5]|v1)  # V1 primer and player path (tools/v1-lib.sh)
+    v1_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

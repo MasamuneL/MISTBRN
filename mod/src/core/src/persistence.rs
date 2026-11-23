@@ -47,6 +47,8 @@ pub enum SaveError {
     Duplicate,
     StalePreparation,
     CounterOverflow,
+    /// Every metal of the pair is already unlocked: nothing to unlock, nothing to consume.
+    AlreadyUnlocked,
 }
 
 impl std::fmt::Display for SaveError {
@@ -209,6 +211,40 @@ pub fn prepare_credit(
             amount_milli,
         )
         .map_err(SaveError::InvalidReserves)?;
+        next.last_transaction = seq;
+        Ok(())
+    })?;
+    Ok(PreparedCredit {
+        seq: TransactionSeq(seq),
+        base_revision: saved.revision,
+        candidate,
+    })
+}
+
+/// Prepares unlocking both metals of `pair` as transaction `last_transaction + 1`, for an
+/// unlock item consumed in the same host transaction (V1, provisional until P5/P6 progression).
+/// The pair becomes the selected one; reserves and burns are untouched. A pair already fully unlocked is `AlreadyUnlocked`, so the
+/// caller keeps the item. Committed with `commit_credit`, under the same exactly-once rules.
+pub fn prepare_unlock(saved: &SavedPlayer, pair: Pair) -> Result<PreparedCredit, SaveError> {
+    validate_save(saved)?;
+    let metals = pair.metals();
+    if metals
+        .iter()
+        .all(|metal| saved.state.metals[metal.index()].unlocked)
+    {
+        return Err(SaveError::AlreadyUnlocked);
+    }
+    let seq = saved
+        .last_transaction
+        .checked_add(1)
+        .ok_or(SaveError::CounterOverflow)?;
+    let mut candidate = saved.clone();
+    change(&mut candidate, |next| {
+        for metal in metals {
+            next.state.metals[metal.index()].unlocked = true;
+        }
+        // The pair just learned becomes the selected one: its keys act on it at once.
+        next.state.selected_pair = pair;
         next.last_transaction = seq;
         Ok(())
     })?;

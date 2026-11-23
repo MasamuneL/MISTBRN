@@ -73,7 +73,7 @@ for recipe in "$data"/recipe/*.json; do
   while IFS= read -r id; do
     case "$id" in
       mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;
-      minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal) ;;
+      minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal|minecraft:book) ;;
       minecraft:copper_nugget|minecraft:gold_nugget|minecraft:cobblestone|'#minecraft:stone_crafting_materials'|minecraft:stick|minecraft:string|minecraft:gray_wool|'#minecraft:logs') ;;
       *) die "unknown item $id in $recipe" ;;
     esac

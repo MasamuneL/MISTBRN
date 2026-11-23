@@ -448,3 +448,119 @@ fn write_schema_1_fixture() {
     );
     std::fs::write(path, encode_save(&rich()).unwrap()).unwrap();
 }
+
+#[test]
+fn an_unlock_unlocks_the_pair_once_and_keeps_fuel() {
+    let mut saved = fresh();
+    update_player(&mut saved, |state, _| {
+        state.selected_pair = Pair::TinPewter;
+        Ok(())
+    })
+    .unwrap();
+    let credit = prepare_credit(&saved, Metal::Iron, 25_000).unwrap();
+    commit_credit(&mut saved, credit).unwrap();
+    let before = saved.clone();
+    let prepared = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    assert_eq!(saved, before, "preparing changes nothing");
+    assert_eq!(prepared.seq(), TransactionSeq(2));
+    assert_eq!(commit_credit(&mut saved, prepared), Ok(TransactionSeq(2)));
+    for metal in Metal::ALL {
+        let entry = &saved.state().metals[metal.index()];
+        assert_eq!(entry.unlocked, metal.pair() == Pair::IronSteel, "{metal:?}");
+        assert_eq!(entry.burn, BurnState::Off);
+    }
+    assert_eq!(
+        saved.state().metals[Metal::Iron.index()].reserve_milli,
+        25_000
+    );
+    assert_eq!(
+        saved.state().selected_pair,
+        Pair::IronSteel,
+        "the learned pair is selected"
+    );
+    assert_eq!(saved.last_transaction(), 2);
+    assert_eq!(saved.revision(), before.revision() + 1);
+    // Round trip in schema 1: nothing new in the format.
+    assert_eq!(decode(&encode_save(&saved).unwrap()).unwrap(), saved);
+}
+
+#[test]
+fn an_unlocked_pair_is_refused_and_a_partial_pair_is_completed() {
+    let mut saved = fresh();
+    let prepared = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    commit_credit(&mut saved, prepared).unwrap();
+    let after = saved.clone();
+    assert_eq!(
+        prepare_unlock(&saved, Pair::IronSteel),
+        Err(SaveError::AlreadyUnlocked)
+    );
+    assert_eq!(saved, after);
+
+    // One metal of the pair unlocked by other means (the P4 test command): the item still
+    // unlocks the other one.
+    let mut partial = fresh();
+    update_player(&mut partial, |state, _| {
+        state.metals[Metal::Steel.index()].unlocked = true;
+        Ok(())
+    })
+    .unwrap();
+    let prepared = prepare_unlock(&partial, Pair::IronSteel).unwrap();
+    commit_credit(&mut partial, prepared).unwrap();
+    assert!(partial.state().metals[Metal::Iron.index()].unlocked);
+    assert!(partial.state().metals[Metal::Steel.index()].unlocked);
+}
+
+#[test]
+fn an_unlock_is_exactly_once_against_stale_duplicate_and_cuts() {
+    let mut saved = fresh();
+    let old_bytes = encode_save(&saved).unwrap();
+    let prepared = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    let new_bytes = encode_save(prepared.candidate()).unwrap();
+
+    // Stale: another change landed between prepare and commit.
+    let mut moved = saved.clone();
+    on_reconnect(&mut moved).unwrap();
+    let stale = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    assert_eq!(
+        commit_credit(&mut moved, stale),
+        Err(SaveError::StalePreparation)
+    );
+
+    // Cut before the game wrote: still locked, the same unlock can be prepared again.
+    let reloaded_old = decode(&old_bytes).unwrap();
+    assert!(!reloaded_old.state().metals[Metal::Iron.index()].unlocked);
+    assert_eq!(
+        prepare_unlock(&reloaded_old, Pair::IronSteel)
+            .unwrap()
+            .seq(),
+        TransactionSeq(1)
+    );
+
+    // Cut after: unlocked once; replaying the in-flight preparation is a duplicate.
+    let mut reloaded_new = decode(&new_bytes).unwrap();
+    assert!(reloaded_new.state().metals[Metal::Steel.index()].unlocked);
+    assert_eq!(
+        commit_credit(&mut reloaded_new, prepared),
+        Err(SaveError::Duplicate)
+    );
+    let prepared = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    commit_credit(&mut saved, prepared).unwrap();
+    assert_eq!(saved, reloaded_new);
+}
+
+#[test]
+fn death_keeps_an_item_unlock() {
+    let mut saved = fresh();
+    let prepared = prepare_unlock(&saved, Pair::IronSteel).unwrap();
+    commit_credit(&mut saved, prepared).unwrap();
+    on_death(&mut saved).unwrap();
+    assert!(saved.state().metals[Metal::Iron.index()].unlocked);
+    assert!(saved.state().metals[Metal::Steel.index()].unlocked);
+}
+
+#[test]
+fn every_pair_lists_its_own_two_metals() {
+    for metal in Metal::ALL {
+        assert!(metal.pair().metals().contains(&metal));
+    }
+}

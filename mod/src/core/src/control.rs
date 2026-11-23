@@ -8,6 +8,7 @@
 //! control = version:u8 (1) | op:u8 | arg:u8                       exactly 3 bytes
 //!   op 1 cycle pair (arg 0) · 2 toggle side (arg 0 first, 1 second)
 //!   op 3 toggle flare (arg 0) · 4 all off (arg 0)
+//!   op 5 select pair (arg 0 iron/steel, 1 tin/pewter, 2 zinc/brass, 3 copper/bronze)
 //! hud     = version:u8 (1) | pair:u8 | 8 × (unlocked:u8 | burn:u8 | reserve:u32 LE
 //!           | capacity:u32 LE), in `Metal::ALL` order             exactly 82 bytes
 //! ```
@@ -35,6 +36,8 @@ pub enum ControlRequest {
     ToggleFlare,
     /// G: every metal off.
     Off,
+    /// The pair wheel (hold V): that pair, locked or not, as `Command::SelectPair` allows.
+    SelectPair(Pair),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,6 +67,7 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         ControlRequest::Toggle(Side::Second) => (2, 1),
         ControlRequest::ToggleFlare => (3, 0),
         ControlRequest::Off => (4, 0),
+        ControlRequest::SelectPair(pair) => (5, pair_code(pair)),
     };
     [CONTROL_VERSION, op, arg]
 }
@@ -81,8 +85,26 @@ pub fn decode_control(bytes: &[u8]) -> Result<ControlRequest, ControlError> {
         (2, 1) => Ok(ControlRequest::Toggle(Side::Second)),
         (3, 0) => Ok(ControlRequest::ToggleFlare),
         (4, 0) => Ok(ControlRequest::Off),
-        (1..=4, _) => Err(ControlError::Arg { op, arg }),
+        (5, 0..=3) => Ok(ControlRequest::SelectPair(PAIRS[usize::from(arg)])),
+        (1..=5, _) => Err(ControlError::Arg { op, arg }),
         _ => Err(ControlError::Op(op)),
+    }
+}
+
+/// The four pairs in wire and wheel order (op 5's argument is the index).
+pub const PAIRS: [Pair; 4] = [
+    Pair::IronSteel,
+    Pair::TinPewter,
+    Pair::ZincBrass,
+    Pair::CopperBronze,
+];
+
+fn pair_code(pair: Pair) -> u8 {
+    match pair {
+        Pair::IronSteel => 0,
+        Pair::TinPewter => 1,
+        Pair::ZincBrass => 2,
+        Pair::CopperBronze => 3,
     }
 }
 
@@ -127,6 +149,7 @@ pub fn resolve_control(state: &PlayerState, request: ControlRequest) -> Option<C
             BurnState::Flared => Some(Command::Activate { metal }),
         }),
         ControlRequest::Off => Some(Command::Extinguish { metal: None }),
+        ControlRequest::SelectPair(pair) => Some(Command::SelectPair { pair }),
     }
 }
 

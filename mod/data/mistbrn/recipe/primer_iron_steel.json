@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:book",
+    "minecraft:iron_ingot",
+    "mistbrn:steel_ingot"
+  ],
+  "result": {
+    "id": "mistbrn:primer_iron_steel",
+    "count": 1
+  }
+}
