@@ -127,8 +127,10 @@ fn hint(host: &mut dyn ServerHost, player: PlayerRef, key: &str, metal: Option<M
             )]
         })
         .unwrap_or_default();
-    eprintln!("MISTBRN event=hint key={key}");
-    let _ = player.action_bar(host, Text::translate(key, args));
+    let shown = player
+        .action_bar(host, Text::translate(key, args))
+        .unwrap_or(false);
+    eprintln!("MISTBRN event=hint key={key} shown={shown}");
 }
 
 fn op_name(request: ControlRequest) -> &'static str {
@@ -268,7 +270,11 @@ impl Controls {
         };
         let Some(command) = resolve_control(saved.state(), request) else {
             eprintln!("MISTBRN event=control op={op} result=nothing_burning changed=0");
-            hint(host, player, "message.mistbrn.nothing_burning", None);
+            // No hint for a captured input (a container open, a spectator): nothing was pressed
+            // in the game there.
+            if allowed {
+                hint(host, player, "message.mistbrn.nothing_burning", None);
+            }
             return;
         };
         let newly_lit = match &command {

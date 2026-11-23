@@ -68,9 +68,16 @@ v1_scenario() {
       report; quit_game
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1[[:space:]]*$'
       expect_log 1 'MISTBRN event=control op=cycle command=pair:tin_pewter allowed=true result=ok'
-      if [[ "$({ grep -a "MISTBRN hud pair=" "$(log 1)" || true; } | tail -1)" == *"pair=iron_steel "* ]]; then
-        k_ok "the primer selected iron/steel"
-      else k_fail "the HUD did not come back to iron/steel after the primer"; fi
+      # The HUD's pairs in order: tin/pewter after the tap, iron/steel after the primer, and
+      # iron/steel again after the relaunch (the choice is saved with the unlock).
+      local pairs
+      pairs="$({ grep -a "MISTBRN hud pair=" "$(log 1)" || true; } | sed 's/.*pair=\([a-z_]*\).*/\1/' | uniq | tr '\n' ' ')"
+      if [[ "$pairs" == *"tin_pewter iron_steel " && "$pairs" == "iron_steel tin_pewter iron_steel " ]]; then
+        k_ok "HUD pairs: $pairs"
+      else k_fail "HUD pairs '$pairs', expected 'iron_steel tin_pewter iron_steel'"; fi
+      if [[ "$({ grep -a "MISTBRN hud pair=" "$(log 2)" || true; } | tail -1)" == *"pair=iron_steel "* ]]; then
+        k_ok "iron/steel still selected after the relaunch"
+      else k_fail "the relaunch lost the selected pair"; fi
       expect 2 report state=active unlocked_iron=true unlocked_steel=true primers=0 last_transaction=1 burn_iron=off \
         reserve_iron=0 ;;
     u2)  # A second primer refuses an unlocked pair and stays in the inventory.

@@ -139,7 +139,7 @@ k_scenario() {
       k_expect_commands pair:tin_pewter=ok "activate:tin=MetalLocked(Tin)" pair:zinc_brass=ok \
         pair:copper_bronze=ok pair:iron_steel=ok activate:iron=ok off:all=ok
       k_expect_count "HUD showed tin/pewter" "MISTBRN hud pair=tin_pewter" 1 100
-      k_expect_count "locked tin said why over the hotbar" "MISTBRN event=hint key=message.mistbrn.metal_locked" 1 1 ;;
+      k_expect_count "locked tin said why over the hotbar" "MISTBRN event=hint key=message.mistbrn.metal_locked shown=true" 1 1 ;;
     k9)  # Hold V: the pair wheel opens; a click on its bottom slot chooses zinc/brass (not the
       # next pair, so a tap read as a cycle cannot pass) and closes the wheel while V is still
       # held; Z then acts on zinc. The GUI size comes from the screenshot (k_gui_size).
@@ -228,6 +228,8 @@ k_scenario() {
       ctl command "mistbrn-test inject toggle_second" >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject select_tin_pewter" >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
+      # R with nothing burning and the chest open: nothing to do, and no hint over the hotbar.
+      ctl command "mistbrn-test inject flare" >/dev/null; ctl wait 5 >/dev/null
       ctl close >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject toggle_first" >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test inject off" >/dev/null; ctl wait 5 >/dev/null
@@ -235,6 +237,8 @@ k_scenario() {
       k_expect_count "refused with the chest open" "command=activate:steel allowed=false result=InputCaptured changed=0" 1 1
       k_expect_count "off puts iron out with the chest open" "command=off:all allowed=false result=ok changed=1" 1 1
       k_expect_count "lit with nothing open" "command=activate:iron allowed=true result=ok changed=1" 2 2
+      k_expect_count "R with the chest open found nothing burning" "op=flare result=nothing_burning" 1 1
+      k_expect_count "no hint with the chest open" "MISTBRN event=hint " 0 0
       k_expect_commands activate:iron=ok activate:steel=InputCaptured pair:tin_pewter=InputCaptured \
         off:all=ok activate:iron=ok off:all=ok ;;
     *) return 1 ;;
