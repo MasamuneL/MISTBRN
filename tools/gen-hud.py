@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the reserve HUD's sprite sheet (mod/assets/mistbrn/textures/gui/hud.png, 128x64).
+"""Generate the HUD's sprite sheet (mod/assets/mistbrn/textures/gui/hud.png, 160x64).
 
-Original pixel art for this mod: a bevelled pewter frame with brass studs, framed bars with
-gradient fills, metal gems, a lock and two flames. Standard library only (zlib + struct).
-The layout constants must match mod/src/client.rs (`SPRITE_*`).
+Original pixel art for this mod, a worn-metal look kept at the game's own pixel size: bevelled
+steel and brass frames (1 px light top-left, shadow bottom-right, reinforced corners, a few
+worn pixels), bars with a dark inner channel, end rivets and faint divisions, three-tone
+flames, bevelled metal tiles, a lock and an aged steel ring with four brass notches.
+Muted golds and oranges so the HUD does not compete with items. Standard library only.
+Every region's position must match the constants in mod/src/hud.rs.
 
 Usage: tools/gen-hud.py [output.png]
 """
@@ -11,7 +14,7 @@ import struct
 import sys
 import zlib
 
-W, H = 128, 64
+W, H = 160, 64
 px = [[(0, 0, 0, 0)] * W for _ in range(H)]
 
 
@@ -38,179 +41,181 @@ def art(x0, y0, rows, palette):
                 put(x0 + i, y0 + j, palette[ch])
 
 
-OUTLINE = hexc("0b0c10")
-PEWTER_HI = hexc("9aa0ae")
-PEWTER = hexc("5e6472")
-PEWTER_LO = hexc("2c3039")
-FILL = hexc("171a21", 0xE6)
-BRASS_HI = hexc("f3dc95")
-BRASS = hexc("c79a3e")
-BRASS_LO = hexc("7a5a1e")
-TRACK = hexc("0e1015")
-TRACK_HI = hexc("1d2029")
+# Palette: background, shadow, steel, highlight, brass, copper (muted).
+OUTLINE = hexc("0a0b0e")
+SHADOW = hexc("1b1d23")
+STEEL_LO = hexc("3a3e47")
+STEEL = hexc("5c626d")
+STEEL_MID = hexc("7d838e")
+STEEL_HI = hexc("b4b9c2")
+BRASS_LO = hexc("6b5428")
+BRASS = hexc("a88a4e")
+BRASS_HI = hexc("d9c38c")
+COPPER_LO = hexc("6a3a22")
+COPPER = hexc("a8643a")
+COPPER_HI = hexc("d99a6a")
+WINDOW = hexc("101217", 0xDC)
+TRACK = hexc("0c0d11")
+TRACK_HI = hexc("191b21")
 
-# --- Panel, 16x16 nine-slice with 5 px corners (SPRITE_PANEL at 0,0) -------------------------
-rect(0, 0, 16, 16, FILL)
-rect(0, 0, 16, 1, OUTLINE); rect(0, 15, 16, 1, OUTLINE)
-rect(0, 0, 1, 16, OUTLINE); rect(15, 0, 1, 16, OUTLINE)
-rect(1, 1, 14, 1, PEWTER_HI); rect(1, 1, 1, 14, PEWTER_HI)  # bevel light (top, left)
-rect(1, 14, 14, 1, PEWTER_LO); rect(14, 1, 1, 14, PEWTER_LO)  # bevel shadow (bottom, right)
-rect(2, 2, 12, 1, PEWTER); rect(2, 2, 1, 12, PEWTER)
-rect(2, 13, 12, 1, OUTLINE); rect(13, 2, 1, 12, OUTLINE)
-for cx, cy in ((2, 2), (12, 2), (2, 12), (12, 12)):  # brass studs in the corners
-    put(cx, cy, BRASS_HI); put(cx + 1, cy, BRASS)
-    put(cx, cy + 1, BRASS); put(cx + 1, cy + 1, BRASS_LO)
+# --- Bar frames, 64x8, inner track 60x4 at (2,2): FRAME at 16,0 (cold), FRAME_LIT at 96,8 ----
+def bar_frame(fx, fy, cap_hi, cap, cap_lo):
+    rect(fx + 1, fy, 62, 8, STEEL)
+    rect(fx + 1, fy, 62, 1, OUTLINE); rect(fx + 1, fy + 7, 62, 1, OUTLINE)
+    rect(fx, fy + 1, 1, 6, OUTLINE); rect(fx + 63, fy + 1, 1, 6, OUTLINE)
+    rect(fx + 1, fy + 1, 62, 1, STEEL_HI)          # light on the top edge
+    rect(fx + 1, fy + 6, 62, 1, STEEL_LO)          # shadow on the bottom edge
+    rect(fx + 2, fy + 2, 60, 4, TRACK)             # dark inner channel
+    rect(fx + 2, fy + 2, 60, 1, OUTLINE)           # channel's own top shadow
+    rect(fx + 2, fy + 5, 60, 1, TRACK_HI)
+    for ex in (fx + 1, fx + 62):                   # end plates with a rivet each
+        put(ex, fy + 2, cap_hi); put(ex, fy + 3, cap); put(ex, fy + 4, cap); put(ex, fy + 5, cap_lo)
+    put(fx + 9, fy + 1, STEEL_MID); put(fx + 41, fy + 6, STEEL)   # worn pixels
+    put(fx + 54, fy + 1, STEEL_MID)
 
-# --- Bar frame, 64x8, inner track 60x4 at (2,2) (SPRITE_FRAME at 16,0) ---------------------
-fx = 16
-rect(fx + 1, 0, 62, 8, PEWTER)
-rect(fx + 1, 0, 62, 1, OUTLINE); rect(fx + 1, 7, 62, 1, OUTLINE)
-rect(fx, 1, 1, 6, OUTLINE); rect(fx + 63, 1, 1, 6, OUTLINE)
-rect(fx + 1, 1, 62, 1, PEWTER_HI)
-rect(fx + 1, 6, 62, 1, PEWTER_LO)
-rect(fx + 2, 2, 60, 4, TRACK)
-rect(fx + 2, 2, 60, 1, OUTLINE)  # inner shadow under the top rim
-rect(fx + 2, 5, 60, 1, TRACK_HI)
-for ex in (fx + 1, fx + 62):  # brass end caps
-    put(ex, 2, BRASS_HI); put(ex, 3, BRASS); put(ex, 4, BRASS); put(ex, 5, BRASS_LO)
 
-# --- Fills, 60x4 each: highlight, light, base, shadow (SPRITE_FILL_* at 16,8 / 16,12 / 16,16) -
+bar_frame(16, 0, BRASS_HI, BRASS, BRASS_LO)
+bar_frame(96, 8, COPPER_HI, hexc("d0803c"), COPPER_LO)   # burning: warm accents
+
+# --- Fills, 60x4: highlight, light, base, shadow; a faint division every 10 px --------------
 FILLS = {
-    8: ("fff0b8", "f0c860", "c8962e", "8a6418"),   # burning: brass gold
-    12: ("ffd2a0", "ff9a40", "e0601c", "9a3410"),  # flared: hot orange
-    16: ("c8ccd6", "9aa0ae", "767c8a", "4c515c"),  # off: pewter
+    8: ("f0dfa8", "d6b467", "aa8640", "6e5426"),   # burning: muted brass gold
+    12: ("f2c49a", "d98a4e", "b05a2c", "6e3418"),  # flared: muted hot copper
+    16: ("c2c6ce", "979ca6", "737883", "4a4e57"),  # off: steel
 }
 for y, shades in FILLS.items():
     for row, shade in enumerate(shades):
-        rect(fx, y + row, 60, 1, hexc(shade))
-    for i in range(3, 60, 6):  # faint sheen ticks so a long bar is not flat
-        put(fx + i, y + 1, hexc(shades[0]))
+        rect(16, y + row, 60, 1, hexc(shade))
+    for i in range(9, 60, 10):  # divisions, darker than the base, not across the highlight
+        put(16 + i, y + 1, hexc(shades[2])); put(16 + i, y + 2, hexc(shades[3]))
 
-# --- Marker gem 5x6 (SPRITE_GEM at 80,0): sits on the fill's end --------------------------
+# --- Marker on the fill's end, 5x6 (GEM at 80,0) ------------------------------------------
 art(80, 0, [
     "..o..",
     ".oHo.",
-    "oHPPo",
-    "oPPLo",
+    "oHSMo",
+    "oSMLo",
     ".oLo.",
     "..o..",
-], {"o": OUTLINE, "H": hexc("eef2fa"), "P": PEWTER_HI, "L": PEWTER})
+], {"o": OUTLINE, "H": hexc("eef0f4"), "S": STEEL_HI, "M": STEEL_MID, "L": STEEL})
 
-# --- Lock 7x8 (SPRITE_LOCK at 88,0) --------------------------------------------------------
+# --- Lock 7x8 (LOCK at 88,0) ---------------------------------------------------------------
 art(88, 0, [
     ".ooooo.",
-    ".oHPPo.",
+    ".oHSSo.",
     ".o...o.",
     "ooooooo",
     "oBBBBBo",
-    "oBBoBBo",
+    "oBBoBLo",
     "oLLoLLo",
     "ooooooo",
-], {"o": OUTLINE, "H": PEWTER_HI, "P": PEWTER, "B": BRASS, "L": BRASS_LO})
+], {"o": OUTLINE, "H": STEEL_HI, "S": STEEL, "B": BRASS, "L": BRASS_LO})
 
-# --- Flames 7x8 (SPRITE_FLAME at 96,0 burning, 104,0 flared) -------------------------------
+# --- Flames 7x8, three tones with a light core (FLAME at 96,0; FLAME_FLARED at 104,0) ------
 FLAME = [
     "...o...",
-    "..oYo..",
-    ".oYRYo.",
-    ".oRWRo.",
-    "oRYWYRo",
-    "oRYWYRo",
-    ".oRRRo.",
+    "..oEo..",
+    ".oEMEo.",
+    ".oMCMo.",
+    "oEMCCMo",
+    "oEMCCEo",
+    ".oEMEo.",
     "..ooo..",
 ]
-art(96, 0, FLAME, {"o": OUTLINE, "Y": hexc("f0c860"), "R": hexc("c8962e"), "W": hexc("fff0b8")})
-art(104, 0, FLAME, {"o": OUTLINE, "Y": hexc("ff9a40"), "R": hexc("d0401a"), "W": hexc("fff4d0")})
+art(96, 0, FLAME, {"o": OUTLINE, "E": hexc("8a5a22"), "M": hexc("c99a4a"), "C": hexc("f2e0a8")})
+art(104, 0, FLAME, {"o": OUTLINE, "E": hexc("7a2e16"), "M": hexc("cf6a32"), "C": hexc("f6d6a0")})
 
-# --- Metal gems 6x6, Metal::ALL order (SPRITE_METAL at 0,24 + 8 * index) --------------------
+# --- Metal tiles, bevelled squares in Metal::ALL order: 6x6 at y 24, 8x8 at y 56 --------------
 METALS = [
-    ("c4c8d0", "8a909c", "4e535e"),  # iron
-    ("dce6f2", "8fa4bc", "4a5a70"),  # steel
-    ("ffffff", "d4d6d8", "8c9096"),  # tin
-    ("b8bcc4", "868a92", "50545c"),  # pewter
-    ("e4eef0", "a8bcc0", "687c82"),  # zinc
-    ("fff0a0", "e0b840", "8a6a18"),  # brass
-    ("ffc8a0", "d87838", "8a4418"),  # copper
-    ("f0c890", "b07c38", "6a4618"),  # bronze
+    ("c9ccd2", "8e939c", "565b64"),  # iron
+    ("b9c8da", "7f93ab", "46566b"),  # steel
+    ("eceef0", "c4c7cb", "8a8e94"),  # tin
+    ("b3b5ba", "85888f", "54575e"),  # pewter
+    ("d3dee0", "9fb1b5", "64767b"),  # zinc
+    ("e3cf8f", "b8994e", "75602c"),  # brass
+    ("e2aa82", "b46a40", "70402a"),  # copper
+    ("d9b88a", "a07a46", "62482a"),  # bronze
 ]
-GEM = [
-    ".oooo.",
-    "oHHLMo",
-    "oHLMMo",
-    "oLMMSo",
-    "oMMSSo",
-    ".oooo.",
-]
+
+
+def tile(x0, y0, size, hi, mid, lo):
+    rect(x0, y0, size, size, OUTLINE)
+    rect(x0 + 1, y0 + 1, size - 2, size - 2, mid)
+    rect(x0 + 1, y0 + 1, size - 2, 1, hi); rect(x0 + 1, y0 + 1, 1, size - 2, hi)
+    rect(x0 + 1, y0 + size - 2, size - 2, 1, lo); rect(x0 + size - 2, y0 + 1, 1, size - 2, lo)
+    if size >= 8:  # a diagonal glint on the larger tiles
+        put(x0 + 3, y0 + 4, hi); put(x0 + 4, y0 + 3, hi)
+
+
 for index, (hi, mid, lo) in enumerate(METALS):
-    light = tuple((a + b) // 2 for a, b in zip(hexc(hi)[:3], hexc(mid)[:3])) + (255,)
-    art(8 * index, 24, GEM, {"o": OUTLINE, "H": hexc(hi), "L": light, "M": hexc(mid), "S": hexc(lo)})
+    tile(8 * index, 24, 6, hexc(hi), hexc(mid), hexc(lo))
+    tile(8 * index, 56, 8, hexc(hi), hexc(mid), hexc(lo))
+
+# --- Wheel slots 24x24 at y 32: SLOT (steel, dim) x 0, SLOT_CURRENT (brass) x 24, ----------
+# --- SLOT_HOVERED (bright steel) x 48 ------------------------------------------------------
+MARK = ["..o..", ".oBo.", "oB.Bo", ".oBo.", "..o.."]   # the mod's own engraved mark (a rhombus)
 
 
-# --- Wheel slots, 24x24 (SPRITE_SLOT at 0,32 silver, 24,32 brass = current, 48,32 hovered) ----
-def slot(x0, hi, mid, lo, glow=None):
-    rect(x0 + 1, 33, 22, 22, hexc("10131a", 0xD8))  # window
-    rect(x0 + 1, 32, 22, 1, OUTLINE); rect(x0 + 1, 55, 22, 1, OUTLINE)
-    rect(x0, 33, 1, 22, OUTLINE); rect(x0 + 23, 33, 1, 22, OUTLINE)
-    rect(x0 + 1, 33, 22, 1, hi); rect(x0 + 1, 33, 1, 22, hi)
-    rect(x0 + 1, 54, 22, 1, lo); rect(x0 + 22, 33, 1, 22, lo)
-    rect(x0 + 2, 34, 20, 1, mid); rect(x0 + 2, 34, 1, 20, mid)
-    rect(x0 + 2, 53, 20, 1, mid); rect(x0 + 21, 34, 1, 20, mid)
-    rect(x0 + 3, 35, 18, 1, OUTLINE); rect(x0 + 3, 35, 1, 18, OUTLINE)
-    rect(x0 + 3, 52, 18, 1, OUTLINE); rect(x0 + 20, 35, 1, 18, OUTLINE)
-    for cx, cy in ((x0 + 1, 33), (x0 + 21, 33), (x0 + 1, 53), (x0 + 21, 53)):  # corner knobs
-        put(cx, cy, hi); put(cx + 1, cy, mid); put(cx, cy + 1, mid); put(cx + 1, cy + 1, lo)
+def slot(x0, hi, mid, lo, corner, corner_lo, mark=None, glow=None):
+    y0 = 32
+    rect(x0 + 1, y0 + 1, 22, 22, WINDOW)
+    rect(x0 + 1, y0, 22, 1, OUTLINE); rect(x0 + 1, y0 + 23, 22, 1, OUTLINE)
+    rect(x0, y0 + 1, 1, 22, OUTLINE); rect(x0 + 23, y0 + 1, 1, 22, OUTLINE)
+    # Bevelled rim: light top-left, shadow bottom-right, body between.
+    rect(x0 + 1, y0 + 1, 22, 1, hi); rect(x0 + 1, y0 + 1, 1, 22, hi)
+    rect(x0 + 2, y0 + 2, 20, 1, mid); rect(x0 + 2, y0 + 2, 1, 20, mid)
+    rect(x0 + 2, y0 + 21, 20, 1, lo); rect(x0 + 21, y0 + 2, 1, 20, lo)
+    rect(x0 + 1, y0 + 22, 22, 1, SHADOW); rect(x0 + 22, y0 + 1, 1, 22, SHADOW)
+    rect(x0 + 3, y0 + 3, 18, 1, OUTLINE); rect(x0 + 3, y0 + 3, 1, 18, OUTLINE)  # inner groove
+    rect(x0 + 3, y0 + 20, 18, 1, OUTLINE); rect(x0 + 20, y0 + 3, 1, 18, OUTLINE)
+    # Reinforced corners: a 5x5 plate on each corner, bevelled, with a rivet.
+    for px0, py0 in ((x0, y0), (x0 + 19, y0), (x0, y0 + 19), (x0 + 19, y0 + 19)):
+        rect(px0, py0, 5, 5, OUTLINE)
+        rect(px0 + 1, py0 + 1, 3, 3, corner)
+        put(px0 + 1, py0 + 1, hi); put(px0 + 3, py0 + 3, corner_lo)
+        put(px0 + 2, py0 + 2, OUTLINE)
+    put(x0 + 8, y0 + 1, mid); put(x0 + 22, y0 + 15, lo)  # worn pixels
     if glow:
-        rect(x0 + 4, 36, 16, 1, glow); rect(x0 + 4, 36, 1, 16, glow)
-        rect(x0 + 4, 51, 16, 1, glow); rect(x0 + 19, 36, 1, 16, glow)
+        rect(x0 + 4, y0 + 4, 16, 1, glow); rect(x0 + 4, y0 + 4, 1, 16, glow)
+        rect(x0 + 4, y0 + 19, 16, 1, glow); rect(x0 + 19, y0 + 4, 1, 16, glow)
+    if mark:
+        art(x0 + 10, y0 + 19, MARK, {"o": OUTLINE, "B": mark})
 
 
-slot(0, hexc("e8ecf4"), hexc("a8aebc"), hexc("5a606c"))
-slot(24, BRASS_HI, BRASS, BRASS_LO)
-slot(48, hexc("ffffff"), hexc("d8e4f4"), hexc("8a96a8"), glow=hexc("cfe0ff", 0x90))
+slot(0, hexc("8d929b"), STEEL, STEEL_LO, STEEL_MID, STEEL_LO)                     # dim
+slot(24, BRASS_HI, BRASS, BRASS_LO, BRASS_HI, BRASS_LO, mark=BRASS_HI)              # current
+slot(48, hexc("e6e9ee"), STEEL_HI, STEEL, hexc("f4f5f7"), STEEL_MID,
+     mark=STEEL_HI, glow=hexc("dfe6f0", 0x70))                                      # hovered
 
-# --- Centre ring 24x24 (SPRITE_RING at 72,32): an octagon of pewter ---------------------------
+# --- Centre ring 24x24 (RING at 72,32): aged steel octagon, four brass notches ---------------
 RING = [
     "........oooooooo........",
-    "......ooHHHHHHHHoo......",
-    ".....oHPoooooooooPHo....",
-    "....oHPo........oPHo....",
-    "...oHPo..........oPHo...",
-    "..oHPo............oPHo..",
-    ".oHPo..............oPHo.",
-    "oHPo................oPHo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    "oHPo................oPLo",
-    ".oHPo..............oPLo.",
-    "..oHPo............oPLo..",
-    "...oHPo..........oPLo...",
-    "....oHPo........oPLo....",
-    ".....oPPoooooooooPLo....",
-    "......ooLLLLLLLLoo......",
+    "......ooHHHSSHHHoo......",
+    ".....oHSooobboooSHo.....",
+    "....oHSo...bb...oSLo....",
+    "...oHSo..........oSLo...",
+    "..oHSo............oSLo..",
+    ".oHSo..............oSLo.",
+    "oHSo................oSLo",
+    "oHSo................oSLo",
+    "oHSo................oSLo",
+    "oHo..................oLo",
+    "obbb................bbbo",
+    "obbb................bbbo",
+    "oHo..................oLo",
+    "oHSo................oSLo",
+    "oSSo................oSLo",
+    ".oSSo..............oSLo.",
+    "..oSSo............oSLo..",
+    "...oSSo..........oSLo...",
+    "....oSSo...bb...oSLo....",
+    ".....oSSooobboooSLo.....",
+    "......ooLLLSSLLLoo......",
     "........oooooooo........",
     "........................",
 ]
-art(72, 32, RING, {"o": OUTLINE, "H": PEWTER_HI, "P": PEWTER, "L": PEWTER_LO})
-
-# --- Big metal gems 8x8 for the wheel (SPRITE_BIG_METAL at 0,56 + 8 * index) -----------------
-BIG = [
-    "..oooo..",
-    ".oHHLMo.",
-    "oHHLMMMo",
-    "oHLMMMSo",
-    "oLMMMSSo",
-    "oMMMSSSo",
-    ".oMSSSo.",
-    "..oooo..",
-]
-for index, (hi, mid, lo) in enumerate(METALS):
-    light = tuple((a + b) // 2 for a, b in zip(hexc(hi)[:3], hexc(mid)[:3])) + (255,)
-    art(8 * index, 56, BIG, {"o": OUTLINE, "H": hexc(hi), "L": light, "M": hexc(mid), "S": hexc(lo)})
+art(72, 32, RING, {"o": OUTLINE, "H": STEEL_HI, "S": STEEL, "L": STEEL_LO, "b": BRASS})
+put(72 + 5, 32 + 6, STEEL_MID); put(72 + 18, 32 + 16, STEEL_MID)  # uneven relief
 
 
 def png(rows):
