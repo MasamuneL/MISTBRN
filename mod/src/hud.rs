@@ -32,6 +32,10 @@ const TEXT: u32 = 0xFFE0_E0E0;
 const DIM: u32 = 0xFF90_9090;
 const BRASS_TEXT: u32 = 0xFFF0_D48A;
 const LOCKED_TINT: u32 = 0xFF70_7070;
+/// Wheel hint: lighter than DIM so it holds on cloud edges (review with Codex).
+const HINT: u32 = 0xFFC8_CCD4;
+/// Wheel spokes: faint, so the slots keep the attention.
+const SPOKE: u32 = 0x50E8_D8B0;
 const FLAT_BACK: u32 = 0xC020_2228;
 const FLAT_BURNING: u32 = 0xFFC8_A050;
 const FLAT_FLARED: u32 = 0xFFFF_7030;
@@ -193,7 +197,7 @@ pub(crate) fn draw_wheel(
                 [b[0] - n[0], b[1] - n[1]],
                 [a[0] - n[0], a[1] - n[1]],
             ],
-            0x80E8_D8B0,
+            SPOKE,
         );
     }
     let textured = sprite(draw, RING, [cx - RING[2] / 2.0, cy - RING[3] / 2.0], None);
@@ -272,7 +276,7 @@ pub(crate) fn draw_wheel(
     draw.text(
         &hint,
         [cx - draw.text_width(&hint) / 2.0, hint_y],
-        DIM,
+        HINT,
         true,
     );
 }
