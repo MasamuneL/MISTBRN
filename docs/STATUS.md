@@ -15,16 +15,16 @@ Actualizado el 2026-11-22.
 
 El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P7a) fue `native-0a875da-4870250b4b03` (`p7a-5`, commit `63cf094`) en `mistbrn-dev`: K1–K8, N3, N7 y S1 PASS; N1 falló una vez por 0,001 (dos movimientos del cliente en un tick) y pasó en dos repeticiones. Recibos y corridas fuera del repo, en `~/Library/Application Support/MISTBRN-dev/`. Windows x64 y Linux x64 quedan para P10. [Compatibilidad](compatibility.md)
 
-## En curso: V1 (rama `feat/v1-unlock`)
+## En curso: V1 (rama `feat/v1-unlock`, PR #13)
 
-Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. Escenarios U1–U5 y `v1` (recorrido completo sin comandos de prueba) y regresión C2, S1, K1, K6, N1 PASS con el build `v1-2` (`native-0a875da-c01af71c3d7a`, `a63f1a0`). Revisión: Codex y Gemini APROBADO en la 1.ª ronda; hallazgos medios y bajos atendidos. [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
+Desbloqueo por ítem (decisión del usuario): la «Cartilla: hierro y acero» (libro + lingote de hierro + lingote de acero), provisional hasta P5/P6, desbloquea la pareja en la misma transacción que la consume. HUD nuevo junto al hotbar, solo con la pareja actual, y rueda de parejas en V (op 5 «elegir pareja»); assets originales acordados y aprobados por Claude y Codex. Batería final con el build `v1-10` (`8033aa0`): U1–U5, v1, K1–K9, C2, S1 y N1, 18/18 PASS. Revisión de código: Codex y Gemini APROBADO en las dos rondas. [Evidencia](evidence/v1.md) · [Guía para jugar el recorrido](v1-guide.md)
 
 ## Reanudación
 
 - Rama activa: `feat/v1-unlock` (desde `main` `6d440f4`); worktree `../MISTBRN-v1` (`wip/v1-scenario`) solo para el escenario de Codex, ya integrado.
-- Fase y paso: V1, PR #13 revisada; falta la evaluación humana y la aprobación del merge.
+- Fase y paso: V1, PR #13 revisada y con la batería final en verde; falta la evaluación humana y la aprobación del merge.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: batería V1 con `v1-2`, todo PASS (U1, U4 y v1 tras arreglar el harness o el foco de la ventana, ver evidencia); captura `runs/v1-2-v1b/v1-hud.png` revisada.
+- Último resultado: batería final con `v1-10`, 18/18 PASS; capturas `runs/v1-10-{v1,k9,k6}` revisadas.
 
 ## Siguiente acción exacta
 
