@@ -57,8 +57,15 @@ const DEAD_ZONE: f32 = 14.0;
 /// Slots clockwise from the top, in `PAIRS` order.
 const DIRECTIONS: [[f32; 2]; 4] = [[0.0, -1.0], [1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]];
 
-fn tr(host: &dyn ClientHost, key: &str) -> String {
+pub(crate) fn tr(host: &dyn ClientHost, key: &str) -> String {
     host.text_string(&Text::translate(key, Vec::new()))
+        .unwrap_or_else(|_| key.into())
+}
+
+/// A translation with literal arguments (`%s` in the language files).
+pub(crate) fn tr_args(host: &dyn ClientHost, key: &str, args: &[String]) -> String {
+    let args = args.iter().map(|a| Text::literal(a.clone())).collect();
+    host.text_string(&Text::translate(key, args))
         .unwrap_or_else(|_| key.into())
 }
 

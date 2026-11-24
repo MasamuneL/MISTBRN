@@ -10,6 +10,13 @@ use mod_api::{
 use std::collections::BTreeMap;
 
 const OFFHAND_SLOT: u32 = 40;
+/// The notebook (P5): opens the notebook screen; used on a crafting table it concludes research.
+pub(crate) const NOTEBOOK: &str = "mistbrn:notebook";
+
+/// Whether `stack` is the notebook.
+pub(crate) fn is_notebook(host: &dyn Host, stack: &ItemStack) -> bool {
+    stack.item().id(host) == NOTEBOOK
+}
 
 #[derive(Default)]
 pub(crate) struct Content {

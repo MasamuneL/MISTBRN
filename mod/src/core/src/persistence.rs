@@ -1,7 +1,7 @@
 //! One player's canonical save: state, reserve accounting, the rules that explain it, and the
 //! transaction counters that make every credit apply exactly once.
 //!
-//! Binary format, schema 1 (all integers little-endian):
+//! Binary format, schema 2 (all integers little-endian):
 //!
 //! ```text
 //! "MBRN" | schema:u16 | payload_len:u32 | payload | crc32:u32 (IEEE, over everything before it)
@@ -12,17 +12,32 @@
 //!         | reduction_milli:u16 | capacity_bonus_milli:u16
 //!         | revision:u64 | last_transaction:u64
 //! str     = len:u16 | UTF-8 bytes
+//!
+//! schema 2 appends the player's progress (P5) to the schema 1 payload:
+//!   | 4 × pair_xp:u32                                             in `Pair` order
+//!   | n_nodes:u8 | n × (code:u16 | rank:u8)                       strictly increasing codes
+//!   | n_research:u8 | n × (code:u16 | evidence:u8 | hints:u8 | concluded:u8)   increasing
+//!   | 3 × (window_start:u64 | window_count:u8)                    practice categories
 //! ```
+//!
+//! Schema 1 still decodes: it is migrated to an empty progress, everything else identical, and
+//! the next write stores schema 2. Any other schema is refused before its payload is read.
 //!
 //! `last_tick` is not saved: server ticks restart with every world open, so a loaded player
 //! starts with `None`. Decoding never repairs or defaults anything; any defect is an error and the
 //! caller must not overwrite the bytes it could not read.
 use crate::{
-    BurnState, Metal, Pair, PlayerId, PlayerState, ReserveAccounting, ReserveError, ReserveRules,
-    WorldId, clear_reserves_on_death, credit_reserve, validate_reserves,
+    BurnState, CATALOG, EventKind, Metal, Observed, Pair, PlayerId, PlayerState, Progress,
+    ProgressError, ResearchState, ReserveAccounting, ReserveError, ReserveRules, VerifiedEvent,
+    WorldId, apply_conclusion, apply_evidence, apply_hint, apply_practice, check_purchase,
+    clear_reserves_on_death, credit_reserve, practice_def, research_def, validate_progress,
+    validate_reserves,
 };
+use std::collections::BTreeMap;
 
-pub const SAVE_SCHEMA: u16 = 1;
+pub const SAVE_SCHEMA: u16 = 2;
+/// The oldest schema still read (and migrated).
+pub const OLDEST_SCHEMA: u16 = 1;
 pub const MAX_SAVE_BYTES: usize = 64 * 1024;
 pub const MAX_ID_BYTES: usize = 256;
 const MAGIC: [u8; 4] = *b"MBRN";
@@ -49,6 +64,8 @@ pub enum SaveError {
     CounterOverflow,
     /// Every metal of the pair is already unlocked: nothing to unlock, nothing to consume.
     AlreadyUnlocked,
+    /// Invalid saved progress, or a progress request the rules refuse.
+    Progress(ProgressError),
 }
 
 impl std::fmt::Display for SaveError {
@@ -67,6 +84,7 @@ pub struct SavedPlayer {
     state: PlayerState,
     accounting: ReserveAccounting,
     rules: ReserveRules,
+    progress: Progress,
     revision: u64,
     last_transaction: u64,
 }
@@ -78,6 +96,7 @@ impl SavedPlayer {
             state: PlayerState::new(player, world),
             accounting: ReserveAccounting::default(),
             rules,
+            progress: Progress::default(),
             revision: 0,
             last_transaction: 0,
         };
@@ -92,6 +111,10 @@ impl SavedPlayer {
     }
     pub fn rules(&self) -> &ReserveRules {
         &self.rules
+    }
+    /// Experience, nodes, research and practice windows (P5).
+    pub fn progress(&self) -> &Progress {
+        &self.progress
     }
     /// Increases by one with every accepted change; never reset.
     pub fn revision(&self) -> u64 {
@@ -115,7 +138,9 @@ pub fn validate_save(saved: &SavedPlayer) -> Result<(), SaveError> {
         return Err(SaveError::InvalidCounters);
     }
     validate_reserves(&saved.state, &saved.accounting, &saved.rules)
-        .map_err(SaveError::InvalidReserves)
+        .map_err(SaveError::InvalidReserves)?;
+    validate_progress(&saved.progress, &saved.state, &saved.rules, &CATALOG)
+        .map_err(SaveError::Progress)
 }
 
 /// Applies `change` to copies, validates the result, then replaces the save and bumps the
@@ -190,12 +215,12 @@ impl PreparedCredit {
     }
 }
 
-/// Prepares one credit as transaction `last_transaction + 1`. Nothing changes until commit.
-pub fn prepare_credit(
-    saved: &SavedPlayer,
-    metal: Metal,
-    amount_milli: i64,
-) -> Result<PreparedCredit, SaveError> {
+/// Prepares `change` as transaction `last_transaction + 1` on a copy of the save. Nothing
+/// changes until `commit_credit`; a refused or invalid change prepares nothing.
+fn prepare<F>(saved: &SavedPlayer, change_fn: F) -> Result<PreparedCredit, SaveError>
+where
+    F: FnOnce(&mut SavedPlayer) -> Result<(), SaveError>,
+{
     validate_save(saved)?;
     let seq = saved
         .last_transaction
@@ -203,14 +228,7 @@ pub fn prepare_credit(
         .ok_or(SaveError::CounterOverflow)?;
     let mut candidate = saved.clone();
     change(&mut candidate, |next| {
-        credit_reserve(
-            &mut next.state,
-            &next.accounting,
-            &next.rules,
-            metal,
-            amount_milli,
-        )
-        .map_err(SaveError::InvalidReserves)?;
+        change_fn(next)?;
         next.last_transaction = seq;
         Ok(())
     })?;
@@ -221,38 +239,166 @@ pub fn prepare_credit(
     })
 }
 
-/// Prepares unlocking both metals of `pair` as transaction `last_transaction + 1`, for an
-/// unlock item consumed in the same host transaction (V1, provisional until P5/P6 progression).
-/// The pair becomes the selected one; reserves and burns are untouched. A pair already fully unlocked is `AlreadyUnlocked`, so the
-/// caller keeps the item. Committed with `commit_credit`, under the same exactly-once rules.
-pub fn prepare_unlock(saved: &SavedPlayer, pair: Pair) -> Result<PreparedCredit, SaveError> {
-    validate_save(saved)?;
-    let metals = pair.metals();
-    if metals
-        .iter()
-        .all(|metal| saved.state.metals[metal.index()].unlocked)
-    {
-        return Err(SaveError::AlreadyUnlocked);
+/// Prepares one credit as transaction `last_transaction + 1`. Nothing changes until commit.
+pub fn prepare_credit(
+    saved: &SavedPlayer,
+    metal: Metal,
+    amount_milli: i64,
+) -> Result<PreparedCredit, SaveError> {
+    prepare(saved, |next| {
+        credit_reserve(
+            &mut next.state,
+            &next.accounting,
+            &next.rules,
+            metal,
+            amount_milli,
+        )
+        .map_err(SaveError::InvalidReserves)
+    })
+}
+
+fn unlock_pair(state: &mut PlayerState, pair: Pair) {
+    for metal in pair.metals() {
+        state.metals[metal.index()].unlocked = true;
     }
-    let seq = saved
-        .last_transaction
-        .checked_add(1)
-        .ok_or(SaveError::CounterOverflow)?;
-    let mut candidate = saved.clone();
-    change(&mut candidate, |next| {
-        for metal in metals {
-            next.state.metals[metal.index()].unlocked = true;
+    // The pair just learned becomes the selected one: its keys act on it at once.
+    state.selected_pair = pair;
+}
+
+fn pair_unlocked(state: &PlayerState, pair: Pair) -> bool {
+    pair.metals()
+        .iter()
+        .all(|metal| state.metals[metal.index()].unlocked)
+}
+
+/// A drink's credit (P5 tutorial): the vial's reserve, and the first vial of a tutorial pair
+/// (`CATALOG.tutorial_pairs`) drunk while that pair is locked also unlocks and selects it, in
+/// the same transaction. Returns whether it unlocked.
+pub fn prepare_vial(
+    saved: &SavedPlayer,
+    metal: Metal,
+    amount_milli: i64,
+) -> Result<(PreparedCredit, bool), SaveError> {
+    let pair = metal.pair();
+    let unlocks = CATALOG.tutorial_pairs.contains(&pair) && !pair_unlocked(&saved.state, pair);
+    let prepared = prepare(saved, |next| {
+        credit_reserve(
+            &mut next.state,
+            &next.accounting,
+            &next.rules,
+            metal,
+            amount_milli,
+        )
+        .map_err(SaveError::InvalidReserves)?;
+        if unlocks {
+            unlock_pair(&mut next.state, pair);
         }
-        // The pair just learned becomes the selected one: its keys act on it at once.
-        next.state.selected_pair = pair;
-        next.last_transaction = seq;
         Ok(())
     })?;
-    Ok(PreparedCredit {
-        seq: TransactionSeq(seq),
-        base_revision: saved.revision,
-        candidate,
+    Ok((prepared, unlocks))
+}
+
+/// Prepares unlocking both metals of `pair` as transaction `last_transaction + 1`, for an
+/// unlock item consumed in the same host transaction (the V1 primer: no recipe since P5, but
+/// existing ones still work). The pair becomes the selected one; reserves and burns are
+/// untouched. A pair already fully unlocked is `AlreadyUnlocked`, so the caller keeps the
+/// item. Committed with `commit_credit`, under the same exactly-once rules.
+pub fn prepare_unlock(saved: &SavedPlayer, pair: Pair) -> Result<PreparedCredit, SaveError> {
+    validate_save(saved)?;
+    if pair_unlocked(&saved.state, pair) {
+        return Err(SaveError::AlreadyUnlocked);
+    }
+    prepare(saved, |next| {
+        unlock_pair(&mut next.state, pair);
+        Ok(())
     })
+}
+
+/// Prepares buying `rank` of node `code`. The request names the rank it wants: once that rank
+/// is owned, the same request is `AlreadyOwned`, never a second rank. A node whose effect lives
+/// in `ReserveRules` (economy, capacity) changes the rules in the same transaction.
+pub fn prepare_purchase(
+    saved: &SavedPlayer,
+    code: u16,
+    rank: u8,
+) -> Result<PreparedCredit, SaveError> {
+    validate_save(saved)?;
+    check_purchase(&saved.progress, &saved.state, code, rank, &CATALOG)
+        .map_err(SaveError::Progress)?;
+    prepare(saved, |next| {
+        next.progress.nodes.insert(code, rank);
+        next.rules.reduction_milli = next
+            .progress
+            .effect(crate::NodeEffect::ReductionMilli, &CATALOG);
+        next.rules.capacity_bonus_milli = next
+            .progress
+            .effect(crate::NodeEffect::CapacityBonusMilli, &CATALOG);
+        Ok(())
+    })
+}
+
+/// Prepares concluding research `code` (at the table): once, with enough evidence; grants its
+/// pair experience and, through the discovery, its knowledge points.
+pub fn prepare_conclude(saved: &SavedPlayer, code: u16) -> Result<PreparedCredit, SaveError> {
+    validate_save(saved)?;
+    prepare(saved, |next| {
+        apply_conclusion(&mut next.progress, &next.state, code, &CATALOG)
+            .map_err(SaveError::Progress)
+    })
+}
+
+/// Prepares revealing hint `index` (1-based) of research `code`: only the next one, never
+/// one already shown. Hints cost nothing and change nothing else.
+pub fn prepare_hint(
+    saved: &SavedPlayer,
+    code: u16,
+    index: u8,
+) -> Result<PreparedCredit, SaveError> {
+    validate_save(saved)?;
+    prepare(saved, |next| {
+        apply_hint(&mut next.progress, code, index, &CATALOG).map_err(SaveError::Progress)
+    })
+}
+
+/// Records one server-observed event: practice experience (with its window's falloff at
+/// `game_time`) or research evidence. Only an event of this player and world counts, and
+/// only through `VerifiedEvent`, which client bytes cannot build. A change that adds nothing
+/// leaves the save untouched (no revision).
+pub fn observe(
+    saved: &mut SavedPlayer,
+    event: &VerifiedEvent,
+    game_time: u64,
+) -> Result<Observed, SaveError> {
+    if event.actor() != &saved.state.player_id || event.world_id() != &saved.state.world_id {
+        return Err(SaveError::Progress(ProgressError::WrongActor));
+    }
+    let mut next = saved.progress.clone();
+    let observed = match event.kind() {
+        EventKind::PracticeAction { category } => {
+            let def = practice_def(*category, &CATALOG)
+                .ok_or(SaveError::Progress(ProgressError::UnknownCategory))?;
+            if !pair_unlocked(&saved.state, def.pair) {
+                return Err(SaveError::Progress(ProgressError::PairLocked));
+            }
+            apply_practice(&mut next, def, game_time, &CATALOG)
+        }
+        EventKind::ResearchEvidence { research, evidence } => {
+            let def = research_def(*research, &CATALOG)
+                .ok_or(SaveError::Progress(ProgressError::UnknownResearch))?;
+            if !pair_unlocked(&saved.state, def.pair) {
+                return Err(SaveError::Progress(ProgressError::PairLocked));
+            }
+            apply_evidence(&mut next, def, *evidence).map_err(SaveError::Progress)?
+        }
+        _ => return Ok(Observed::Nothing),
+    };
+    if observed != Observed::Nothing {
+        change(saved, |s| {
+            s.progress = next;
+            Ok(())
+        })?;
+    }
+    Ok(observed)
 }
 
 /// Commits a prepared credit exactly once. A preparation made against another revision is
@@ -275,6 +421,82 @@ pub fn commit_credit(
 }
 
 // ---- codec ----
+
+fn encode_progress(out: &mut Vec<u8>, progress: &Progress) -> Result<(), SaveError> {
+    for xp in progress.pair_xp {
+        out.extend_from_slice(&xp.to_le_bytes());
+    }
+    let nodes = u8::try_from(progress.nodes.len()).map_err(|_| SaveError::TooLarge)?;
+    out.push(nodes);
+    for (code, rank) in &progress.nodes {
+        out.extend_from_slice(&code.to_le_bytes());
+        out.push(*rank);
+    }
+    let research = u8::try_from(progress.research.len()).map_err(|_| SaveError::TooLarge)?;
+    out.push(research);
+    for (code, entry) in &progress.research {
+        out.extend_from_slice(&code.to_le_bytes());
+        out.push(entry.evidence);
+        out.push(entry.hints);
+        out.push(u8::from(entry.concluded));
+    }
+    for window in &progress.windows {
+        out.extend_from_slice(&window.start.to_le_bytes());
+        out.push(window.count);
+    }
+    Ok(())
+}
+
+/// Reads schema 2's progress. Codes must strictly increase (sorted, no duplicates): one byte
+/// string, one progress. Meaning (known codes, ranks, evidence) is checked by `validate_save`.
+fn decode_progress(r: &mut Reader<'_>) -> Result<Progress, SaveError> {
+    let mut progress = Progress::default();
+    for xp in &mut progress.pair_xp {
+        *xp = r.u32()?;
+    }
+    let mut nodes = BTreeMap::new();
+    let mut last = None;
+    for _ in 0..r.u8()? {
+        let code = r.u16()?;
+        let rank = r.u8()?;
+        if last.is_some_and(|prev| code <= prev) {
+            return Err(SaveError::InvalidEnum);
+        }
+        last = Some(code);
+        nodes.insert(code, rank);
+    }
+    let mut research = BTreeMap::new();
+    let mut last = None;
+    for _ in 0..r.u8()? {
+        let code = r.u16()?;
+        let evidence = r.u8()?;
+        let hints = r.u8()?;
+        let concluded = match r.u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(SaveError::InvalidEnum),
+        };
+        if last.is_some_and(|prev| code <= prev) {
+            return Err(SaveError::InvalidEnum);
+        }
+        last = Some(code);
+        research.insert(
+            code,
+            ResearchState {
+                evidence,
+                hints,
+                concluded,
+            },
+        );
+    }
+    progress.nodes = nodes;
+    progress.research = research;
+    for window in &mut progress.windows {
+        window.start = r.u64()?;
+        window.count = r.u8()?;
+    }
+    Ok(progress)
+}
 
 fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
@@ -335,6 +557,7 @@ pub fn encode_save(saved: &SavedPlayer) -> Result<Vec<u8>, SaveError> {
     payload.extend_from_slice(&saved.rules.capacity_bonus_milli.to_le_bytes());
     payload.extend_from_slice(&saved.revision.to_le_bytes());
     payload.extend_from_slice(&saved.last_transaction.to_le_bytes());
+    encode_progress(&mut payload, &saved.progress)?;
 
     let total = HEADER_BYTES + payload.len() + CRC_BYTES;
     if total > MAX_SAVE_BYTES {
@@ -375,6 +598,9 @@ impl Reader<'_> {
         let raw = self.take(2)?;
         Ok(u16::from_le_bytes([raw[0], raw[1]]))
     }
+    fn u32(&mut self) -> Result<u32, SaveError> {
+        Ok(le_u32(self.take(4)?))
+    }
     fn u64(&mut self) -> Result<u64, SaveError> {
         let mut raw = [0u8; 8];
         raw.copy_from_slice(self.take(8)?);
@@ -410,7 +636,7 @@ pub fn decode_save(
         return Err(SaveError::Truncated);
     }
     let schema = u16::from_le_bytes([bytes[4], bytes[5]]);
-    if schema != SAVE_SCHEMA {
+    if !(OLDEST_SCHEMA..=SAVE_SCHEMA).contains(&schema) {
         return Err(SaveError::UnsupportedVersion(schema));
     }
     let payload_len = le_u32(&bytes[6..10]) as usize;
@@ -477,13 +703,35 @@ pub fn decode_save(
     rules.capacity_bonus_milli = r.u16()?;
     let revision = r.u64()?;
     let last_transaction = r.u64()?;
+    // Schema 1 → 2: nothing learned yet; every schema 1 field is kept as it was.
+    let progress = if schema >= 2 {
+        decode_progress(&mut r)?
+    } else {
+        Progress::default()
+    };
     if !r.bytes.is_empty() {
         return Err(SaveError::LengthMismatch);
+    }
+    if schema == 1 {
+        // The save must be valid as schema 1 wrote it before anything is normalized.
+        validate_reserves(&state, &accounting, &rules).map_err(SaveError::InvalidReserves)?;
+        // Since P5 the reduction and the capacity bonus are what the general nodes give, and a
+        // schema 1 save owns none. No shipped adapter wrote anything but 0 there; a save that
+        // did keeps its fuel: the bonus is dropped only while every reserve still fits the
+        // base capacity, otherwise the save stays invalid and the adapter blocks it unwritten.
+        rules.reduction_milli = 0;
+        let fits = Metal::ALL.iter().all(|metal| {
+            state.metals[metal.index()].reserve_milli <= rules.base_capacity_milli[metal.index()]
+        });
+        if fits {
+            rules.capacity_bonus_milli = 0;
+        }
     }
     let saved = SavedPlayer {
         state,
         accounting,
         rules,
+        progress,
         revision,
         last_transaction,
     };

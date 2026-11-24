@@ -9,7 +9,8 @@ use crate::bridge::{Session, Slot, metal_name};
 use crate::content::Drink;
 use crate::save::{self, Blocked};
 use allomancy_core::{
-    BurnState, EMPTY_VIAL, Metal, SaveError, UNLOCK_ITEMS, VIAL_MILLI, encode_save, update_player,
+    BurnState, EMPTY_VIAL, Metal, SaveError, SavedPlayer, UNLOCK_ITEMS, VIAL_MILLI, encode_save,
+    update_player,
 };
 use mod_api::{Compound, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Tag};
 
@@ -148,7 +149,7 @@ impl Runner {
             Scenario::Burn => drink(host, session, player, VIAL_MILLI, false, true),
             Scenario::BurnSmall => drink(host, session, player, SMALL_MILLI, false, true),
             Scenario::CorruptCrc => corrupt(host, session, player, Corruption::Crc),
-            Scenario::FutureSchema => corrupt(host, session, player, Corruption::Schema2),
+            Scenario::FutureSchema => corrupt(host, session, player, Corruption::Schema3),
         };
         eprintln!("MISTBRN_TEST scenario={} {fields}", scenario.name());
     }
@@ -205,18 +206,70 @@ fn burn_name(burn: BurnState) -> &'static str {
     }
 }
 
+/// The P5 progress of a save, for reports: experience, points, nodes, research, rules.
+pub(crate) fn progress_fields(saved: &SavedPlayer) -> String {
+    use allomancy_core::{CATALOG, Pair, Pool};
+    let progress = saved.progress();
+    let nodes: Vec<String> = progress
+        .nodes()
+        .iter()
+        .map(|(code, rank)| format!("{code}:{rank}"))
+        .collect();
+    let research: Vec<String> = progress
+        .all_research()
+        .iter()
+        .map(|(code, r)| {
+            format!(
+                "{code}:e{}h{}c{}",
+                r.evidence,
+                r.hints,
+                u8::from(r.concluded)
+            )
+        })
+        .collect();
+    let windows: Vec<String> = progress
+        .windows()
+        .iter()
+        .map(|w| format!("{}/{}", w.start, w.count))
+        .collect();
+    format!(
+        "xp_iron_steel={} pair_points={} knowledge={} nodes={} research={} windows={} selected_pair={} capacity_iron={} reduction={}",
+        progress.pair_xp(Pair::IronSteel),
+        progress.available(Pool::Pair(Pair::IronSteel), &CATALOG),
+        progress.available(Pool::Knowledge, &CATALOG),
+        if nodes.is_empty() {
+            "-".into()
+        } else {
+            nodes.join(",")
+        },
+        if research.is_empty() {
+            "-".into()
+        } else {
+            research.join(",")
+        },
+        windows.join(","),
+        crate::controls::pair_name(saved.state().selected_pair),
+        saved.rules().capacity(Metal::Iron).unwrap_or(0),
+        saved.rules().reduction_milli,
+    )
+}
+
 fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> String {
     let read: &dyn Host = host;
     let raw = save::raw_bytes(read, player).map_or("none".into(), |b| fnv64(&b));
     let dimension = player
         .dimension(read)
         .map_or("none".into(), |d| d.to_string());
+    let schema = save::raw_bytes(read, player)
+        .and_then(|b| allomancy_core::save_schema(&b))
+        .map_or("none".into(), |v| v.to_string());
     let common = format!(
-        "uuid={} vials={} empty_vials={} primers={} dimension={dimension} raw_hash={raw}",
+        "uuid={} vials={} empty_vials={} primers={} notebooks={} dimension={dimension} raw_hash={raw} schema={schema}",
         dashed_uuid(player.uuid()),
         item_count(read, player, IRON_VIAL),
         item_count(read, player, EMPTY_VIAL),
-        item_count(read, player, UNLOCK_ITEMS[0].0)
+        item_count(read, player, UNLOCK_ITEMS[0].0),
+        item_count(read, player, crate::content::NOTEBOOK)
     );
     match session.slot(player.uuid()) {
         Some(Slot::Blocked(blocked)) => {
@@ -225,8 +278,9 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         Some(Slot::Active { saved, .. }) => {
             let iron = saved.state().metals[Metal::Iron.index()];
             let steel = saved.state().metals[Metal::Steel.index()];
+            let progress = progress_fields(saved);
             format!(
-                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} remainder_iron={} revision={} last_transaction={} {common}",
+                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
                 iron.reserve_milli,
                 burn_name(iron.burn),
                 iron.unlocked,
@@ -274,7 +328,7 @@ fn drink(
         amount,
         fail_inside,
     ) {
-        Ok(seq) => format!("result=ok seq={}", seq.0),
+        Ok((seq, unlocked)) => format!("result=ok seq={} vial_unlocked={unlocked}", seq.0),
         Err(error) => format!("result=err:{error}"),
     };
     if burn_after && result.starts_with("result=ok") {
@@ -298,7 +352,7 @@ fn drink(
 
 enum Corruption {
     Crc,
-    Schema2,
+    Schema3,
 }
 
 fn crc32(bytes: &[u8]) -> u32 {
@@ -329,12 +383,12 @@ fn corrupt(
             *bytes.last_mut().expect("encoded saves are never empty") ^= 0xFF;
             Blocked::Decode(SaveError::ChecksumMismatch)
         }
-        Corruption::Schema2 => {
-            bytes[4..6].copy_from_slice(&2u16.to_le_bytes());
+        Corruption::Schema3 => {
+            bytes[4..6].copy_from_slice(&3u16.to_le_bytes());
             let body = bytes.len() - 4;
             let crc = crc32(&bytes[..body]);
             bytes[body..].copy_from_slice(&crc.to_le_bytes());
-            Blocked::Decode(SaveError::UnsupportedVersion(2))
+            Blocked::Decode(SaveError::UnsupportedVersion(3))
         }
     };
     let hash = fnv64(&bytes);

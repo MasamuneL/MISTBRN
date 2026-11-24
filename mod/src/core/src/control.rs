@@ -9,10 +9,15 @@
 //!   op 1 cycle pair (arg 0) · 2 toggle side (arg 0 first, 1 second)
 //!   op 3 toggle flare (arg 0) · 4 all off (arg 0)
 //!   op 5 select pair (arg 0 iron/steel, 1 tin/pewter, 2 zinc/brass, 3 copper/bronze)
+//!   op 6 buy node (arg node code << 2 | rank 1..=3) · 7 reveal hint (arg research << 2 | 1..=3)
 //! hud     = version:u8 (1) | pair:u8 | 8 × (unlocked:u8 | burn:u8 | reserve:u32 LE
 //!           | capacity:u32 LE), in `Metal::ALL` order             exactly 82 bytes
+//! progress = version:u8 (1) | 4 × pair_xp:u32 LE | rank:u8 per catalog node
+//!           | (evidence:u8 | hints:u8 | concluded:u8) per catalog research, in catalog order
 //! ```
-use crate::{BurnState, Command, Metal, Pair, PlayerState, ReserveRules};
+use crate::{
+    BurnState, CATALOG, Command, Metal, Pair, PlayerState, Progress, ResearchState, ReserveRules,
+};
 
 pub const CONTROL_VERSION: u8 = 1;
 pub const CONTROL_LEN: usize = 3;
@@ -38,6 +43,10 @@ pub enum ControlRequest {
     Off,
     /// The pair wheel (hold V): that pair, locked or not, as `Command::SelectPair` allows.
     SelectPair(Pair),
+    /// The notebook: buy `rank` of node `code` (P5). Not a `Command`: it is a save transaction.
+    Purchase { code: u8, rank: u8 },
+    /// The notebook: reveal hint `index` of research `research` (P5).
+    RevealHint { research: u8, index: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +77,8 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         ControlRequest::ToggleFlare => (3, 0),
         ControlRequest::Off => (4, 0),
         ControlRequest::SelectPair(pair) => (5, pair_code(pair)),
+        ControlRequest::Purchase { code, rank } => (6, code << 2 | (rank & 3)),
+        ControlRequest::RevealHint { research, index } => (7, research << 2 | (index & 3)),
     };
     [CONTROL_VERSION, op, arg]
 }
@@ -86,7 +97,16 @@ pub fn decode_control(bytes: &[u8]) -> Result<ControlRequest, ControlError> {
         (3, 0) => Ok(ControlRequest::ToggleFlare),
         (4, 0) => Ok(ControlRequest::Off),
         (5, 0..=3) => Ok(ControlRequest::SelectPair(PAIRS[usize::from(arg)])),
-        (1..=5, _) => Err(ControlError::Arg { op, arg }),
+        // Code 0 and index 0 are never valid; whether a code exists is the rules' answer.
+        (6, _) if arg >> 2 != 0 && arg & 3 != 0 => Ok(ControlRequest::Purchase {
+            code: arg >> 2,
+            rank: arg & 3,
+        }),
+        (7, _) if arg >> 2 != 0 && arg & 3 != 0 => Ok(ControlRequest::RevealHint {
+            research: arg >> 2,
+            index: arg & 3,
+        }),
+        (1..=7, _) => Err(ControlError::Arg { op, arg }),
         _ => Err(ControlError::Op(op)),
     }
 }
@@ -127,7 +147,7 @@ pub fn next_pair(pair: Pair) -> Pair {
 }
 
 /// The command a request asks for, from the server's own state. `None`: nothing to do (R
-/// with no metal of the selected pair burning).
+/// with no metal of the selected pair burning) or not a command (the notebook's requests).
 pub fn resolve_control(state: &PlayerState, request: ControlRequest) -> Option<Command> {
     let metals = pair_metals(state.selected_pair);
     let burn = |metal: Metal| state.metals[metal.index()].burn;
@@ -150,6 +170,7 @@ pub fn resolve_control(state: &PlayerState, request: ControlRequest) -> Option<C
         }),
         ControlRequest::Off => Some(Command::Extinguish { metal: None }),
         ControlRequest::SelectPair(pair) => Some(Command::SelectPair { pair }),
+        ControlRequest::Purchase { .. } | ControlRequest::RevealHint { .. } => None,
     }
 }
 
@@ -301,4 +322,87 @@ pub fn decode_hud(bytes: &[u8]) -> Result<HudSnapshot, HudError> {
         }
     }
     Ok(HudSnapshot { pair, metals })
+}
+
+pub const PROGRESS_VERSION: u8 = 1;
+pub const PROGRESS_LEN: usize = 1 + 4 * 4 + CATALOG.nodes.len() + 3 * CATALOG.research.len();
+
+/// What the notebook shows: the player's progress as the server holds it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProgressSnapshot {
+    pub progress: Progress,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProgressSnapshotError {
+    Length(usize),
+    Version(u8),
+    Rank,
+    Research,
+}
+
+pub fn encode_progress_snapshot(progress: &Progress) -> [u8; PROGRESS_LEN] {
+    let mut out = [0u8; PROGRESS_LEN];
+    out[0] = PROGRESS_VERSION;
+    for (i, pair) in PAIRS.iter().enumerate() {
+        out[1 + 4 * i..5 + 4 * i].copy_from_slice(&progress.pair_xp(*pair).to_le_bytes());
+    }
+    let mut at = 17;
+    for def in CATALOG.nodes {
+        out[at] = progress.rank(def.code);
+        at += 1;
+    }
+    for def in CATALOG.research {
+        let entry = progress.research(def.code);
+        out[at] = entry.evidence;
+        out[at + 1] = entry.hints;
+        out[at + 2] = u8::from(entry.concluded);
+        at += 3;
+    }
+    out
+}
+
+/// Decodes a snapshot. The server is trusted, but nothing out of the catalog's range is drawn.
+pub fn decode_progress_snapshot(bytes: &[u8]) -> Result<ProgressSnapshot, ProgressSnapshotError> {
+    if bytes.len() != PROGRESS_LEN {
+        return Err(ProgressSnapshotError::Length(bytes.len()));
+    }
+    if bytes[0] != PROGRESS_VERSION {
+        return Err(ProgressSnapshotError::Version(bytes[0]));
+    }
+    let mut xp = [0u32; 4];
+    for (i, slot) in xp.iter_mut().enumerate() {
+        let at = 1 + 4 * i;
+        *slot = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+    }
+    let mut at = 17;
+    let mut ranks = Vec::new();
+    for def in CATALOG.nodes {
+        if usize::from(bytes[at]) > def.ranks.len() {
+            return Err(ProgressSnapshotError::Rank);
+        }
+        if bytes[at] > 0 {
+            ranks.push((def.code, bytes[at]));
+        }
+        at += 1;
+    }
+    let mut research = Vec::new();
+    for def in CATALOG.research {
+        let (evidence, hints, concluded) = (bytes[at], bytes[at + 1], bytes[at + 2]);
+        if evidence & !def.evidence != 0 || hints > def.hints || concluded > 1 {
+            return Err(ProgressSnapshotError::Research);
+        }
+        research.push((
+            def.code,
+            ResearchState {
+                evidence,
+                hints,
+                concluded: concluded == 1,
+            },
+        ));
+        at += 3;
+    }
+    Ok(ProgressSnapshot {
+        progress: Progress::from_parts(xp, ranks, research),
+    })
 }

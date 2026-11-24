@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Run one in-game scenario against the dev instance's native build and check its report lines.
 # Usage: tools/native-test.sh <scenario> [run-name]
-# V1 scenarios: u1 (craft), u2 (repeat), u3 (rollback), u4/u5 (hard cut), v1 (player path).
+# V1 scenarios: u1 (primer), u2 (repeat), u3 (rollback), u4/u5 (hard cut), v1 (player path).
+# P5 scenarios: t1, x1, r1, b1-b3, pd1 (death and reconnect), m1, q1.
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
 # the mod reports `MISTBRN_TEST scenario=<name> key=value ...` and this script compares them.
+# shellcheck source=tools/lib.sh
 source "$(dirname "$0")/lib.sh"
 # shellcheck source=tools/p4-lib.sh
 source "$(dirname "$0")/p4-lib.sh"
@@ -13,10 +15,13 @@ source "$(dirname "$0")/p4-lib.sh"
 source "$(dirname "$0")/p7a-lib.sh"
 # shellcheck source=tools/v1-lib.sh
 source "$(dirname "$0")/v1-lib.sh"
+# shellcheck source=tools/p5-lib.sh
+source "$(dirname "$0")/p5-lib.sh"
 require jq grep cksum
 
-scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name] (V1: u1-u5, v1)"
+scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
 [[ "$scenario" == s11 ]] && require python3
+[[ "$scenario" == m1 ]] && require gzip od
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
 [[ ! -e "$dir" ]] || die "run $run exists: $dir"
@@ -96,9 +101,12 @@ check_load() {
 }
 # check_isolation: G4, the run folder holds only this scenario's world.
 check_isolation() {
-  local expected="$world " worlds
+  local expected="$world " worlds="" entry
   [[ "$scenario" != c7 ]] || expected="$world $world-b "
-  worlds="$(ls -1 "$dir/saves" 2>/dev/null | tr '\n' ' ')"
+  for entry in "$dir"/saves/*; do
+    [[ -e "$entry" || -L "$entry" ]] || continue
+    worlds+="${entry##*/} "
+  done
   if [[ "$worlds" == "$expected" ]]; then echo "isolation: saves=$worlds"
   else echo "  FAIL isolation saves='$worlds'"; fails=$((fails + 1)); fi
 }
@@ -444,9 +452,9 @@ case "$scenario" in
       expect_log 2 "MISTBRN event=vial_credit metal=iron seq=1"
     fi
     case "$scenario" in
-      # Drinking credits but never unlocks (V1: unlocks come from the primer).
+      # P5 tutorial: the first iron vial credits and unlocks iron/steel together.
       c2|c4) expect 3 report state=active reserve_iron=25000 last_transaction=1 vials=2 empty_vials=1 \
-        unlocked_iron=false unlocked_steel=false ;;
+        unlocked_iron=true unlocked_steel=true ;;
       c3|c5) expect 3 report state=active reserve_iron=0 last_transaction=0 vials=3 empty_vials=0 ;;
     esac
     if [[ "$scenario" == c2 ]]; then
@@ -623,15 +631,15 @@ case "$scenario" in
     expect 2 report state=active reserve_iron=0 burn_iron=off remainder_iron=0 last_transaction=1 ;;
   s9|s10)  # an unreadable save blocks the player and is never overwritten
     plant=corrupt-crc; reason=crc
-    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:2; }
+    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:3; }
     launch MISTBRN_TEST_SCENARIO=$plant; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; ctl save >/dev/null; quit_game
     report; quit_game
     expect 1 $plant written=true
     h="$(field 1 $plant raw_hash)"
     expect_log 2 "MISTBRN event=save_blocked reason=$reason"
-    expect 2 report state=blocked reason=$reason raw_hash=$h
-    expect 3 report state=blocked reason=$reason raw_hash=$h ;;
+    expect 2 report state=blocked reason="$reason" raw_hash="$h"
+    expect 3 report state=blocked reason="$reason" raw_hash="$h" ;;
   s11)  # a non-compound NeoForgeData root on disk (edited with the game closed)
     report; ctl save >/dev/null; quit_game
     # Edit exactly the controlled player's file: a world can hold other player files.
@@ -642,11 +650,13 @@ case "$scenario" in
     report; quit_game
     state="$(field 2 report state)"; why="$(field 2 report reason)"
     echo "S11 outcome: state=$state reason=${why:-none}" | tee -a "$dir/report.txt"
-    expect 2 report state=blocked reason=root_not_compound uuid=$uuid ;;
+    expect 2 report state=blocked reason=root_not_compound uuid="$uuid" ;;
   k[1-9])  # P7a keys, HUD and the pair wheel (tools/p7a-lib.sh)
     k_scenario ;;
   u[1-5]|v1)  # V1 primer and player path (tools/v1-lib.sh)
     v1_scenario ;;
+  t1|x1|r1|b[1-3]|pd1|m1|q1)
+    p5_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

@@ -8,7 +8,7 @@ Fuente: `mod/src/core/src/persistence.rs`. Sustituye al codec JSON + ledger de l
 
 Invariantes (`validate_save`): ids no vacíos, ≤ 256 bytes, sin caracteres de control; `last_transaction ≤ revision`; `validate_reserves` completo. El formato concreto de los ids (UUID hex de 32 caracteres, mundo `local`) lo impone el adaptador; el núcleo exige además que el decode coincida exactamente con la identidad esperada.
 
-## Codec, esquema 1
+## Codec, esquema 2 (P5)
 
 ```text
 "MBRN" | schema:u16 | payload_len:u32 | payload | crc32:u32   (LE; CRC-32/IEEE de todo lo anterior)
@@ -17,13 +17,23 @@ payload = player_id:str | world_id:str | selected_pair:u8
         | 8 × consumo:u64 | 8 × capacidad_base:u64 | reducción:u16 | bonus:u16
         | revision:u64 | last_transaction:u64
 str = len:u16 | UTF-8
+esquema 2 añade al payload del 1:
+        | 4 × pair_xp:u32 | n_nodes:u8 | n × (code:u16 | rank:u8)
+        | n_research:u8 | n × (code:u16 | evidence:u8 | hints:u8 | concluded:u8)
+        | 3 × (window_start:u64 | window_count:u8)
 ```
+
+Lo gastado, el conocimiento y el saldo no se guardan: se derivan de los nodos y de las investigaciones concluidas (`progress.rs`). Las listas van en orden estricto de código.
 
 Enums: pareja 0..3 en orden `Pair`, burn 0 Off / 1 Burning / 2 Flared, unlocked 0/1. Máximo 64 KiB.
 
-`decode_save(bytes, world, player)` rechaza, en este orden: tamaño (`TooLarge`), `Truncated`/`BadMagic`, `UnsupportedVersion(schema)` para cualquier esquema ≠ 1 (antes de leer el payload), longitud declarada (`Truncated`/`TrailingBytes`), `ChecksumMismatch`; después, al leer los campos en orden: ids con UTF-8 inválido (`InvalidIdentity`), enums desconocidos (`InvalidEnum`), campos que no caben en el payload (`Truncated`) o payload más largo que los campos (`LengthMismatch`); por último invariantes, `WorldMismatch`, `PlayerMismatch`. Nunca repara ni pone valores por defecto: ante error el adaptador bloquea al jugador y no reescribe los bytes. `save_schema(bytes)` lee solo el esquema para diagnóstico.
+`decode_save(bytes, world, player)` rechaza, en este orden: tamaño (`TooLarge`), `Truncated`/`BadMagic`, `UnsupportedVersion(schema)` para cualquier esquema fuera de 1..=2 (antes de leer el payload), longitud declarada (`Truncated`/`TrailingBytes`), `ChecksumMismatch`; después, al leer los campos en orden: ids con UTF-8 inválido (`InvalidIdentity`), enums desconocidos (`InvalidEnum`), campos que no caben en el payload (`Truncated`) o payload más largo que los campos (`LengthMismatch`); por último invariantes (también las del progreso, `Progress(..)`: códigos, rangos, requisitos, gastado ≤ ganado, evidencias y pistas, y reglas = nodos), `WorldMismatch`, `PlayerMismatch`. Nunca repara ni pone valores por defecto: ante error el adaptador bloquea al jugador y no reescribe los bytes. `save_schema(bytes)` lee solo el esquema para diagnóstico.
 
-Migraciones: el esquema 1 es el primero. `tests/fixtures/saved-player-v1.bin` (300 bytes) queda versionado; P5 crea el esquema 2 y debe cargar ese fichero.
+Migraciones: el esquema 1 se lee y se migra a un progreso vacío con todo lo demás idéntico; la siguiente escritura guarda el 2. Fixtures versionados: `tests/fixtures/saved-player-v1.bin` (300 bytes; `schema_1_fixture_migrates_to_schema_2_keeping_every_field`) y `saved-player-v2.bin` (356 bytes, con progreso en todos los campos), que el esquema siguiente debe cargar.
+
+## Progreso (P5)
+
+`observe(&mut saved, &VerifiedEvent, game_time)` registra práctica o evidencia (sin revisión si no añade nada). `prepare_vial`, `prepare_purchase(code, rank)`, `prepare_conclude(code)` y `prepare_hint(code, index)` devuelven un `PreparedCredit` que se confirma con `commit_credit`, como un crédito. La muerte y la reconexión no tocan el progreso.
 
 ## Transacciones exactamente-una-vez
 

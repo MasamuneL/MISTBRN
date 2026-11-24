@@ -10,8 +10,10 @@
 use crate::bridge::{Session, metal_name, player_id, world_id};
 use allomancy_core::physics::{self, Body, Direction, ForceRules, StepError, StepInput};
 use allomancy_core::{
-    Authority, BurnState, Command, Effect, InputContext, Metal, Tick, Vec3, WorldSnapshot,
-    apply_command, credit_reserve, is_coin, is_metal, update_player,
+    Authority, BurnState, CATALOG, Command, EVIDENCE_ITEM_PULLED, EVIDENCE_PUSH_LIFT,
+    EVIDENCE_SELF_PULL, Effect, EventKind, InputContext, Metal, PRACTICE_ANCHOR_MOVE,
+    PRACTICE_COIN_HIT, PRACTICE_COIN_JUMP, RESEARCH_ANCHOR, Tick, Vec3, WorldSnapshot,
+    apply_command, credit_reserve, is_coin, is_metal, tuned_force, update_player,
 };
 use mod_api::{ClipBlock, ClipFluid, EntityRef, Host, LevelRef, PlayerRef, ServerHost};
 use std::collections::{BTreeMap, HashMap};
@@ -83,6 +85,51 @@ struct Flight {
     /// (plus a little gravity). A longer move was not flight but a teleport.
     expected: f64,
     ticks_left: u8,
+    /// Pulled by anyone since its last push: its hits no longer count as the shooter's practice.
+    pulled: bool,
+}
+
+/// One anchored run (P5): the player held one anchor from `start`. Each run gives at most one
+/// practice action and one piece of each evidence, so a long pull is one action, not many.
+struct Run {
+    key: String,
+    /// The last applied tick: its number, the feet then and the unit line towards the anchor.
+    /// A step is credited only from the tick right before, along that tick's line.
+    last: Option<(u64, [f64; 3], Vec3)>,
+    /// Net height gained over the credited steps only (a gap in the force adds nothing).
+    height: f64,
+    /// Distance the force carried the player along its line (closer for a pull, farther for a
+    /// push) beyond what walking covers; and the highest net rise of a push off an anchor below.
+    moved: f64,
+    risen: f64,
+    /// A push off an anchor under the feet (as `physics::step` judges it at the start).
+    below: bool,
+    coin: bool,
+    block: bool,
+    pull: bool,
+    practiced: bool,
+    self_pull: bool,
+    lift: bool,
+}
+
+/// Displacement of a run that counts as moving (anchor practice, the self-pull evidence).
+const RUN_MOVE: f64 = 2.0;
+/// Net rise of a push off an anchor below that counts as a lift (coin jump, the lift
+/// evidence). A jump alone reaches about 1.25; N3's hover over a coin peaks near 1.48.
+const RUN_LIFT: f64 = 1.3;
+/// A move between two ticks longer than this is not the force's (a teleport): the run is spent.
+const RUN_STEP: f64 = 2.0;
+/// Per tick, a step along the force's line counts only beyond this (walking covers 0.216
+/// blocks a tick): walking towards an anchor earns nothing.
+const RUN_FREE_STEP: f64 = 0.2;
+/// A pulled item picked up within this many ticks of its last pull is the pull's evidence.
+const PULL_EVIDENCE_TICKS: u64 = 40;
+
+fn run_key(target: &Target) -> String {
+    match target {
+        Target::Block { pos, .. } => format!("block:{},{},{}", pos[0], pos[1], pos[2]),
+        Target::Item { entity, .. } => format!("item:{}", entity.id()),
+    }
 }
 
 /// How long a coin is followed after its last push, counted from the tick after it.
@@ -108,6 +155,8 @@ pub(crate) struct Hit {
     kind: String,
     speed: f64,
     damage: f32,
+    /// Counts as the shooter's coin practice (pushed, not pulled since).
+    practice: bool,
 }
 
 #[derive(Default)]
@@ -124,6 +173,12 @@ pub(crate) struct Powers {
     flights: Vec<Flight>,
     /// Hits found during a teleport notice, dealt with the tick's own.
     pending_hits: Vec<Hit>,
+    /// Anchored runs per player (P5 practice and evidence).
+    runs: BTreeMap<u128, Run>,
+    /// Items each player pulled without an anchor, with the tick of the last pull.
+    pulled: HashMap<EntityRef, (u128, u64)>,
+    /// Server-observed progress events, applied by the caller at the tick's end.
+    observations: Vec<(u128, EventKind)>,
 }
 
 /// The metal a player acts with: iron or steel, burning or flared (the core lights one only).
@@ -170,6 +225,8 @@ impl Powers {
             return Vec::new();
         }
         let tick = self.server_tick.map_or(0, |t| t + 1);
+        self.pulled
+            .retain(|_, (_, at)| tick.saturating_sub(*at) <= PULL_EVIDENCE_TICKS);
         let mut online = host.players().server_players();
         online.sort_by_key(|player| player.uuid());
         self.held
@@ -207,8 +264,9 @@ impl Powers {
     }
 
     pub(crate) fn clear(&mut self, uuid: u128, reason: &str) {
-        // A force prepared this tick for the old target goes with it.
+        // A force prepared this tick for the old target goes with it, and so does its run.
         self.prepared.remove(&uuid);
+        self.runs.remove(&uuid);
         if self.held.remove(&uuid).is_some() {
             eprintln!("MISTBRN event=target_cleared reason={reason}");
         }
@@ -245,7 +303,11 @@ impl Powers {
         tick: u64,
     ) {
         let uuid = player.uuid();
-        let rules = ForceRules::for_flare(flared);
+        // The nodes the player owns tune reach and force (P5).
+        let base = ForceRules::for_flare(flared);
+        let rules = session
+            .saved(uuid)
+            .map_or(base, |saved| tuned_force(&base, saved.progress(), &CATALOG));
         let read: &dyn Host = host;
         let body = player.entity();
         let Some(level) = player.level(read) else {
@@ -373,6 +435,12 @@ impl Powers {
             return;
         };
         let written = entity.set_velocity(host, [next.x, next.y, next.z]);
+        if written && direction == Direction::Pull {
+            self.pulled.insert(*entity, (uuid, tick));
+            for flight in self.flights.iter_mut().filter(|f| f.coin == *entity) {
+                flight.pulled = true;
+            }
+        }
         let speed = physics::norm(next);
         // Any velocity written on a followed coin (a pull too) is what it moves by next.
         if written {
@@ -427,10 +495,15 @@ impl Powers {
             let Ok(outcome) = physics::step(&prep.rules, &input) else {
                 continue;
             };
-            if let Some(next) = outcome.player_velocity
-                && player.set_velocity(host, [next.x, next.y, next.z])
-                && outcome.player_delta.y > 0.0
-            {
+            // Ladders, vines, scaffolding, open trapdoors over a ladder: the game's own test.
+            let climbing = read
+                .living(body)
+                .and_then(|living| living.is_climbing(read))
+                .unwrap_or(false);
+            let applied = outcome
+                .player_velocity
+                .is_some_and(|next| player.set_velocity(host, [next.x, next.y, next.z]));
+            if applied && outcome.player_delta.y > 0.0 {
                 let _ = body.reset_fall_distance(host);
             }
             eprintln!(
@@ -443,7 +516,134 @@ impl Powers {
                 fmt3(outcome.player_delta),
                 outcome.anchored
             );
+            self.track_run(uuid, &prep, feet, applied, climbing, tick);
         }
+    }
+
+    /// Follows the player's anchored run and records its practice and evidence once each.
+    #[allow(clippy::too_many_arguments)]
+    fn track_run(
+        &mut self,
+        uuid: u128,
+        prep: &Prepared,
+        feet: [f64; 3],
+        applied: bool,
+        climbing: bool,
+        tick: u64,
+    ) {
+        let key = run_key(&prep.target);
+        let middle = feet[1] + BODY_MIDDLE;
+        let offset = v3([
+            prep.point.x - feet[0],
+            prep.point.y - middle,
+            prep.point.z - feet[2],
+        ]);
+        let distance_now = physics::norm(offset).max(1e-6);
+        let toward = v3([
+            offset.x / distance_now,
+            offset.y / distance_now,
+            offset.z / distance_now,
+        ]);
+        if self.runs.get(&uuid).is_none_or(|run| run.key != key) {
+            let push = prep.direction == Direction::Push;
+            self.runs.insert(
+                uuid,
+                Run {
+                    key,
+                    last: None,
+                    height: 0.0,
+                    moved: 0.0,
+                    risen: 0.0,
+                    below: push && toward.y < -prep.rules.anchor_down,
+                    coin: matches!(&prep.target, Target::Item { id, .. } if is_coin(id)),
+                    block: matches!(prep.target, Target::Block { .. }),
+                    pull: !push,
+                    practiced: false,
+                    self_pull: false,
+                    lift: false,
+                },
+            );
+        }
+        let Some(run) = self.runs.get_mut(&uuid) else {
+            return;
+        };
+        let jumped = run
+            .last
+            .is_some_and(|(_, last, _)| distance(feet, v3(last)) > RUN_STEP);
+        if climbing || jumped {
+            // A climb or a teleport: nothing more from this run.
+            run.practiced = true;
+            run.self_pull = true;
+            run.lift = true;
+        } else if let Some((at, last, line)) = run.last
+            && at + 1 == tick
+        {
+            // The step since the last applied tick, along that tick's line; falls left out
+            // (gravity is not the force).
+            let step = [
+                feet[0] - last[0],
+                (feet[1] - last[1]).max(0.0),
+                feet[2] - last[2],
+            ];
+            let sign = if run.pull { 1.0 } else { -1.0 };
+            let along = (step[0] * line.x + step[1] * line.y + step[2] * line.z) * sign;
+            run.moved += (along - RUN_FREE_STEP).max(0.0);
+            if run.below {
+                run.height += feet[1] - last[1];
+                run.risen = run.risen.max(run.height);
+            }
+        }
+        run.last = applied.then_some((tick, feet, toward));
+        let moved = run.moved;
+        let rise = run.risen;
+        let mut found = Vec::new();
+        if !run.practiced {
+            // A coin underfoot counts only as a coin jump, once it lifts.
+            let category = if run.coin && run.below {
+                (rise >= RUN_LIFT).then_some(PRACTICE_COIN_JUMP)
+            } else {
+                (moved >= RUN_MOVE).then_some(PRACTICE_ANCHOR_MOVE)
+            };
+            if let Some(category) = category {
+                run.practiced = true;
+                found.push(EventKind::PracticeAction { category });
+            }
+        }
+        if run.pull && run.block && !run.self_pull && moved >= RUN_MOVE {
+            run.self_pull = true;
+            found.push(EventKind::ResearchEvidence {
+                research: RESEARCH_ANCHOR,
+                evidence: EVIDENCE_SELF_PULL,
+            });
+        }
+        if run.below && !run.lift && rise >= RUN_LIFT {
+            run.lift = true;
+            found.push(EventKind::ResearchEvidence {
+                research: RESEARCH_ANCHOR,
+                evidence: EVIDENCE_PUSH_LIFT,
+            });
+        }
+        self.observations
+            .extend(found.into_iter().map(|kind| (uuid, kind)));
+    }
+
+    /// An item entity went into a player's inventory whole (`item_picked_up_post`): if that
+    /// player pulled it moments before, it is the anchor principle's first evidence, returned
+    /// for the caller to record at once (the player may die before the tick ends).
+    pub(crate) fn picked_up(&mut self, uuid: u128, item: EntityRef) -> Option<EventKind> {
+        let now = self.server_tick.map_or(0, |t| t + 1);
+        let (puller, at) = self.pulled.remove(&item)?;
+        (puller == uuid && now.saturating_sub(at) <= PULL_EVIDENCE_TICKS).then_some(
+            EventKind::ResearchEvidence {
+                research: RESEARCH_ANCHOR,
+                evidence: EVIDENCE_ITEM_PULLED,
+            },
+        )
+    }
+
+    /// The progress events observed since the last call.
+    pub(crate) fn take_observations(&mut self) -> Vec<(u128, EventKind)> {
+        std::mem::take(&mut self.observations)
     }
 
     /// Moves every followed coin's segment forward and collects at most one hit per coin.
@@ -524,6 +724,18 @@ impl Powers {
         from: [f64; 3],
         to: [f64; 3],
     ) {
+        // A teleported player's run is spent: the jump is not the force's.
+        let teleported = host
+            .players()
+            .server_players()
+            .into_iter()
+            .find(|player| player.entity().id() == entity)
+            .map(|player| player.uuid());
+        if let Some(run) = teleported.and_then(|uuid| self.runs.get_mut(&uuid)) {
+            run.practiced = true;
+            run.self_pull = true;
+            run.lift = true;
+        }
         let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
         let Some(index) = self.flights.iter().position(|f| f.coin.id() == entity) else {
             return;
@@ -556,6 +768,7 @@ impl Powers {
                 flight.shooter = shooter;
                 flight.expected = speed;
                 flight.ticks_left = FLIGHT_TICKS;
+                flight.pulled = false;
             }
             None => {
                 eprintln!(
@@ -570,14 +783,17 @@ impl Powers {
                     last: at,
                     expected: speed,
                     ticks_left: FLIGHT_TICKS,
+                    pulled: false,
                 });
             }
         }
     }
 }
 
-/// Deals the tick's coin hits. Call with no session or power lock held.
-pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) {
+/// Deals the tick's coin hits. Call with no session or power lock held. Returns the shooters
+/// of hits that hurt a living body other than a player (P5 coin practice).
+pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) -> Vec<EntityRef> {
+    let mut practice = Vec::new();
     for hit in hits {
         let read: &dyn Host = host;
         let before = read.living(hit.victim).and_then(|l| l.health(read));
@@ -600,6 +816,17 @@ pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) {
             health(before),
             health(after)
         );
+        if dealt == Some(true) && hit.practice && hit.kind != "minecraft:player" {
+            practice.push(hit.shooter);
+        }
+    }
+    practice
+}
+
+/// The practice event of a coin hit (see [`deal_hits`]).
+pub(crate) fn coin_hit_practice() -> EventKind {
+    EventKind::PracticeAction {
+        category: PRACTICE_COIN_HIT,
     }
 }
 
@@ -610,7 +837,10 @@ fn flight_hit(host: &dyn Host, level: LevelRef, flight: &Flight, to: Vec3) -> Op
     if distance([from.x, from.y, from.z], to) > flight.expected + COIN_STEP_SLACK {
         return None;
     }
-    coin_victim(host, level, flight.shooter, flight.coin, from, to)
+    coin_victim(host, level, flight.shooter, flight.coin, from, to).map(|hit| Hit {
+        practice: !flight.pulled,
+        ..hit
+    })
 }
 
 /// The first living body the coin's real move (`from` → `to`, last tick to this one) crossed,
@@ -653,6 +883,7 @@ fn coin_victim(
         kind: victim.kind(host).map(|k| k.id(host)).unwrap_or_default(),
         speed,
         damage,
+        practice: true,
     })
 }
 
@@ -838,7 +1069,7 @@ fn parse_metal(name: &str) -> Option<Metal> {
 }
 
 /// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
-pub(crate) const TEST_COMMANDS: [&str; 6] = [
+pub(crate) const TEST_COMMANDS: [&str; 8] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
     "mistbrn-test off",
@@ -847,6 +1078,10 @@ pub(crate) const TEST_COMMANDS: [&str; 6] = [
     "mistbrn-test flood <count:integer>",
     // P7a (K8): queue one key request as the client would (cycle, toggle_first, ..., off).
     "mistbrn-test inject <op:word>",
+    // P5: iron and steel experience in steps of 10 (anchor practice in past windows), and one
+    // piece of the anchor research's evidence (bit 1, 2 or 4), as the server would observe.
+    "mistbrn-test xp <amount:integer>",
+    "mistbrn-test evidence <bit:integer>",
 ];
 
 pub(crate) struct TestCommand<'a> {

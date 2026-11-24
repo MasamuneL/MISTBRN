@@ -260,6 +260,68 @@ Aprobado el 2026-11-21. Superficie del pin sin fork: `Registrar::register_key_ma
 - Escenarios U1 (fabricar y usar; persiste), U2 (repetición rechazada), U3 (fallo inyectado), U4/U5 (corte sin guardar y tras guardar) y `v1` (recorrido completo sin modo de prueba, con captura del HUD). Guía de juego a mano: `docs/v1-guide.md`.
 - HUD (petición del usuario): barras de la pareja actual encima del hambre y rueda de parejas al mantener V (pantalla propia del mod; op 5 «elegir pareja» en `mistbrn:control`). Hoja de sprites original generada por `tools/gen-hud.py`; un cambio de assets solo entra si lo aprueban Claude y Codex. K9 prueba la rueda.
 
+### P5 — Habilidades, práctica e investigación
+
+Aprobado por el usuario el 2026-11-23. Primera entrega vertical: un árbol (hierro/acero recortado), un árbol general reducido y una investigación. Superficie del pin sin fork: `right_click_block` (concluir en la mesa), `item_picked_up_post` (evidencia de recogida), `LevelRef::game_time` (ventanas de práctica), `register_key_mapping` y pantallas propias del mod (como la rueda).
+
+**Decisiones del usuario**
+- Alcance: rama «Anclaje» de hierro/acero + 2 nodos del general + la investigación «principio del ancla». Las demás ramas, la combinada y los árboles de las otras parejas quedan para P8; el catálogo crece sin cambiar el esquema.
+- Desbloqueo: tutorial. El primer vial de hierro o de acero que se bebe con la pareja bloqueada la desbloquea y la selecciona en la misma transacción del crédito (`prepare_vial`). La cartilla sale de las recetas; el ítem sigue registrado y las existentes siguen funcionando. Nada ya ganado se pierde: la migración conserva los desbloqueos.
+- Práctica: XP de pareja por acciones útiles verificadas por el servidor, con ventana y rendimiento decreciente; la XP, los nodos, las evidencias y las ventanas se conservan al morir y al reconectar.
+- Investigación: 3 evidencias, bastan 2, en cualquier orden y aunque no se haya visto ninguna pista. 3 pistas voluntarias en el diario, reveladas una a una, sin penalización. Conclusión usando el cuaderno sobre una mesa de crafteo vanilla.
+- UI: ítem `mistbrn:notebook` (libro + pepita de hierro) y tecla J reasignable (B la usa la rueda de emotes de Horizon) abren una pantalla propia con pestañas Árbol y Diario; perder el cuaderno no bloquea nada.
+
+**Catálogo (datos en `core/src/progress.rs`; valores de ensayo)**
+
+| Código | Nodo | Rangos y efecto | Coste | Requisito | Puntos |
+|---|---|---|---|---|---|
+| 1 | `reach` Alcance | +2 / +4 / +6 bloques | 1 / 2 / 3 | — | pareja |
+| 2 | `accel` Fuerza | aceleración +10 / 20 / 30 % | 1 / 2 / 3 | `reach` 1 | pareja |
+| 3 | `coin_jump` Salto con moneda | +25 % de aceleración al empujar un ancla bajo los pies | 2 | descubrimiento `anchor_principle` | pareja |
+| 16 | `economy` Economía | consumo −5 / −10 % (`reduction_milli` 50 / 100) | 1 / 2 | — | conocimiento |
+| 17 | `capacity` Capacidad | capacidad +10 / +25 % (`capacity_bonus_milli` 100 / 250) | 1 / 2 | — | conocimiento |
+
+- Códigos estables (≤ 63, nunca reutilizados). Los nodos de pareja exigen la pareja desbloqueada. `validate_catalog()` (test): sin ciclos, requisitos existentes, ninguna técnica exige el descubrimiento que ella misma abre, efectos dentro de los topes de `reserves.rs`.
+- Puntos de pareja ganados por XP acumulada: 100, 250, 450, 700, 1000 y después cada +400. Ni el saldo ni lo gastado se guardan: gastado = suma de los costes de los rangos que se tienen, conocimiento = suma de las investigaciones concluidas, disponibles = ganados − gastados (revisión de Gemini). Los de pareja no se transfieren; los de conocimiento solo los da la investigación.
+- `ReserveRules.reduction_milli` y `capacity_bonus_milli` se derivan de los nodos generales: `prepare_purchase` los cambia en el mismo candidato y `validate_save` (también `replace_rules`) exige que coincidan. El adaptador construye `ForceRules` por jugador con `tuned_force` (alcance, aceleración y `push_below_gain`, que `physics::step` aplica solo al empujar un ancla bajo los pies).
+
+**Práctica** (`PracticeAction`, del servidor)
+
+| Categoría | Acción verificada | XP |
+|---|---|---|
+| 0 `anchor_move` | Un tirón o empujón continuo contra el mismo ancla desplaza al jugador ≥ 2 bloques | 10 |
+| 1 `coin_jump` | Empujar una moneda en el suelo bajo los pies eleva al jugador ≥ 1,3 bloques | 15 |
+| 2 `coin_hit` | Una moneda empujada por el jugador daña a una criatura viva que no es un jugador | 10 |
+
+Ventana de 1200 ticks de `game_time` por categoría, guardada, que se abre con la primera acción; dentro de ella la 1.ª acción da 100 %, la 2.ª 50 %, la 3.ª 25 % y las siguientes nada, sin contar más (el contador no pasa de 3, así que nunca da la vuelta). Un `game_time` anterior al inicio guardado abre ventana nueva. La XP va siempre a la pareja de la categoría (hierro/acero), sea cual sea la seleccionada. Una tirada (un mismo objetivo sostenido, desde que se engancha hasta que se suelta o cambia) da como mucho una acción de práctica (`coin_jump` antes que `anchor_move`) y una evidencia de cada tipo. Revisión final (Codex, rondas 1–3): solo cuenta el movimiento que causa la fuerza. Desde un tick con la fuerza aplicada hasta el siguiente, el paso a lo largo de la línea del ancla (hacia ella al tirar, lejos al empujar; sin contar caídas) suma lo que pasa de 0,2 bloques por tick, y hacen falta 2 bloques así acumulados; la elevación es la máxima subida neta sumando solo esos pasos, con 1,3 bloques (N3 llega a 1,48; un salto solo, a 1,25). Trepar (`is_climbing`), un paso de más de 2 bloques o un teletransporte avisado anulan la tirada. Los cuatro tirones de `p5-4-x1` acreditan entre 3,8 y 5,8 bloques.
+
+**Investigación `anchor_principle`** (código 1; `ResearchEvidence`, del servidor)
+- (a) bit 1: un ítem metálico suelto, del que el jugador tiró sin ancla en los últimos 40 ticks, termina recogido por él (`item_picked_up_post`).
+- (b) bit 2: tirar de sí mismo hacia un bloque ancla lo desplaza ≥ 2 bloques.
+- (c) bit 4: empujar un ancla bajo los pies (bloque o ítem en el suelo) lo eleva ≥ 1,3 bloques.
+- Con 2 bits está lista. Concluir (cuaderno en la mano principal + clic derecho en `minecraft:crafting_table`, supervivencia o aventura): +200 XP de pareja y +3 puntos de conocimiento, una sola vez; abre `coin_jump`. Pistas 1–3: claves de traducción.
+
+**Núcleo**
+- `observe(&mut SavedPlayer, &VerifiedEvent, &Catalog, game_time) -> Vec<Discovery>`: evidencia o XP con topes; validación íntegra antes de mutar. `EventKind` gana `ResearchEvidence { research, evidence }` y `PracticeAction { category }`.
+- `prepare_purchase(saved, code, rank)`, `prepare_conclude(saved, research)`, `prepare_hint(saved, research, index)` y `prepare_vial(saved, metal, amount)` → `PreparedCredit`, confirmados con `commit_credit` (exactamente una vez). La petición nombra el rango buscado: repetirla tras aplicarse da `AlreadyOwned`, nunca un segundo rango. Errores nuevos tipados: `UnknownNode`, `AlreadyOwned`, `RankSkipped`, `MissingRequirement`, `NotEnoughPoints`, `PairLocked`, `UnknownResearch`, `NotReady`, `AlreadyConcluded`, `HintSkipped`.
+- `control`: op 6 «comprar» (arg = código << 2 | rango), op 7 «revelar pista» (arg = investigación << 2 | índice). Mismo presupuesto, `InputCaptured` con menú.
+
+**Esquema 2 y migración**
+
+```text
+payload v2 = payload v1 (idéntico)
+  | 4 × pair_xp:u32
+  | n_nodes:u8 | n × (code:u16 | rank:u8)                          ordenado, sin duplicados
+  | n_research:u8 | n × (code:u16 | evidence:u8 | hints:u8 | concluded:u8)   ordenado
+  | 3 × (window_start:u64 | count:u8)
+```
+
+`decode_save`: esquema 1 → progreso vacío, resto idéntico (la siguiente escritura es esquema 2); esquema 2 → lectura; 0 y ≥ 3 → `UnsupportedVersion` antes de leer el payload. Rechazos nuevos: listas desordenadas o duplicadas y `concluded` distinto de 0/1 (`InvalidEnum`); código desconocido, rango 0 o mayor que el del nodo, requisito o pareja que faltan, gastado > ganado, bits o pistas fuera de rango, conclusión sin evidencia suficiente y reglas que no coinciden con los nodos (`Progress(..)`). Fixture nuevo `saved-player-v2.bin` para P6. Tests: el fixture v1 carga y migra campo a campo; round-trip v2; todo truncado v1 y v2; CRC; sobrantes; esquema 3; compra única, rango repetido, falta de puntos o requisito; topes y ventanas; conclusión doble; muerte y reconexión.
+
+**Adaptador**: detectores en `p4.rs` (tiradas ancladas, recogidas, golpes de moneda) y transacciones en `bridge.rs`, paquete `mistbrn:progress` servidor → cliente al cambiar, al entrar y al reaparecer, pantalla del cuaderno (`client`), hoja de iconos con `tools/gen-progress.py` hecha con Codex (regla de assets). `/mistbrn-test xp <n>`, `evidence <bit>` e `inject buy.<código>.<rango>[.<veces>]` con `MISTBRN_TEST_SCENARIO=p4` (puntos, no dos puntos: el argumento `word` de Brigadier se corta en `:`).
+
+**Escenarios** (`tools/p5-lib.sh`): M1 mundo V1 real (copia de `v1-12-u1`) migra sin perder nada; M2 esquema 3 bloquea; T1 tutorial del primer vial; X1 práctica con topes, ventana y relanzar; R1 evidencia sin pistas, pista, conclusión única; B1 compra de `reach` (alcance medible), sin puntos, doble petición, `capacity` en el HUD; B2/B3 corte tras comprar; D1 muerte y reconexión; Q1 pantalla con J, bloqueada con el chat. Regresión U1, v1, K1, K6, K9, S1, C2 (ahora beber desbloquea) y N1.
+
 ## Archivos críticos
 - Nuevos/movidos: `mod/horizon-mod.toml`, `mod/Cargo.toml`, `mod/src/{lib,bridge,save,scenario}.rs`, `mod/src/core/src/{reserves,persistence}.rs`, `mod/src/core/tests/{reserves,persistence}.rs`, `tools/{fetch-sdk,build-native,native-test,check}.sh`, `docs/{plan,design,compatibility,contracts,STATUS,history}.md`, `docs/evidence/{p0b,p2}.md`.
 - Reutilizados del núcleo actual: `types.rs`, `state.rs`, `commands.rs` (`apply_command`, `advance_tick`, `VerifiedEvent::from_server_observation`), `tests/contracts.rs`.

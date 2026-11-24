@@ -4,10 +4,11 @@ use crate::content::{Drink, Finished, Study};
 use crate::controls::pair_name;
 use crate::save::{self, Blocked, Loaded};
 use allomancy_core::{
-    Authority, BurnState, EMPTY_VIAL, InputContext, Metal, PlayerId, ReserveRules, SaveError,
-    SavedPlayer, Tick, TransactionSeq, VIAL_MILLI, Vec3, WorldId, WorldSnapshot, advance_tick,
-    commit_credit, consume_reserves, on_death, on_reconnect, prepare_credit, prepare_unlock,
-    update_player,
+    Authority, BurnState, CATALOG, EMPTY_VIAL, EventId, EventKind, InputContext, Metal, Observed,
+    PlayerId, PreparedCredit, ReserveRules, SaveError, SavedPlayer, Tick, TransactionSeq,
+    VIAL_MILLI, Vec3, VerifiedEvent, WorldId, WorldSnapshot, advance_tick, commit_credit,
+    consume_reserves, node_def, observe, on_death, on_reconnect, prepare_conclude, prepare_hint,
+    prepare_purchase, prepare_unlock, prepare_vial, research_def, update_player,
 };
 use mod_api::{
     GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
@@ -64,7 +65,7 @@ pub(crate) struct Session {
 }
 
 /// Chat line from the mod's translations (`assets/mistbrn/lang`), never a raw error code.
-fn tell(host: &mut dyn ServerHost, player: PlayerRef, key: &str) {
+pub(crate) fn tell(host: &mut dyn ServerHost, player: PlayerRef, key: &str) {
     let _ = player.tell(host, Text::translate(key, Vec::new()));
 }
 
@@ -287,7 +288,20 @@ impl Session {
             };
             let metal = metal_name(drink.metal);
             match self.credit_from_slot(host, drink, VIAL_MILLI, fail_inside) {
-                Ok(seq) => eprintln!("MISTBRN event=vial_credit metal={metal} seq={}", seq.0),
+                Ok((seq, unlocked)) => {
+                    eprintln!(
+                        "MISTBRN event=vial_credit metal={metal} seq={} unlocked={unlocked}",
+                        seq.0
+                    );
+                    if unlocked {
+                        // The tutorial: the first iron or steel vial teaches the pair.
+                        eprintln!(
+                            "MISTBRN event=unlock pair=iron_steel seq={} via=vial",
+                            seq.0
+                        );
+                        tell(host, player, "message.mistbrn.tutorial.unlocked");
+                    }
+                }
                 Err(error) => {
                     eprintln!("MISTBRN event=vial_refused metal={metal} reason={error}");
                     if let Some(key) = refusal_message(&error) {
@@ -385,15 +399,16 @@ impl Session {
         }
     }
 
-    /// Exchange one filled vial for its empty bottle and persist the credit together.
-    /// `fail_inside` injects a failure after all writes (tests).
+    /// Exchange one filled vial for its empty bottle and persist the credit together; the first
+    /// iron or steel vial also unlocks the pair (P5 tutorial, `prepare_vial`). Returns the
+    /// transaction and whether it unlocked. `fail_inside` injects a failure after all writes.
     pub(crate) fn credit_from_slot(
         &mut self,
         host: &mut dyn ServerHost,
         drink: Drink,
         amount_milli: i64,
         fail_inside: bool,
-    ) -> Result<TransactionSeq, String> {
+    ) -> Result<(TransactionSeq, bool), String> {
         let Drink {
             player,
             slot,
@@ -420,7 +435,8 @@ impl Session {
         else {
             return Err("not_active".into());
         };
-        let prepared = prepare_credit(saved, metal, amount_milli).map_err(|e| format!("{e:?}"))?;
+        let (prepared, unlocked) =
+            prepare_vial(saved, metal, amount_milli).map_err(|e| format!("{e:?}"))?;
         let empty = Identifier::parse(EMPTY_VIAL)
             .ok()
             .and_then(|id| host.item_key(&id))
@@ -452,7 +468,7 @@ impl Session {
                 *dirty = false;
                 *urgent = false;
                 *since_write = 0;
-                Ok(seq)
+                Ok((seq, unlocked))
             }
             Err(error) => {
                 // The game already holds the candidate: writing the older in-memory state would
@@ -461,6 +477,280 @@ impl Session {
                 Err(format!("commit_after_host:{error:?}"))
             }
         }
+    }
+
+    /// Writes a prepared save-only change (a purchase, a hint, a conclusion) in its own host
+    /// transaction and commits it once that transaction committed, as a vial credit does.
+    fn commit_save_only(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        prepare: impl FnOnce(&SavedPlayer) -> Result<PreparedCredit, SaveError>,
+    ) -> Result<TransactionSeq, String> {
+        let uuid = player.uuid();
+        if host.transaction_current().is_some() {
+            return Err("nested_transaction".into());
+        }
+        let Some(Slot::Active {
+            saved,
+            dirty,
+            urgent,
+            since_write,
+        }) = self.players.get_mut(&uuid)
+        else {
+            return Err("not_active".into());
+        };
+        let prepared = prepare(saved).map_err(|error| match error {
+            SaveError::Progress(error) => format!("{error:?}"),
+            other => format!("{other:?}"),
+        })?;
+        host.transaction(|host, _tx| save::write(host, player, prepared.candidate()))?;
+        match commit_credit(saved, prepared) {
+            Ok(seq) => {
+                *dirty = false;
+                *urgent = false;
+                *since_write = 0;
+                Ok(seq)
+            }
+            Err(error) => {
+                self.block(host, uuid, Blocked::Decode(error));
+                Err(format!("commit_after_host:{error:?}"))
+            }
+        }
+    }
+
+    /// Buys `rank` of node `code` (the notebook, op 6). Logged with its result.
+    pub(crate) fn purchase(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        code: u16,
+        rank: u8,
+    ) -> Result<TransactionSeq, String> {
+        let node = node_def(code, &CATALOG).map_or("unknown", |def| def.key);
+        let result =
+            self.commit_save_only(host, player, |saved| prepare_purchase(saved, code, rank));
+        match &result {
+            Ok(seq) => {
+                eprintln!(
+                    "MISTBRN event=purchase node={node} rank={rank} result=ok seq={}",
+                    seq.0
+                );
+                tell(host, player, "message.mistbrn.notebook.bought");
+            }
+            Err(error) => {
+                eprintln!("MISTBRN event=purchase node={node} rank={rank} result={error}")
+            }
+        }
+        result
+    }
+
+    /// Reveals hint `index` of research `code` (the notebook, op 7).
+    pub(crate) fn reveal_hint(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        code: u16,
+        index: u8,
+    ) -> Result<TransactionSeq, String> {
+        let research = research_def(code, &CATALOG).map_or("unknown", |def| def.key);
+        let result = self.commit_save_only(host, player, |saved| prepare_hint(saved, code, index));
+        match &result {
+            Ok(seq) => eprintln!(
+                "MISTBRN event=hint_revealed research={research} index={index} result=ok seq={}",
+                seq.0
+            ),
+            Err(error) => eprintln!(
+                "MISTBRN event=hint_revealed research={research} index={index} result={error}"
+            ),
+        }
+        result
+    }
+
+    /// Concludes every research that is ready (the notebook used on a crafting table). Tells
+    /// the player the outcome; returns how many were concluded.
+    pub(crate) fn conclude(&mut self, host: &mut dyn ServerHost, player: PlayerRef) -> usize {
+        let mut concluded = 0;
+        let mut last_refusal = None;
+        for def in CATALOG.research {
+            match self.commit_save_only(host, player, |saved| prepare_conclude(saved, def.code)) {
+                Ok(seq) => {
+                    concluded += 1;
+                    eprintln!(
+                        "MISTBRN event=conclude research={} result=ok seq={}",
+                        def.key, seq.0
+                    );
+                    tell(host, player, "message.mistbrn.research.discovered");
+                }
+                Err(error) => {
+                    eprintln!("MISTBRN event=conclude research={} result={error}", def.key);
+                    last_refusal = Some(error);
+                }
+            }
+        }
+        if concluded == 0 {
+            let key = match last_refusal.as_deref() {
+                Some("AlreadyConcluded") => "message.mistbrn.research.known",
+                Some("PairLocked") => "message.mistbrn.research.locked",
+                _ => "message.mistbrn.research.not_ready",
+            };
+            tell(host, player, key);
+        }
+        concluded
+    }
+
+    /// Records one server-observed event (practice or evidence, P5) for `player` at the
+    /// level's game time. The save is marked for writing; nothing is told unless evidence makes
+    /// a research ready.
+    pub(crate) fn observe_event(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        kind: EventKind,
+    ) {
+        let uuid = player.uuid();
+        let read: &dyn Host = host;
+        let (Some([x, y, z]), Some(game_time)) = (
+            player.entity().position(read),
+            player
+                .level(read)
+                .and_then(|level| level.game_time(read))
+                .and_then(|t| u64::try_from(t).ok()),
+        ) else {
+            return;
+        };
+        let Some(saved) = self.saved(uuid) else {
+            return;
+        };
+        let snapshot = WorldSnapshot {
+            tick: saved.state().last_tick.unwrap_or(Tick(0)),
+            world_id: world_id(),
+            actor: player_id(uuid),
+            position: Vec3 { x, y, z },
+            targets: Vec::new(),
+            authority: Authority::Server,
+            input: InputContext {
+                gameplay_allowed: true,
+            },
+        };
+        let label = match &kind {
+            EventKind::PracticeAction { category } => format!("practice:{category}"),
+            EventKind::ResearchEvidence { research, evidence } => {
+                format!("evidence:{research}:{evidence}")
+            }
+            _ => "other".into(),
+        };
+        let Ok(event) =
+            VerifiedEvent::from_server_observation(EventId::new(label), kind, &snapshot)
+        else {
+            return;
+        };
+        // Tried on a copy first: an observation that adds nothing (a spent window, evidence
+        // already seen) leaves the save clean. One that does is written on this tick's flush:
+        // a death followed by leaving from the death screen takes no later write.
+        let mut probe = saved.clone();
+        let observed = observe(&mut probe, &event, game_time);
+        let result = match &observed {
+            Ok(Observed::Nothing) => Ok(()),
+            Ok(_) => self.change(uuid, true, |saved| {
+                *saved = probe;
+                Ok(())
+            }),
+            Err(error) => Err(format!("{error:?}")),
+        };
+        let observed = observed.unwrap_or(Observed::Nothing);
+        if result.is_ok() && observed != Observed::Nothing {
+            // Now, not at the tick's end: the player may die before it and leave from the
+            // death screen, where no write reaches a dead player.
+            self.flush(host, player);
+        }
+        // Evidence is announced only once it is written (a failed write retries later).
+        let written = matches!(
+            self.players.get(&uuid),
+            Some(Slot::Active { dirty: false, .. })
+        );
+        match (result, observed) {
+            (Err(error), _) => eprintln!("MISTBRN event=observe_refused error={error}"),
+            (
+                Ok(()),
+                Observed::Practice {
+                    category,
+                    xp,
+                    count,
+                },
+            ) => {
+                let total = self
+                    .saved(uuid)
+                    .map_or(0, |s| s.progress().pair_xp(allomancy_core::Pair::IronSteel));
+                let key = allomancy_core::practice_def(category, &CATALOG).map_or("?", |d| d.key);
+                eprintln!(
+                    "MISTBRN event=practice category={key} xp={xp} count={count} total_xp={total} game_time={game_time}"
+                );
+            }
+            (
+                Ok(()),
+                Observed::Evidence {
+                    research,
+                    bit,
+                    ready,
+                },
+            ) => {
+                let key = research_def(research, &CATALOG).map_or("?", |d| d.key);
+                eprintln!("MISTBRN event=evidence research={key} bit={bit} ready={ready}");
+                if !written {
+                    return;
+                }
+                let message = if ready {
+                    "message.mistbrn.research.ready"
+                } else {
+                    "message.mistbrn.research.evidence"
+                };
+                tell(host, player, message);
+            }
+            (Ok(()), Observed::Nothing) => {}
+        }
+    }
+
+    /// Test runs only (`/mistbrn-test xp`): `amount / 10` anchor practice actions, each in its
+    /// own window far past the world's clock, so a later real action opens a fresh window.
+    pub(crate) fn test_xp(&mut self, host: &mut dyn ServerHost, player: PlayerRef, amount: u32) {
+        let uuid = player.uuid();
+        let window = CATALOG.window_ticks;
+        let mut granted = 0;
+        let result = self.change(uuid, true, |saved| {
+            for i in 0..u64::from(amount / 10) {
+                let snapshot = WorldSnapshot {
+                    tick: Tick(0),
+                    world_id: world_id(),
+                    actor: player_id(uuid),
+                    position: Vec3::default(),
+                    targets: Vec::new(),
+                    authority: Authority::Server,
+                    input: InputContext {
+                        gameplay_allowed: true,
+                    },
+                };
+                let event = VerifiedEvent::from_server_observation(
+                    EventId::new("test_xp"),
+                    EventKind::PracticeAction {
+                        category: allomancy_core::PRACTICE_ANCHOR_MOVE,
+                    },
+                    &snapshot,
+                )
+                .map_err(|_| SaveError::InvalidIdentity)?;
+                if let Observed::Practice { xp, .. } =
+                    observe(saved, &event, (1 << 40) + i * window)?
+                {
+                    granted += xp;
+                }
+            }
+            Ok(())
+        });
+        eprintln!(
+            "MISTBRN event=test_xp granted={granted} result={}",
+            result.err().unwrap_or_else(|| "ok".into())
+        );
+        self.flush(host, player);
     }
 
     pub(crate) fn tick(&mut self, host: &mut dyn ServerHost, epoch: u64, tick: u64) {
