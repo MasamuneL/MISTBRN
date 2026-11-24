@@ -343,7 +343,7 @@ fn drink(
             player,
             slot: 0,
             stack,
-            metal: Metal::Iron,
+            metal: Some(Metal::Iron),
         },
         amount,
         fail_inside,
