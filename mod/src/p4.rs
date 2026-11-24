@@ -96,8 +96,8 @@ struct Run {
     /// The last applied tick: its number, the feet then and the unit line towards the anchor.
     /// A step is credited only from the tick right before, along that tick's line.
     last: Option<(u64, [f64; 3], Vec3)>,
-    /// Feet height when the run started (a lift is a net rise above it).
-    start_y: f64,
+    /// Net height gained over the credited steps only (a gap in the force adds nothing).
+    height: f64,
     /// Distance the force carried the player along its line (closer for a pull, farther for a
     /// push) beyond what walking covers; and the highest net rise of a push off an anchor below.
     moved: f64,
@@ -551,7 +551,7 @@ impl Powers {
                 Run {
                     key,
                     last: None,
-                    start_y: feet[1],
+                    height: 0.0,
                     moved: 0.0,
                     risen: 0.0,
                     below: push && toward.y < -prep.rules.anchor_down,
@@ -589,7 +589,8 @@ impl Powers {
             let along = (step[0] * line.x + step[1] * line.y + step[2] * line.z) * sign;
             run.moved += (along - RUN_FREE_STEP).max(0.0);
             if run.below {
-                run.risen = run.risen.max(feet[1] - run.start_y);
+                run.height += feet[1] - last[1];
+                run.risen = run.risen.max(run.height);
             }
         }
         run.last = applied.then_some((tick, feet, toward));

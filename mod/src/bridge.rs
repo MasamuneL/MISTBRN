@@ -664,6 +664,11 @@ impl Session {
             // death screen, where no write reaches a dead player.
             self.flush(host, player);
         }
+        // Evidence is announced only once it is written (a failed write retries later).
+        let written = matches!(
+            self.players.get(&uuid),
+            Some(Slot::Active { dirty: false, .. })
+        );
         match (result, observed) {
             (Err(error), _) => eprintln!("MISTBRN event=observe_refused error={error}"),
             (
@@ -692,6 +697,9 @@ impl Session {
             ) => {
                 let key = research_def(research, &CATALOG).map_or("?", |d| d.key);
                 eprintln!("MISTBRN event=evidence research={key} bit={bit} ready={ready}");
+                if !written {
+                    return;
+                }
                 let message = if ready {
                     "message.mistbrn.research.ready"
                 } else {

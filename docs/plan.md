@@ -290,15 +290,15 @@ Aprobado por el usuario el 2026-11-23. Primera entrega vertical: un árbol (hier
 | Categoría | Acción verificada | XP |
 |---|---|---|
 | 0 `anchor_move` | Un tirón o empujón continuo contra el mismo ancla desplaza al jugador ≥ 2 bloques | 10 |
-| 1 `coin_jump` | Empujar una moneda en el suelo bajo los pies eleva al jugador ≥ 1,5 bloques | 15 |
+| 1 `coin_jump` | Empujar una moneda en el suelo bajo los pies eleva al jugador ≥ 1,3 bloques | 15 |
 | 2 `coin_hit` | Una moneda empujada por el jugador daña a una criatura viva que no es un jugador | 10 |
 
-Ventana de 1200 ticks de `game_time` por categoría, guardada, que se abre con la primera acción; dentro de ella la 1.ª acción da 100 %, la 2.ª 50 %, la 3.ª 25 % y las siguientes nada, sin contar más (el contador no pasa de 3, así que nunca da la vuelta). Un `game_time` anterior al inicio guardado abre ventana nueva. La XP va siempre a la pareja de la categoría (hierro/acero), sea cual sea la seleccionada. Una tirada (un mismo objetivo sostenido, desde que se engancha hasta que se suelta o cambia) da como mucho una acción de práctica (`coin_jump` antes que `anchor_move`) y una evidencia de cada tipo. Revisión final (Codex, rondas 1–3): solo cuenta el movimiento que causa la fuerza. Entre dos ticks consecutivos con la fuerza aplicada, el paso a lo largo de la línea del ancla (hacia ella al tirar, lejos al empujar; sin contar caídas) suma lo que pasa de 0,2 bloques por tick, y hacen falta 2 bloques así acumulados; la elevación es la subida neta máxima desde el inicio de la tirada, con 1,3 bloques (N3 llega a 1,48; un salto solo, a 1,25). Trepar (`is_climbing`), un paso de más de 2 bloques o un teletransporte avisado anulan la tirada. Los cuatro tirones de `p5-4-x1` acreditan entre 3,8 y 5,8 bloques.
+Ventana de 1200 ticks de `game_time` por categoría, guardada, que se abre con la primera acción; dentro de ella la 1.ª acción da 100 %, la 2.ª 50 %, la 3.ª 25 % y las siguientes nada, sin contar más (el contador no pasa de 3, así que nunca da la vuelta). Un `game_time` anterior al inicio guardado abre ventana nueva. La XP va siempre a la pareja de la categoría (hierro/acero), sea cual sea la seleccionada. Una tirada (un mismo objetivo sostenido, desde que se engancha hasta que se suelta o cambia) da como mucho una acción de práctica (`coin_jump` antes que `anchor_move`) y una evidencia de cada tipo. Revisión final (Codex, rondas 1–3): solo cuenta el movimiento que causa la fuerza. Desde un tick con la fuerza aplicada hasta el siguiente, el paso a lo largo de la línea del ancla (hacia ella al tirar, lejos al empujar; sin contar caídas) suma lo que pasa de 0,2 bloques por tick, y hacen falta 2 bloques así acumulados; la elevación es la máxima subida neta sumando solo esos pasos, con 1,3 bloques (N3 llega a 1,48; un salto solo, a 1,25). Trepar (`is_climbing`), un paso de más de 2 bloques o un teletransporte avisado anulan la tirada. Los cuatro tirones de `p5-4-x1` acreditan entre 3,8 y 5,8 bloques.
 
 **Investigación `anchor_principle`** (código 1; `ResearchEvidence`, del servidor)
 - (a) bit 1: un ítem metálico suelto, del que el jugador tiró sin ancla en los últimos 40 ticks, termina recogido por él (`item_picked_up_post`).
 - (b) bit 2: tirar de sí mismo hacia un bloque ancla lo desplaza ≥ 2 bloques.
-- (c) bit 4: empujar un ancla bajo los pies (bloque o ítem en el suelo) lo eleva ≥ 1,5 bloques.
+- (c) bit 4: empujar un ancla bajo los pies (bloque o ítem en el suelo) lo eleva ≥ 1,3 bloques.
 - Con 2 bits está lista. Concluir (cuaderno en la mano principal + clic derecho en `minecraft:crafting_table`, supervivencia o aventura): +200 XP de pareja y +3 puntos de conocimiento, una sola vez; abre `coin_jump`. Pistas 1–3: claves de traducción.
 
 **Núcleo**
