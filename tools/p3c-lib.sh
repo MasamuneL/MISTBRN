@@ -154,6 +154,13 @@ p3c_scenario() {
       p3c_contents 514 100 512 wrong-stage
       p3c_has wrong-stage mistbrn:vial_water 0
       p3c_has wrong-stage mistbrn:tin_flakes 3
+      # Breaking the alembic drops it and everything inside (nothing lost, nothing doubled).
+      ctl command "setblock 514 100 512 minecraft:air destroy" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl collect 6 >/dev/null
+      ctl inventory > "$dir/broken.json"
+      p3c_check "dropped when broken" "$(jq -c '.counts' "$dir/broken.json")" \
+        '{"mistbrn:alembic":1,"mistbrn:tin_flakes":1,"mistbrn:vial_iron":2,"mistbrn:vial_water":1}'
       ctl save >/dev/null; quit_game
       # The first batch finished in launch 2, ~300 ticks after relaunch (not 600 from zero).
       expect_log 2 'MISTBRN event=alembic_batch pos=\[514, 100, 512\] ingredient=mistbrn:salt vials=3'
