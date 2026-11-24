@@ -19,7 +19,7 @@ use allomancy_core::{
     NodeStatus, PAIRS, Pair, Progress, node_def, node_status, research_def, research_ready,
 };
 
-pub(crate) const PANEL_W: f32 = 320.0;
+pub(crate) const PANEL_W: f32 = 336.0;
 pub(crate) const PANEL_H: f32 = 200.0;
 /// Room above the panel for the tabs, in local pixels.
 const TABS_H: f32 = 14.0;
@@ -167,20 +167,21 @@ pub(crate) fn branch_titles(view: u8) -> Option<[&'static str; 2]> {
 /// The tab buttons (local).
 pub(crate) fn tab_rect(tab: Tab) -> [f32; 4] {
     let i = TABS.iter().position(|t| *t == tab).unwrap_or(0) as f32;
-    [6.0 + 52.0 * i, -TABS_H + 1.0, 48.0, 14.0]
+    [6.0 + 64.0 * i, -TABS_H + 1.0, 60.0, 14.0]
 }
 
 /// The tree selector's buttons.
 pub(crate) fn view_rect(view: u8) -> [f32; 4] {
-    [6.0, 8.0 + 20.0 * f32::from(view), 76.0, 18.0]
+    [6.0, 8.0 + 20.0 * f32::from(view), 92.0, 18.0]
 }
 
 /// The tree canvas's window (local) and the diary list's.
-pub(crate) const CANVAS: [f32; 4] = [88.0, 30.0, 226.0, 164.0];
-pub(crate) const LIST: [f32; 4] = [6.0, 8.0, 104.0, 186.0];
-pub(crate) const LIST_ROW: f32 = 22.0;
+pub(crate) const CANVAS: [f32; 4] = [104.0, 30.0, 226.0, 164.0];
+pub(crate) const LIST: [f32; 4] = [6.0, 8.0, 112.0, 186.0];
+/// A row of the diary list: the name in up to two lines.
+pub(crate) const LIST_ROW: f32 = 30.0;
 /// The diary's detail column starts here.
-pub(crate) const DETAIL_X: f32 = 116.0;
+pub(crate) const DETAIL_X: f32 = 126.0;
 pub(crate) const DETAIL_W: f32 = PANEL_W - 6.0 - DETAIL_X;
 pub(crate) const HINT_BUTTON: [f32; 4] = [DETAIL_X + DETAIL_W - 96.0, 84.0, 96.0, 12.0];
 const HINT_PAGE: [f32; 2] = [DETAIL_X + 54.0, 84.0];

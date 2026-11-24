@@ -46,6 +46,9 @@ book_open() {
 # book_shot NAME: a capture of the book as it is now.
 book_shot() { ctl wait 5 >/dev/null; p5_screenshot "$1"; }
 
+# book_quiet: no tutorial toast over the book's top right (captures only; vanilla option).
+book_quiet() { ctl options-set tutorialStep none >/dev/null || true; }
+
 # book_pair: iron and steel unlocked (test credits), with 100 XP so reach can be bought.
 book_pair() {
   ctl command "mistbrn-test credit iron 30000" >/dev/null
@@ -82,6 +85,7 @@ p7b_scenario() {
   case "$scenario" in
     l1)  # every view, the canvas scroll, a tooltip, the tabs (captures reviewed by hand)
       launch MISTBRN_TEST_SCENARIO=p4
+      book_quiet
       p6_place
       book_pair
       book_open l1-iron
@@ -102,12 +106,13 @@ p7b_scenario() {
       for view in 0 1 4; do
         expect_log 1 "MISTBRN event=book_view gui=[0-9.]*x[0-9.]* tab=tree view=$view "
       done
-      expect_log 1 'MISTBRN event=book_scroll lines=-5 scroll=54,0'
-      expect_log 1 'MISTBRN event=book_scroll lines=10 scroll=0,0'
+      expect_log 1 'MISTBRN event=book_scroll lines=-1 scroll=56,0'
+      expect_log 1 'MISTBRN event=book_scroll lines=1 scroll=0,0'
       for tab in diary milestones reserves; do expect_log 1 "MISTBRN event=book_view .* tab=$tab "; done
       k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
     l2)  # keyboard only: Tab to reach, Enter buys it, Page Down scrolls
       launch MISTBRN_TEST_SCENARIO=p4
+      book_quiet
       p6_place
       book_pair
       book_open l2-open
@@ -127,6 +132,7 @@ p7b_scenario() {
       expect 2 report state=active nodes=1:1 ;;
     l3)  # Conclude: refused away from a table and beyond 5 blocks, once at the table
       launch MISTBRN_TEST_SCENARIO=p4
+      book_quiet
       p6_place
       book_pair
       ctl command "gamemode survival" >/dev/null
@@ -156,6 +162,7 @@ p7b_scenario() {
     l4)  # settings: book at 125 % and 75 %, bars at 125 %, reduce flashing holds the warning
       local a b c d
       launch MISTBRN_TEST_SCENARIO=p4
+      book_quiet
       p6_place
       ctl command "mistbrn-test credit iron 5000" >/dev/null
       ctl command "mistbrn-test credit steel 5000" >/dev/null
@@ -187,6 +194,7 @@ p7b_scenario() {
       else k_fail "expected two identical frames with reduce flashing ($c / $d)"; fi ;;
     l5)  # the Reserves tab against the server's reserves
       launch MISTBRN_TEST_SCENARIO=p4
+      book_quiet
       p6_place
       ctl command "mistbrn-test credit iron 30000" >/dev/null
       ctl command "mistbrn-test credit tin 12500" >/dev/null

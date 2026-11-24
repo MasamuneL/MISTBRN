@@ -185,7 +185,20 @@ pub(crate) fn draw(
     for tab in TABS {
         let rect = super::tab_rect(tab);
         let src = if tab == book.tab { TAB_SELECTED } else { TAB };
-        if !sprite(&mut p, src, [rect[0], rect[1]], None) {
+        // Three slices: the 4-px ends as drawn, the middle stretched to the tab's width.
+        let [sx, sy, sw, sh] = src;
+        let [x, y, w, _] = rect;
+        let ends = sprite(&mut p, [sx, sy, 4.0, sh], [x, y], None)
+            && sprite(&mut p, [sx + sw - 4.0, sy, 4.0, sh], [x + w - 4.0, y], None);
+        if ends {
+            p.sprite(
+                SHEET,
+                SHEET_SIZE,
+                [sx + 4.0, sy, sw - 8.0, sh],
+                [x + 4.0, y, w - 8.0, sh],
+                None,
+            );
+        } else {
             p.fill(rect, if tab == book.tab { BEVEL } else { BUTTON });
         }
         let label = tr(host, &format!("notebook.mistbrn.tab.{}", tab_key(tab)));
@@ -582,7 +595,7 @@ fn draw_diary(
         if chosen || hovered == Some(Target::Research(def.code)) {
             p.fill(rect, BUTTON_HOVER);
         }
-        sprite(p, ICON_RESEARCH, [rect[0] + 2.0, y + 2.0], None);
+        sprite(p, ICON_RESEARCH, [rect[0] + 2.0, y + 6.0], None);
         let entry = progress.research(def.code);
         let color = if entry.concluded {
             BRASS
@@ -591,12 +604,13 @@ fn draw_diary(
         } else {
             TEXT
         };
-        let name = fit(
-            p,
-            &tr(host, &format!("research.mistbrn.{}", def.key)),
-            LIST[2] - 26.0,
-        );
-        p.text(&name, [rect[0] + 21.0, y + 6.0], color, true);
+        let name = tr(host, &format!("research.mistbrn.{}", def.key));
+        let lines = wrap(p, &name, LIST[2] - 26.0);
+        let top = if lines.len() > 1 { y + 4.0 } else { y + 9.0 };
+        for (n, line) in lines.iter().take(2).enumerate() {
+            let line = fit(p, line, LIST[2] - 26.0);
+            p.text(&line, [rect[0] + 21.0, top + LINE * n as f32], color, true);
+        }
     }
     p.pop_clip();
     scroll_bar(p, LIST, book.list_scroll, max_scroll(Tab::Diary, book.view));
