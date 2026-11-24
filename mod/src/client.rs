@@ -636,6 +636,8 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
             if let Some(open) = state.notebook.as_mut() {
                 open.book.frame = shown.frame;
                 open.book.logged = shown.logged;
+                open.book.keyboard = shown.keyboard;
+                open.book.last_pointer = shown.last_pointer;
             }
             return;
         }

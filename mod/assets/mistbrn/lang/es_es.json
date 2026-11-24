@@ -105,6 +105,7 @@
   "notebook.mistbrn.branch.anchor": "Anclaje",
   "notebook.mistbrn.branch.unknown": "???",
   "notebook.mistbrn.conclude": "Concluir",
+  "notebook.mistbrn.conclude.refused": "No se concluyó: mira a una mesa de crafteo o un alambique (5 bloques), en supervivencia o aventura.",
   "notebook.mistbrn.conclude.where": "Mira a una mesa de crafteo o a un alambique, a 5 bloques como mucho.",
   "notebook.mistbrn.cost": "coste %s",
   "notebook.mistbrn.evidence": "Evidencias: %s/%s",

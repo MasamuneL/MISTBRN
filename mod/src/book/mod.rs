@@ -293,6 +293,10 @@ pub(crate) struct Book {
     pub(crate) logged: Option<String>,
     /// The last Conclude was not taken by the server: the diary says why it may have been.
     pub(crate) refused: bool,
+    /// The focus moved by keyboard since the pointer last moved: its tooltip wins.
+    pub(crate) keyboard: bool,
+    /// The pointer (screen GUI pixels) at the last frame.
+    pub(crate) last_pointer: Option<[f32; 2]>,
 }
 
 impl Book {
@@ -308,6 +312,8 @@ impl Book {
             frame: None,
             logged: None,
             refused: false,
+            keyboard: false,
+            last_pointer: None,
         }
     }
 
@@ -524,6 +530,7 @@ pub(crate) fn move_focus(book: &mut Book, progress: &Progress, forward: bool) {
     };
     let (target, rect) = order[next];
     book.focus = Some(target);
+    book.keyboard = true;
     let max = max_scroll(book.tab, book.view);
     let (value, window) = match target {
         Target::Node(_) => (&mut book.scroll, CANVAS),

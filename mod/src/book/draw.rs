@@ -234,8 +234,14 @@ pub(crate) fn draw(
     if let Some((_, rect, _)) = focused {
         focus_ring(&mut p, rect);
     }
-    // The tooltip: what the pointer is over, else what has the focus.
-    let tip = match (hovered, focused) {
+    // The tooltip: what the pointer is over, else what has the focus. Right after a keyboard
+    // move the focus wins until the pointer moves (Codex review, round 2).
+    if book.last_pointer != Some(pointer) {
+        book.last_pointer = Some(pointer);
+        book.keyboard = false;
+    }
+    let hovered_tip = hovered.filter(|_| !book.keyboard);
+    let tip = match (hovered_tip, focused) {
         (Some(target), _) => Some((target, local)),
         (None, Some((target, rect, _))) => Some((target, [rect[0] + rect[2], rect[1]])),
         (None, None) => None,
@@ -735,7 +741,7 @@ fn draw_diary(
     }
     if ready {
         let (key, color) = if book.refused {
-            ("message.mistbrn.research.no_table", REFUSED)
+            ("notebook.mistbrn.conclude.refused", REFUSED)
         } else {
             ("notebook.mistbrn.research.how", READY)
         };

@@ -105,6 +105,7 @@
   "notebook.mistbrn.branch.anchor": "Anchor",
   "notebook.mistbrn.branch.unknown": "???",
   "notebook.mistbrn.conclude": "Conclude",
+  "notebook.mistbrn.conclude.refused": "Not concluded: face a crafting table or an alembic (5 blocks), in survival or adventure.",
   "notebook.mistbrn.conclude.where": "Look at a crafting table or an alembic, 5 blocks away at most.",
   "notebook.mistbrn.cost": "cost %s",
   "notebook.mistbrn.evidence": "Evidence: %s/%s",

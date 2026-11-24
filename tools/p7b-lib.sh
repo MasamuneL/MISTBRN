@@ -9,30 +9,36 @@ book_line() {
 }
 
 # book_at NAME: "X Y", the GUI pixel where the newest book_view line puts target NAME
-# (`tab.diary`, `view.4`, `node.1`, `conclude`); nothing (and a FAIL) when it is not there.
+# (`tab.diary`, `view.4`, `node.1`, `conclude`); status 1 when it is not there.
 book_at() {
-  local line at
+  local at
+  at="$(tr ';= ' '\n\n\n' <<< "$(book_line)" | sed -n "s/^$1@//p" | tail -1)"
+  [[ "$at" =~ ^[0-9.-]+,[0-9.-]+$ ]] || return 1
+  echo "${at%,*} ${at#*,}"
+}
+
+# book_xy NAME: book_at, or a FAIL counted in the scenario's own shell (not a subshell).
+book_xy() {
+  local xy
   ctl wait 5 >/dev/null
-  line="$(book_line)"
-  at="$(tr ';= ' '\n\n\n' <<< "$line" | sed -n "s/^$1@//p" | tail -1)"
-  if [[ "$at" =~ ^[0-9.-]+,[0-9.-]+$ ]]; then echo "${at%,*} ${at#*,}"
-  else k_fail "book target $1 not in: ${line:-<no book_view>}" >&2; fi
+  if xy="$(book_at "$1")"; then echo "$xy"; return 0; fi
+  return 1
 }
 
 # book_click NAME: click book target NAME.
 book_click() {
-  local x y
-  read -r x y < <(book_at "$1") || return 0
-  ctl click-at "$x" "$y" >/dev/null
+  local xy
+  if ! xy="$(book_xy "$1")"; then k_fail "book target $1 not in: $(book_line | head -c 300)"; return 0; fi
+  ctl click-at "${xy% *}" "${xy#* }" >/dev/null
   ctl wait 10 >/dev/null
 }
 
 # book_scroll NAME STEPS: turn the wheel over book target NAME (positive scrolls up); with
 # the canvas at its top, one notch up moves nothing and only points there (a tooltip).
 book_scroll() {
-  local x y
-  read -r x y < <(book_at "$1") || return 0
-  ctl scroll-at "$x" "$y" "$2" >/dev/null
+  local xy
+  if ! xy="$(book_xy "$1")"; then k_fail "book target $1 not in: $(book_line | head -c 300)"; return 0; fi
+  ctl scroll-at "${xy% *}" "${xy#* }" "$2" >/dev/null
   ctl wait 5 >/dev/null
 }
 
@@ -119,8 +125,13 @@ p7b_scenario() {
       expect_log 1 'MISTBRN event=book_key key=Activate repeat=true focus=node.1 '
       expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok'
       expect_log 1 'MISTBRN event=purchase node=reach rank=2 result=ok'
-      # Two taps, two requests: the held Enter's repeats sent nothing.
+      # Two taps, two requests, and none between the held Enter's repeats and the second tap.
       k_expect_count "one request per tap" 'MISTBRN event=notebook result=request:Purchase' 2 2
+      if awk '/book_key key=Activate repeat=true/ { held = 1 }
+              held && /request:Purchase/ { bad = 1; exit }
+              held && /book_key key=Activate repeat=false/ { done = 1; exit }
+              END { exit !(done && !bad) }' "$(log 1)"; then k_ok "the held Enter sent nothing"
+      else k_fail "a request between the held Enter and the second tap"; fi
       expect 2 report state=active nodes=1:2 ;;
     l3)  # Conclude: refused in creative, without a table in sight, beyond 5 blocks (also from
          # the book, which then says why) and behind a block; once at the table
