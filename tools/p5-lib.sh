@@ -80,9 +80,9 @@ p5_trial_reach() {
 }
 
 # Two identical purchase requests queued in one call, so they reach the server in the same
-# tick (`inject buy:<code>:<rank>:<count>`), as a double click would.
+# tick (`inject buy.<code>.<rank>.<count>`), as a double click would.
 p5_repeat_reach() {
-  ctl command "mistbrn-test inject buy:1:1:2" > "$dir/replay-command.json"
+  ctl command "mistbrn-test inject buy.1.1.2" > "$dir/replay-command.json"
   ctl wait 10 >/dev/null
 }
 
@@ -238,11 +238,11 @@ p5_scenario() {
       k_screen b1-closed '^"playing"$'
       p5_trial_reach
       p5_repeat_reach
-      ctl command "mistbrn-test inject buy:2:1" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject buy.2.1" >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test evidence 1" >/dev/null
       ctl command "mistbrn-test evidence 2" >/dev/null
       p5_select_table; p5_conclude b1-conclude
-      ctl command "mistbrn-test inject buy:17:1" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject buy.17.1" >/dev/null; ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=test_xp granted=100 result=ok'
@@ -279,7 +279,7 @@ p5_scenario() {
       p5_lane p4; p5_unlock
       ctl command "mistbrn-test xp 100" >/dev/null
       ctl save >/dev/null
-      ctl command "mistbrn-test inject buy:1:1" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject buy.1.1" >/dev/null; ctl wait 10 >/dev/null
       if [[ "$scenario" == b3 ]]; then ctl save >/dev/null; fi
       kill_game
       report; quit_game
@@ -296,7 +296,7 @@ p5_scenario() {
       p5_lane p4; p5_unlock
       ctl give mistbrn:vial_steel 1 >/dev/null; v1_use mistbrn:vial_steel
       ctl command "mistbrn-test xp 100" >/dev/null
-      ctl command "mistbrn-test inject buy:1:1" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "mistbrn-test inject buy.1.1" >/dev/null; ctl wait 10 >/dev/null
       ctl command "mistbrn-test evidence 2" >/dev/null
       ctl save >/dev/null; quit_game
       report
@@ -341,7 +341,8 @@ p5_scenario() {
       k_expect_count "one notebook opened" 'MISTBRN event=notebook result=open' 1 1
       k_expect_count "one notebook closed" 'MISTBRN event=notebook result=closed' 1 1
       k_expect_count "one diary tab click" 'MISTBRN event=notebook_click ' 1 1
-      k_expect_count "J blocked by chat" 'MISTBRN event=key key=notebook result=blocked' 1 1 ;;
+      # As in K4: the open chat takes the key, so the mapping sees no press at all.
+      k_expect_count "J ignored with the chat open" 'MISTBRN event=key key=notebook' 1 1 ;;
     *) return 1 ;;
   esac
 }

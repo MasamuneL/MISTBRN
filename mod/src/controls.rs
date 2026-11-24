@@ -82,8 +82,8 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         "flare" => (ControlRequest::ToggleFlare, 1),
         "off" => (ControlRequest::Off, 1),
         "select_tin_pewter" => (ControlRequest::SelectPair(Pair::TinPewter), 1),
-        // P5: notebook requests as the client sends them (`buy:<code>:<rank>`,
-        // `hint:<research>:<index>`), with an optional repeat count (`:<count>`, 1–4) queued
+        // P5: notebook requests as the client sends them (`buy.<code>.<rank>`,
+        // `hint.<research>.<index>`), with an optional repeat count (`.<count>`, 1–4) queued
         // in this one call, so the copies reach the server in the same tick.
         other => match parse_notebook(other) {
             Some(parsed) => parsed,
@@ -100,7 +100,8 @@ pub(crate) fn inject(uuid: u128, op: &str) {
 }
 
 fn parse_notebook(op: &str) -> Option<(ControlRequest, u8)> {
-    let mut parts = op.split(':');
+    // Dots, not colons: a Brigadier `word` argument stops at ':' (p5-3 b1).
+    let mut parts = op.split('.');
     let kind = parts.next()?;
     let a: u8 = parts.next()?.parse().ok()?;
     let b: u8 = parts.next()?.parse().ok()?;
