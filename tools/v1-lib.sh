@@ -124,7 +124,9 @@ v1_scenario() {
       ctl command "clear @s mistbrn:iron_flakes 1" >/dev/null
       ctl command "item replace block ~2 ~ ~ container.3 with mistbrn:iron_flakes" >/dev/null
       ctl wait 610 >/dev/null
-      ctl command "item replace entity @s inventory.26 from block ~2 ~ ~ container.0" >/dev/null
+      # Only a brewed vial is handed over (give fills the hotbar first, as a pickup would).
+      ctl command "execute if items block ~2 ~ ~ container.0 mistbrn:vial_iron run give @s mistbrn:vial_iron" >/dev/null
+      ctl command "item replace block ~2 ~ ~ container.0 with minecraft:air" >/dev/null
       ctl command "setblock ~2 ~ ~ minecraft:air" >/dev/null
       ctl wait 10 >/dev/null
       v1_use mistbrn:vial_iron
