@@ -108,10 +108,16 @@ fn psprite(p: &mut Painter, src: [f32; 4], at: [f32; 2], tint: Option<u32>) -> b
 /// a framed bar filled by reserve and coloured by state, and a flame while it burns. A locked
 /// metal shows an empty frame with a lock. Nothing while no metal is unlocked. The box keeps
 /// its bottom right corner at any scale, so it grows away from the hotbar and the food row.
-pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look: Look) {
+/// Returns the low reserve warning's alpha drawn this frame, if one was (scenarios log it).
+pub(crate) fn draw_reserves(
+    draw: &mut dyn DrawContext,
+    hud: &HudSnapshot,
+    look: Look,
+) -> Option<u32> {
     if !hud.metals.iter().any(|metal| metal.unlocked) {
-        return;
+        return None;
     }
+    let mut warning = None;
     let [x, y, ..] = reserves_rect(draw.size(), look.scale);
     let mut p = Painter::new(draw, [x, y], look.scale);
     for (row, metal) in pair_metals(hud.pair).into_iter().enumerate() {
@@ -148,6 +154,7 @@ pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look:
                 (phase.sin() + 1.0) / 2.0
             };
             let alpha = (strength * 140.0) as u32;
+            warning = Some(alpha);
             p.fill(
                 [bar + 2.0, y + 2.0, TRACK_W, 4.0],
                 alpha << 24 | LOW_WARNING,
@@ -160,6 +167,7 @@ pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look:
         };
         psprite(&mut p, flame, [bar + FRAME[2] + 2.0, y], None);
     }
+    warning
 }
 
 /// Where the reserve bars sit on a GUI of `size` at `scale` (`[x, y, w, h]`): the bottom right

@@ -155,6 +155,8 @@ struct ClientState {
     notebook: Option<Notebook>,
     /// The reserve bars' rectangle last logged (`event=hud_box`).
     hud_logged: Option<[i32; 4]>,
+    /// The low reserve warning's alpha last logged (test runs).
+    hud_warning: Option<u32>,
 }
 
 static STATE: Mutex<ClientState> = Mutex::new(ClientState {
@@ -166,6 +168,7 @@ static STATE: Mutex<ClientState> = Mutex::new(ClientState {
     progress: None,
     notebook: None,
     hud_logged: None,
+    hud_warning: None,
 });
 
 fn state() -> std::sync::MutexGuard<'static, ClientState> {
@@ -538,7 +541,20 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
             );
         }
         drop(state);
-        hud::draw_reserves(draw, &hud, look);
+        let warning = hud::draw_reserves(draw, &hud, look);
+        // Test runs only: each change of the warning's strength (L4: steady with reduce
+        // flashing, pulsing without).
+        if scenario::commands_enabled() {
+            let mut state = self::state();
+            if state.hud_warning != warning {
+                state.hud_warning = warning;
+                eprintln!(
+                    "MISTBRN event=hud_warning alpha={} steady={}",
+                    warning.map_or_else(|| "-".into(), |a| a.to_string()),
+                    look.steady
+                );
+            }
+        }
     }
 }
 
