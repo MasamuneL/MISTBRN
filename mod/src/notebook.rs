@@ -286,7 +286,8 @@ pub(crate) fn draw(
     }
 }
 
-/// One row per milestone: claimed or not, what it gives and where to look.
+/// One row per milestone: a check and the name (brass once claimed), what it gives on the
+/// right, then where to look in up to two lines; each row is as tall as its text.
 fn draw_milestones(
     host: &dyn ClientHost,
     draw: &mut dyn DrawContext,
@@ -299,27 +300,8 @@ fn draw_milestones(
         let check = if claimed { CHECK_FOUND } else { CHECK_MISSING };
         sprite(draw, check, [o[0] + 8.0, y], None);
         let name = tr(host, &format!("milestone.mistbrn.{}", def.key));
-        draw.text(
-            &name,
-            [o[0] + 22.0, y + 1.0],
-            if claimed { BRASS } else { TEXT },
-            true,
-        );
-        let status = tr(
-            host,
-            if claimed {
-                "notebook.mistbrn.milestone.claimed"
-            } else {
-                "notebook.mistbrn.milestone.pending"
-            },
-        );
-        let x = o[0] + PANEL_W - 8.0 - draw.text_width(&status);
-        draw.text(
-            &status,
-            [x, y + 1.0],
-            if claimed { BRASS } else { DIM },
-            true,
-        );
+        let color = if claimed { BRASS } else { TEXT };
+        draw.text(&name, [o[0] + 22.0, y + 1.0], color, true);
         let reward = match def.unlocks {
             Some(pair) => tr_args(
                 host,
@@ -335,12 +317,15 @@ fn draw_milestones(
                 &[def.knowledge.to_string()],
             ),
         };
-        draw.text(&reward, [o[0] + 22.0, y + 12.0], TEXT, true);
+        let x = o[0] + PANEL_W - 8.0 - draw.text_width(&reward);
+        draw.text(&reward, [x, y + 1.0], color, true);
         let hint = tr(host, &format!("milestone.mistbrn.{}.where", def.key));
-        for (i, line) in wrap(draw, &hint, PANEL_W - 30.0).iter().take(2).enumerate() {
-            draw.text(line, [o[0] + 22.0, y + 22.0 + LINE * i as f32], DIM, true);
+        let lines = wrap(draw, &hint, PANEL_W - 30.0);
+        let shown = lines.len().min(2);
+        for (i, line) in lines.iter().take(shown).enumerate() {
+            draw.text(line, [o[0] + 22.0, y + 12.0 + LINE * i as f32], DIM, true);
         }
-        y += 40.0;
+        y += 18.0 + LINE * shown as f32;
     }
 }
 
