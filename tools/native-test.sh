@@ -232,6 +232,61 @@ case "$scenario" in
     ingots="$(jq -r '.counts["minecraft:iron_ingot"] // 0' "$dir/pickup-inventory.json")"
     echo "check: ingots_collected=$ingots" | tee -a "$dir/report.txt"
     if [[ "$ingots" != 1 ]]; then p4_fail "expected to collect one iron ingot"; fi ;;
+  e1)  # Metal entities: an armored zombie is pulled, a bare one is not, a golem anchors the
+    # player, a minecart on rails is pushed. Each step is marked in the log by a `say`.
+    p4_fixture
+    ctl command "difficulty easy" >/dev/null
+    ctl command "time set midnight" >/dev/null
+    ctl command "say e1-armored" >/dev/null
+    ctl command 'summon zombie 518.5 100 512.5 {PersistenceRequired:1b,Tags:["e1"],equipment:{head:{id:"minecraft:iron_helmet",count:1}}}' >/dev/null
+    ctl wait 5 >/dev/null
+    ctl look-at 518.5 101 512.5 >/dev/null
+    p4_burn iron
+    ctl wait 40 >/dev/null
+    p4_off
+    ctl command "kill @e[tag=e1]" >/dev/null
+    ctl command "say e1-bare" >/dev/null
+    ctl command 'summon zombie 518.5 100 512.5 {PersistenceRequired:1b,Tags:["e1"]}' >/dev/null
+    ctl wait 5 >/dev/null
+    ctl look-at 518.5 101 512.5 >/dev/null
+    p4_burn iron
+    ctl wait 40 >/dev/null
+    p4_off
+    ctl command "kill @e[tag=e1]" >/dev/null
+    ctl command "say e1-slam" >/dev/null
+    ctl command "fill 521 100 509 521 103 515 minecraft:stone" >/dev/null
+    ctl command 'summon zombie 516.5 100 512.5 {PersistenceRequired:1b,Tags:["e1"],equipment:{head:{id:"minecraft:iron_helmet",count:1}}}' >/dev/null
+    ctl wait 5 >/dev/null
+    ctl look-at 516.5 101 512.5 >/dev/null
+    p4_burn steel 25000 flare
+    ctl wait 40 >/dev/null
+    p4_off
+    ctl command "kill @e[tag=e1]" >/dev/null
+    ctl command "fill 521 100 509 521 103 515 minecraft:air" >/dev/null
+    ctl command "tp @s 512.5 100 512.5" >/dev/null
+    ctl command "say e1-golem" >/dev/null
+    ctl command 'summon iron_golem 520.5 100 512.5 {NoAI:1b,Tags:["e1"]}' >/dev/null
+    ctl wait 5 >/dev/null
+    ctl look-at 520.5 101.3 512.5 >/dev/null
+    ctl state > "$dir/golem-before.json"
+    p4_burn iron
+    ctl wait 40 >/dev/null
+    p4_off
+    ctl state > "$dir/golem-after.json"
+    ctl command "kill @e[tag=e1]" >/dev/null
+    ctl command "tp @s 512.5 100 512.5" >/dev/null
+    ctl command "say e1-minecart" >/dev/null
+    ctl command "fill 514 100 512 538 100 512 minecraft:rail" >/dev/null
+    ctl command 'summon minecart 516.5 100.1 512.5 {Tags:["e1"]}' >/dev/null
+    ctl wait 5 >/dev/null
+    ctl look-at 516.5 100.4 512.5 >/dev/null
+    p4_burn steel
+    ctl wait 40 >/dev/null
+    p4_off
+    ctl wait 20 >/dev/null
+    quit_game
+    grep -aE "e1-|MISTBRN (event=(target|slam_hit)|p4entity|p4 )" "$(log 1)" > "$dir/e1.txt" || true
+    echo "check: lines=$(wc -l < "$dir/e1.txt") see $dir/e1.txt" | tee -a "$dir/report.txt" ;;
   n11)  # N4 in the Nether: powers run per level, so a parked level's entities are reachable.
     p4_fixture
     ctl command "execute in minecraft:the_nether run tp @s 512.5 112 512.5" >/dev/null

@@ -246,6 +246,13 @@ pub fn coin_damage(speed: f64) -> Option<f32> {
     (speed.is_finite() && speed > 0.5).then_some((2.0 + 4.0 * speed) as f32)
 }
 
+/// Damage of a pushed body slammed into a wall, from the horizontal speed (blocks per tick) the
+/// wall took from it in one tick: as vanilla's `fly_into_wall` but gentler and capped at 8
+/// (4 hearts), so a full-speed slam hurts without killing a zombie outright.
+pub fn impact_damage(lost: f64) -> Option<f32> {
+    (lost.is_finite() && lost > 0.4).then(|| ((lost - 0.4) * 6.0).min(8.0) as f32)
+}
+
 /// A force never makes a body faster than the cap; a body already faster (falling) keeps its
 /// speed but is not sped up.
 fn capped(before: Vec3, after: Vec3, cap: f64) -> Vec3 {
