@@ -112,13 +112,8 @@ pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look:
     if !hud.metals.iter().any(|metal| metal.unlocked) {
         return;
     }
-    let [width, height] = draw.size();
-    let x = (width / 2.0).floor() + HOTBAR_HALF - ROW_W;
-    let top = height - LOWER_ROW_UP - ROW_STEP;
-    let box_h = ROW_STEP + FRAME[3];
-    let s = look.scale;
-    let origin = [x + ROW_W * (1.0 - s), top + box_h * (1.0 - s)];
-    let mut p = Painter::new(draw, origin, s);
+    let [x, y, ..] = reserves_rect(draw.size(), look.scale);
+    let mut p = Painter::new(draw, [x, y], look.scale);
     for (row, metal) in pair_metals(hud.pair).into_iter().enumerate() {
         let y = ROW_STEP * row as f32;
         let entry = hud.metals[metal.index()];
@@ -165,6 +160,20 @@ pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look:
         };
         psprite(&mut p, flame, [bar + FRAME[2] + 2.0, y], None);
     }
+}
+
+/// Where the reserve bars sit on a GUI of `size` at `scale` (`[x, y, w, h]`): the bottom right
+/// corner stays put, so a bigger box grows away from the hotbar and the food row.
+pub(crate) fn reserves_rect([width, height]: [f32; 2], scale: f32) -> [f32; 4] {
+    let x = (width / 2.0).floor() + HOTBAR_HALF - ROW_W;
+    let top = height - LOWER_ROW_UP - ROW_STEP;
+    let box_h = ROW_STEP + FRAME[3];
+    [
+        x + ROW_W * (1.0 - scale),
+        top + box_h * (1.0 - scale),
+        ROW_W * scale,
+        box_h * scale,
+    ]
 }
 
 /// A framed bar at `at` filled to `share`, with the gem on the fill's end.

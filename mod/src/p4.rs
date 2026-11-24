@@ -1069,7 +1069,7 @@ fn parse_metal(name: &str) -> Option<Metal> {
 }
 
 /// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
-pub(crate) const TEST_COMMANDS: [&str; 10] = [
+pub(crate) const TEST_COMMANDS: [&str; 11] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
     "mistbrn-test off",
@@ -1085,6 +1085,8 @@ pub(crate) const TEST_COMMANDS: [&str; 10] = [
     // P6: the nearest bastion's start, then a block inside one of its pieces near the player.
     "mistbrn-test bastion-find",
     "mistbrn-test bastion-probe",
+    // P7b (L4): keep one of the mod's settings as its options page would.
+    "mistbrn-test setting <key:word> <value:integer>",
 ];
 
 pub(crate) struct TestCommand<'a> {

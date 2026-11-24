@@ -84,8 +84,8 @@ pub(crate) const SETTING_REDUCE_FLASHES: &str = "reduce_flashes";
 pub(crate) const SETTING_BOOK_SCALE: &str = "book_scale";
 pub(crate) const SETTING_HUD_SCALE: &str = "hud_scale";
 
-/// The registered settings: their keys, label keys and defaults.
-pub(crate) fn register_settings(registrar: &mut dyn Registrar) {
+/// The mod's settings (Options > Mods): their keys, label keys and defaults.
+fn setting_specs() -> [mod_api::SettingSpec; 3] {
     let scale = |key: &str| {
         mod_api::SettingSpec::choice(
             key,
@@ -95,7 +95,7 @@ pub(crate) fn register_settings(registrar: &mut dyn Registrar) {
         )
         .tooltip(format!("setting.mistbrn.{key}.tooltip"))
     };
-    let specs = [
+    [
         mod_api::SettingSpec::toggle(
             SETTING_REDUCE_FLASHES,
             format!("setting.mistbrn.{SETTING_REDUCE_FLASHES}"),
@@ -104,12 +104,33 @@ pub(crate) fn register_settings(registrar: &mut dyn Registrar) {
         .tooltip(format!("setting.mistbrn.{SETTING_REDUCE_FLASHES}.tooltip")),
         scale(SETTING_BOOK_SCALE),
         scale(SETTING_HUD_SCALE),
-    ];
-    for spec in specs {
+    ]
+}
+
+pub(crate) fn register_settings(registrar: &mut dyn Registrar) {
+    for spec in setting_specs() {
         if let Err(error) = registrar.register_setting(spec) {
             eprintln!("MISTBRN event=setting result=refused:{error:?}");
         }
     }
+}
+
+/// Test runs only (`/mistbrn-test setting <key> <value>`, L4): keeps setting `key` as the
+/// options page would (a toggle takes 0 or 1, a choice its index). False for an unknown key
+/// or a value the setting does not take.
+pub(crate) fn test_setting(host: &dyn mod_api::Host, key: &str, value: u32) -> bool {
+    let Some(spec) = setting_specs().into_iter().find(|spec| spec.key == key) else {
+        return false;
+    };
+    let value = match spec.default_value() {
+        mod_api::SettingValue::Toggle(_) => mod_api::SettingValue::Toggle(value != 0),
+        _ => mod_api::SettingValue::Choice(value as usize),
+    };
+    let Some(stored) = spec.store(value) else {
+        return false;
+    };
+    host.set_setting(MOD_ID, key, &stored);
+    true
 }
 
 fn scale_setting(host: &dyn ClientHost, key: &str) -> f32 {
@@ -132,6 +153,8 @@ struct ClientState {
     /// The player's progress as the server last sent it (`mistbrn:progress`).
     progress: Option<Progress>,
     notebook: Option<Notebook>,
+    /// The reserve bars' rectangle last logged (`event=hud_box`).
+    hud_logged: Option<[i32; 4]>,
 }
 
 static STATE: Mutex<ClientState> = Mutex::new(ClientState {
@@ -142,6 +165,7 @@ static STATE: Mutex<ClientState> = Mutex::new(ClientState {
     wheel_latched: false,
     progress: None,
     notebook: None,
+    hud_logged: None,
 });
 
 fn state() -> std::sync::MutexGuard<'static, ClientState> {
@@ -494,7 +518,7 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
     if layer != HUD_LAYER {
         return;
     }
-    let state = state();
+    let mut state = state();
     // The wheel shows the reserves itself; the bars would sit under its hint.
     if let (Some(hud), None) = (state.hud, state.wheel.as_ref()) {
         let look = hud::Look {
@@ -502,6 +526,18 @@ pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContex
             steady: steady(host),
             ticks: state.ticks,
         };
+        // Where the bars are, logged when it changes, for scenarios that crop captures (L4).
+        let [x, y, w, h] = hud::reserves_rect(draw.size(), look.scale);
+        let key = [x, y, w, h].map(|v| v.round() as i32);
+        if state.hud_logged != Some(key) {
+            state.hud_logged = Some(key);
+            let [gw, gh] = draw.size();
+            eprintln!(
+                "MISTBRN event=hud_box gui={gw}x{gh} scale={} steady={} rect={},{},{},{}",
+                look.scale, look.steady, key[0], key[1], key[2], key[3]
+            );
+        }
+        drop(state);
         hud::draw_reserves(draw, &hud, look);
     }
 }
@@ -668,8 +704,9 @@ pub(crate) fn notebook_key_pressed(
             }
         }
         eprintln!(
-            "MISTBRN event=book_key key={key:?} focus={}",
-            open.book.focus.map_or_else(|| "-".into(), |t| t.name())
+            "MISTBRN event=book_key key={key:?} focus={} scroll={}",
+            open.book.focus.map_or_else(|| "-".into(), |t| t.name()),
+            open.book.scroll
         );
         return true;
     }

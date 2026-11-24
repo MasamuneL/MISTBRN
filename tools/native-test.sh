@@ -21,6 +21,8 @@ source "$(dirname "$0")/v1-lib.sh"
 source "$(dirname "$0")/p5-lib.sh"
 # shellcheck source=tools/p6-lib.sh
 source "$(dirname "$0")/p6-lib.sh"
+# shellcheck source=tools/p7b-lib.sh
+source "$(dirname "$0")/p7b-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
@@ -663,6 +665,8 @@ case "$scenario" in
     p5_scenario ;;
   h[1-5]|hv|m3)  # P6 milestones (tools/p6-lib.sh)
     p6_scenario ;;
+  l[1-6])  # P7b book (tools/p7b-lib.sh)
+    p7b_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

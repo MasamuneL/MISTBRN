@@ -608,12 +608,18 @@ impl Session {
         player: PlayerRef,
         code: u16,
     ) -> Result<(), String> {
+        let key = research_def(code, &CATALOG).map_or("unknown", |def| def.key);
         match self.commit_save_only(host, player, |saved| prepare_conclude(saved, code)) {
-            Ok(_) => {
+            Ok(seq) => {
+                eprintln!(
+                    "MISTBRN event=conclude research={key} result=ok seq={}",
+                    seq.0
+                );
                 tell(host, player, "message.mistbrn.research.discovered");
                 Ok(())
             }
             Err(error) => {
+                eprintln!("MISTBRN event=conclude research={key} result={error}");
                 let key = match error.as_str() {
                     "AlreadyConcluded" => "message.mistbrn.research.known",
                     "PairLocked" => "message.mistbrn.research.locked",

@@ -1,0 +1,220 @@
+# shellcheck shell=bash
+# P7b native scenarios (the book), sourced by native-test.sh.
+# ShellCheck also checks this file directly, without the caller's dir and scenario.
+# shellcheck disable=SC2154
+
+# book_line: the newest `event=book_view` line of the running launch (its live log).
+book_line() {
+  grep -a 'MISTBRN event=book_view ' "$sockdir/l$launch_no.log" 2>/dev/null | tail -1 || true
+}
+
+# book_at NAME: "X Y", the GUI pixel where the newest book_view line puts target NAME
+# (`tab.diary`, `view.4`, `node.1`, `conclude`); nothing (and a FAIL) when it is not there.
+book_at() {
+  local line at
+  ctl wait 5 >/dev/null
+  line="$(book_line)"
+  at="$(tr ';= ' '\n\n\n' <<< "$line" | sed -n "s/^$1@//p" | tail -1)"
+  if [[ "$at" =~ ^[0-9.-]+,[0-9.-]+$ ]]; then echo "${at%,*} ${at#*,}"
+  else k_fail "book target $1 not in: ${line:-<no book_view>}" >&2; fi
+}
+
+# book_click NAME: click book target NAME.
+book_click() {
+  local x y
+  read -r x y < <(book_at "$1") || return 0
+  ctl click-at "$x" "$y" >/dev/null
+  ctl wait 10 >/dev/null
+}
+
+# book_scroll NAME STEPS: turn the wheel over book target NAME (positive scrolls up); with
+# the canvas at its top, one notch up moves nothing and only points there (a tooltip).
+book_scroll() {
+  local x y
+  read -r x y < <(book_at "$1") || return 0
+  ctl scroll-at "$x" "$y" "$2" >/dev/null
+  ctl wait 5 >/dev/null
+}
+
+# book_open NAME: J opens the book on its trees; the capture NAME shows it.
+book_open() {
+  k_key j 10
+  k_screen "$1" '^"mod"$'
+  p5_screenshot "$1"
+}
+
+# book_shot NAME: a capture of the book as it is now.
+book_shot() { ctl wait 5 >/dev/null; p5_screenshot "$1"; }
+
+# book_pair: iron and steel unlocked (test credits), with 100 XP so reach can be bought.
+book_pair() {
+  ctl command "mistbrn-test credit iron 30000" >/dev/null
+  ctl command "mistbrn-test credit steel 30000" >/dev/null
+  ctl command "mistbrn-test xp 100" >/dev/null
+  ctl wait 20 >/dev/null
+}
+
+# book_table: a crafting table two blocks east of the player at 512.5 100 512.5, looked at.
+book_table() {
+  p6_place
+  ctl setblock 514 100 512 crafting_table >/dev/null
+  ctl look-at block 514 100 512 west >/dev/null
+  ctl wait 5 >/dev/null
+}
+
+# book_hud_hash NAME: the hash of the reserve bars' rectangle in capture NAME (from the
+# newest `event=hud_box` line, scaled from GUI to capture pixels).
+book_hud_hash() {
+  local line rect gui fw
+  line="$(grep -a 'MISTBRN event=hud_box ' "$sockdir/l$launch_no.log" | tail -1)"
+  rect="$(tr ' ' '\n' <<< "$line" | sed -n 's/^rect=//p')"
+  gui="$(k_gui_size "$dir/$1.png")"
+  fw=$((16#$(od -An -tx1 -j16 -N4 "$dir/$1.png" | tr -d '[:space:]')))
+  [[ -n "$rect" && -n "$gui" ]] || { echo none; return 0; }
+  read -r x y w h < <(LC_ALL=C awk -v r="$rect" -v g="$gui" -v fw="$fw" 'BEGIN {
+    split(r, a, ","); split(g, b, " "); f = fw / b[1]
+    printf "%d %d %d %d\n", a[1] * f, a[2] * f, a[3] * f, a[4] * f }')
+  python3 -I "$REPO_ROOT/tools/png-region.py" "$dir/$1.png" "$x" "$y" "$w" "$h"
+}
+
+# p7b_scenario: returns 1 for any other scenario name.
+p7b_scenario() {
+  case "$scenario" in
+    l1)  # every view, the canvas scroll, a tooltip, the tabs (captures reviewed by hand)
+      launch MISTBRN_TEST_SCENARIO=p4
+      p6_place
+      book_pair
+      book_open l1-iron
+      book_click view.1; book_shot l1-tin
+      book_click view.4; book_shot l1-general
+      book_click view.0
+      book_scroll node.2 -5
+      book_shot l1-iron-scrolled
+      book_scroll node.3 10
+      # Reach's tooltip: a click would buy it, so the pointer goes there with the wheel.
+      book_scroll node.1 1
+      book_shot l1-tooltip
+      book_click tab.diary; book_shot l1-diary
+      book_click tab.milestones; book_shot l1-milestones
+      book_click tab.reserves; book_shot l1-reserves
+      k_key esc 10
+      quit_game
+      for view in 0 1 4; do
+        expect_log 1 "MISTBRN event=book_view gui=[0-9.]*x[0-9.]* tab=tree view=$view "
+      done
+      expect_log 1 'MISTBRN event=book_scroll lines=-5 scroll=54,0'
+      expect_log 1 'MISTBRN event=book_scroll lines=10 scroll=0,0'
+      for tab in diary milestones reserves; do expect_log 1 "MISTBRN event=book_view .* tab=$tab "; done
+      k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
+    l2)  # keyboard only: Tab to reach, Enter buys it, Page Down scrolls
+      launch MISTBRN_TEST_SCENARIO=p4
+      p6_place
+      book_pair
+      book_open l2-open
+      # Focus order: 4 tabs, 5 trees, then reach (the innate power is not focusable).
+      for _ in 1 2 3 4 5 6 7 8 9 10; do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
+      book_shot l2-focus
+      ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
+      ctl key page_down tap >/dev/null; ctl wait 5 >/dev/null
+      book_shot l2-paged
+      k_key esc 10
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=book_key key=Next focus=node.1 '
+      expect_log 1 'MISTBRN event=notebook result=request:Purchase { code: 1, rank: 1 }'
+      expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok'
+      expect_log 1 'MISTBRN event=book_key key=PageDown focus=node.1 scroll=48'
+      expect 2 report state=active nodes=1:1 ;;
+    l3)  # Conclude: refused away from a table and beyond 5 blocks, once at the table
+      launch MISTBRN_TEST_SCENARIO=p4
+      p6_place
+      book_pair
+      ctl command "gamemode survival" >/dev/null
+      ctl command "mistbrn-test evidence 2" >/dev/null
+      ctl command "mistbrn-test evidence 4" >/dev/null
+      ctl setblock 514 100 512 crafting_table >/dev/null
+      ctl look -90 -90 >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "tp @s 507.5 100 512.5" >/dev/null; ctl wait 10 >/dev/null
+      ctl look-at block 514 100 512 west >/dev/null; ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
+      book_table
+      book_open l3-open
+      book_click tab.diary; book_shot l3-ready
+      book_click conclude; book_shot l3-concluded
+      k_key esc 10
+      ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      k_expect_count "two refusals without a table in reach" \
+        'MISTBRN event=control op=conclude research=1 result=NoTable' 2 2
+      expect_log 1 'MISTBRN event=notebook result=request:Conclude { research: 1 }'
+      expect_log 1 'MISTBRN event=conclude research=anchor_principle result=ok'
+      expect_log 1 'MISTBRN event=conclude research=anchor_principle result=AlreadyConcluded'
+      k_expect_count "one conclusion" 'MISTBRN event=conclude research=anchor_principle result=ok' 1 1
+      expect 2 report state=active research=1:e6h0c1 knowledge=3 xp_iron_steel=300 ;;
+    l4)  # settings: book at 125 % and 75 %, bars at 125 %, reduce flashing holds the warning
+      local a b c d
+      launch MISTBRN_TEST_SCENARIO=p4
+      p6_place
+      ctl command "mistbrn-test credit iron 5000" >/dev/null
+      ctl command "mistbrn-test credit steel 5000" >/dev/null
+      ctl command "mistbrn-test setting book_scale 2" >/dev/null
+      book_open l4-book-125; k_key esc 10
+      ctl command "mistbrn-test setting book_scale 0" >/dev/null
+      book_open l4-book-75; k_key esc 10
+      ctl command "mistbrn-test setting hud_scale 2" >/dev/null
+      ctl command "mistbrn-test burn iron" >/dev/null; ctl wait 10 >/dev/null
+      book_shot l4-hud-125
+      ctl command "mistbrn-test setting hud_scale 1" >/dev/null; ctl wait 10 >/dev/null
+      book_shot l4-pulse-a; ctl wait 10 >/dev/null; book_shot l4-pulse-b
+      a="$(book_hud_hash l4-pulse-a)"; b="$(book_hud_hash l4-pulse-b)"
+      ctl command "mistbrn-test setting reduce_flashes 1" >/dev/null; ctl wait 10 >/dev/null
+      book_shot l4-steady-a; ctl wait 10 >/dev/null; book_shot l4-steady-b
+      c="$(book_hud_hash l4-steady-a)"; d="$(book_hud_hash l4-steady-b)"
+      p4_off
+      for key in book_scale hud_scale reduce_flashes; do
+        ctl command "mistbrn-test setting $key $([[ $key == reduce_flashes ]] && echo 0 || echo 1)" >/dev/null
+      done
+      quit_game
+      expect_log 1 'MISTBRN event=test_setting key=book_scale value=2 result=true'
+      expect_log 1 'MISTBRN event=book_view .* scale=1.25 '
+      expect_log 1 'MISTBRN event=book_view .* scale=0.75 '
+      expect_log 1 'MISTBRN event=hud_box .* scale=1.25 '
+      if [[ "$a" != "$b" && "$a" != none ]]; then k_ok "the low reserve warning pulses ($a != $b)"
+      else k_fail "expected the warning to differ between two pulse frames"; fi
+      if [[ "$c" == "$d" && "$c" != none ]]; then k_ok "reduce flashing: the warning holds ($c)"
+      else k_fail "expected two identical frames with reduce flashing ($c / $d)"; fi ;;
+    l5)  # the Reserves tab against the server's reserves
+      launch MISTBRN_TEST_SCENARIO=p4
+      p6_place
+      ctl command "mistbrn-test credit iron 30000" >/dev/null
+      ctl command "mistbrn-test credit tin 12500" >/dev/null
+      ctl command "mistbrn-test burn iron" >/dev/null; ctl wait 10 >/dev/null
+      book_open l5-open
+      book_click tab.reserves; book_shot l5-reserves
+      k_key esc 10
+      p4_off
+      quit_game
+      expect_log 1 'MISTBRN event=book_view .* tab=reserves '
+      expect_log 1 'MISTBRN hud pair=iron_steel iron=[0-9]*/burning' ;;
+    l6)  # the notebook recipe is gone; a notebook already made still opens the book
+      launch MISTBRN_TEST_SCENARIO=
+      ctl command "recipe give @s mistbrn:notebook" > "$dir/l6-recipe.json" 2>&1 || true
+      ctl give mistbrn:notebook 1 >/dev/null; ctl wait 5 >/dev/null
+      ctl select mistbrn:notebook >/dev/null
+      ctl look -90 -90 >/dev/null
+      ctl use-item > "$dir/l6-use.json"; ctl wait 10 >/dev/null
+      k_screen l6-open '^"mod"$'
+      p5_screenshot l6-open
+      k_key esc 10
+      quit_game
+      expect_log 1 'MISTBRN event=notebook result=open'
+      if [[ -f "$REPO_ROOT/mod/data/mistbrn/recipe/notebook.json" ]]; then
+        k_fail "the notebook recipe is still in the pack"
+      else k_ok "no notebook recipe in the pack"; fi
+      # For the evidence: what the game answers when asked for the recipe (reviewed by hand).
+      echo "l6 recipe give: $(tr -d '\n' < "$dir/l6-recipe.json" | head -c 200)" | tee -a "$dir/report.txt" ;;
+    *) return 1 ;;
+  esac
+}

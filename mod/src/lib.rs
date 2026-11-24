@@ -265,6 +265,17 @@ impl Hooks for Allomancy {
             }
             return Flow::Cancel;
         }
+        if command.literals.get(1).map(String::as_str) == Some("setting") {
+            if let (
+                Some(CommandArgumentValue::String(key)),
+                Some(CommandArgumentValue::Integer(value)),
+            ) = (command.argument("key"), command.argument("value"))
+            {
+                let ok = client::test_setting(host, key, u32::try_from(*value).unwrap_or(u32::MAX));
+                eprintln!("MISTBRN event=test_setting key={key} value={value} result={ok}");
+            }
+            return Flow::Cancel;
+        }
         if command.literals.get(1).map(String::as_str) == Some("inject") {
             if let Some(CommandArgumentValue::String(op)) = command.argument("op") {
                 controls::inject(player.uuid(), op);
