@@ -168,7 +168,13 @@ p5_scenario() {
       p4_iron_block 524
       for run_no in 1 2 3 4; do p5_pull "pull-$run_no"; done
       ctl save >/dev/null; quit_game
-      report; quit_game
+      # The window is saved: after the relaunch a 5th pull still gives nothing; once 1200
+      # game ticks have passed since the first pull, a 6th gives the full 10 again.
+      report
+      p5_pull pull-5
+      ctl wait 1200 >/dev/null
+      p5_pull pull-6
+      ctl save >/dev/null; quit_game
       expect_log 1 'MISTBRN event=unlock pair=iron_steel seq=1 via=vial'
       k_expect_count "four block acquisitions" 'MISTBRN event=target_acquired kind=block id=minecraft:iron_block ' 4 4
       if awk '
@@ -183,7 +189,10 @@ p5_scenario() {
                      count[1] == 1 && count[2] == 1 && count[3] == 1 && !count[4]) }
       ' "$(log 1)"; then k_ok "practice per pull: 10, 5, 2, no award"
       else k_fail "expected one practice award per pull (10, 5, 2) and none on pull four"; fi
-      expect 2 report state=active xp_iron_steel=17 ;;
+      expect 2 report state=active xp_iron_steel=17
+      [[ "$(grep -aFc 'MISTBRN event=practice category=anchor_move' "$(log 2)" || true)" == 1 ]] ||
+        k_fail "after the relaunch expected one award (pull 6 only)"
+      expect_log 2 'MISTBRN event=practice category=anchor_move xp=10 count=1 total_xp=27' ;;
     r1)
       p5_lane; p5_unlock
       p4_iron_block 524
@@ -216,12 +225,8 @@ p5_scenario() {
       expect_log 2 'MISTBRN event=hint_revealed research=anchor_principle index=1 result=ok seq=2'
       expect_log 2 'MISTBRN event=conclude research=anchor_principle result=ok seq=3'
       expect_log 2 'MISTBRN event=conclude research=anchor_principle result=AlreadyConcluded'
-      expect 3 report state=active research=1:e3h1c1 knowledge=3 last_transaction=3
-      local xp
-      xp="$(field 3 report xp_iron_steel)"
-      if [[ ! "$xp" =~ ^[0-9]+$ ]] || (( xp < 200 )); then
-        k_fail "expected at least 200 XP, observed '$xp'"
-      fi ;;
+      # Exactly once: the block pull's 10 plus the conclusion's 200 (never twice).
+      expect 3 report state=active research=1:e3h1c1 knowledge=3 last_transaction=3 xp_iron_steel=210 ;;
     b1)
       local target='MISTBRN event=target_acquired kind=block id=minecraft:iron_block at=529.500,101.500,512.500'
       local reserve fill
@@ -332,17 +337,22 @@ p5_scenario() {
       p5_screenshot q1-diary
       k_key esc 10
       k_screen q1-closed '^"playing"$'
+      # J opens and a second J closes (its press; releasing the opening J does nothing).
+      k_key j 10
+      k_screen q1-reopened '^"mod"$'
+      k_key j 10
+      k_screen q1-closed-by-j '^"playing"$'
       k_key t 10
       k_screen q1-chat 'chat'
       k_key j 10
       k_screen q1-chat-after-j 'chat'
       k_key esc 10
       quit_game
-      k_expect_count "one notebook opened" 'MISTBRN event=notebook result=open' 1 1
-      k_expect_count "one notebook closed" 'MISTBRN event=notebook result=closed' 1 1
+      k_expect_count "two notebook openings" 'MISTBRN event=notebook result=open' 2 2
+      k_expect_count "two notebook closings" 'MISTBRN event=notebook result=closed' 2 2
       k_expect_count "one diary tab click" 'MISTBRN event=notebook_click ' 1 1
       # As in K4: the open chat takes the key, so the mapping sees no press at all.
-      k_expect_count "J ignored with the chat open" 'MISTBRN event=key key=notebook' 1 1 ;;
+      k_expect_count "J ignored with the chat open" 'MISTBRN event=key key=notebook' 2 2 ;;
     *) return 1 ;;
   esac
 }

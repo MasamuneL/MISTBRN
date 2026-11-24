@@ -53,6 +53,8 @@ pub(crate) enum Target {
     Tab(Tab),
     Node(u16),
     RevealHint,
+    /// Show revealed hint number n (1-based).
+    HintPage(u8),
 }
 
 /// Where the notebook's nodes sit, relative to the panel: the iron and steel row, then the
@@ -65,6 +67,13 @@ const LAYOUT: [(u16, f32, f32); 5] = [
     (allomancy_core::NODE_CAPACITY, 84.0, 84.0),
 ];
 const HINT_BUTTON: [f32; 4] = [PANEL_W - 104.0, 84.0, 96.0, 12.0];
+/// The first hint page button (12×12), the others follow every 14 px.
+const HINT_PAGE: [f32; 2] = [62.0, 84.0];
+
+fn hint_page_rect(o: [f32; 2], index: u8) -> [f32; 4] {
+    let x = o[0] + HINT_PAGE[0] + 14.0 * f32::from(index - 1);
+    [x, o[1] + HINT_PAGE[1], 12.0, 12.0]
+}
 
 fn origin(size: [f32; 2]) -> [f32; 2] {
     [
@@ -125,7 +134,12 @@ pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab) -> Option<Targ
         }),
         Tab::Diary => {
             let [x, y, w, h] = HINT_BUTTON;
-            inside(pointer, [o[0] + x, o[1] + y, w, h]).then_some(Target::RevealHint)
+            if inside(pointer, [o[0] + x, o[1] + y, w, h]) {
+                return Some(Target::RevealHint);
+            }
+            (1..=3u8)
+                .find(|&i| inside(pointer, hint_page_rect(o, i)))
+                .map(Target::HintPage)
         }
     }
 }
@@ -137,7 +151,7 @@ pub(crate) fn request(
     unlocked: impl Fn(Pair) -> bool,
 ) -> Option<ControlRequest> {
     match target {
-        Target::Tab(_) => None,
+        Target::Tab(_) | Target::HintPage(_) => None,
         Target::Node(code) => {
             let def = node_def(code, &CATALOG)?;
             (node_status(progress, def, unlocked, &CATALOG) == NodeStatus::Available).then(|| {
@@ -220,6 +234,7 @@ pub(crate) fn draw(
     progress: Option<&Progress>,
     unlocked: &dyn Fn(Pair) -> bool,
     pointer: [f32; 2],
+    hint_page: Option<u8>,
 ) {
     let size = draw.size();
     let o = origin(size);
@@ -253,7 +268,7 @@ pub(crate) fn draw(
     let hovered = target(size, pointer, tab);
     match tab {
         Tab::Tree => draw_tree(host, draw, o, progress, unlocked, hovered),
-        Tab::Diary => draw_diary(host, draw, o, progress, hovered),
+        Tab::Diary => draw_diary(host, draw, o, progress, hovered, hint_page),
     }
 }
 
@@ -408,6 +423,7 @@ fn draw_diary(
     o: [f32; 2],
     progress: &Progress,
     hovered: Option<Target>,
+    hint_page: Option<u8>,
 ) {
     let Some(def) = CATALOG.research.first() else {
         return;
@@ -485,9 +501,31 @@ fn draw_diary(
             y += LINE;
         }
     }
+    // One hint at a time (the newest unless another page is chosen): long hints never push
+    // a just-revealed one out of the panel.
     for index in 1..=entry.hints {
+        let rect = hint_page_rect(o, index);
+        let shown = hint_page.unwrap_or(entry.hints).min(entry.hints) == index;
+        let fill = if shown || hovered == Some(Target::HintPage(index)) {
+            BUTTON_HOVER
+        } else {
+            BUTTON
+        };
+        draw.fill(rect, OUTLINE);
+        draw.fill([rect[0] + 1.0, rect[1] + 1.0, 10.0, 10.0], fill);
+        let label = index.to_string();
+        let lx = rect[0] + (12.0 - draw.text_width(&label)) / 2.0;
+        draw.text(
+            &label,
+            [lx, rect[1] + 2.0],
+            if shown { BRASS } else { TEXT },
+            true,
+        );
+    }
+    if entry.hints > 0 {
+        let index = hint_page.unwrap_or(entry.hints).clamp(1, entry.hints);
         let hint = tr(host, &format!("research.mistbrn.{}.hint.{index}", def.key));
-        for line in wrap(draw, &format!("{index}. {hint}"), PANEL_W - 16.0) {
+        for line in wrap(draw, &hint, PANEL_W - 16.0) {
             if y >= bottom {
                 break;
             }

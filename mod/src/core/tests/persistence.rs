@@ -605,3 +605,33 @@ fn every_pair_lists_its_own_two_metals() {
         assert!(metal.pair().metals().contains(&metal));
     }
 }
+
+/// The schema 1 fixture with its reduction and capacity bonus set (no shipped adapter wrote them).
+fn v1_with_modifiers(reduction: u16, bonus: u16, iron_reserve: Option<u64>) -> Vec<u8> {
+    let mut bytes = include_bytes!("fixtures/saved-player-v1.bin").to_vec();
+    let at = bytes.len() - 4 - 16 - 4;
+    bytes[at..at + 2].copy_from_slice(&reduction.to_le_bytes());
+    bytes[at + 2..at + 4].copy_from_slice(&bonus.to_le_bytes());
+    if let Some(reserve) = iron_reserve {
+        // First metal's reserve: header, 32-byte player id, "local", pair, unlocked byte.
+        let r = 10 + 2 + 32 + 2 + 5 + 1 + 1;
+        bytes[r..r + 8].copy_from_slice(&reserve.to_le_bytes());
+    }
+    reseal(bytes)
+}
+
+// Catches a migration that blocks a schema 1 save for rule modifiers P5 now derives from nodes
+// (Codex review, P5 final).
+#[test]
+fn schema_1_rule_modifiers_migrate_when_every_reserve_still_fits() {
+    let migrated = decode(&v1_with_modifiers(50, 100, None)).unwrap();
+    assert_eq!(migrated.rules().reduction_milli, 0);
+    assert_eq!(migrated.rules().capacity_bonus_milli, 0);
+    assert_eq!(migrated.state(), rich().state());
+    // A reserve above the base capacity needs its bonus: never dropped, the save stays blocked
+    // (and the adapter keeps its bytes).
+    assert_eq!(
+        decode(&v1_with_modifiers(0, 100, Some(105_000))),
+        Err(SaveError::Progress(ProgressError::RulesMismatch))
+    );
+}

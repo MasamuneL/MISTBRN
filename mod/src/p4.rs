@@ -85,6 +85,8 @@ struct Flight {
     /// (plus a little gravity). A longer move was not flight but a teleport.
     expected: f64,
     ticks_left: u8,
+    /// Pulled by anyone since its last push: its hits no longer count as the shooter's practice.
+    pulled: bool,
 }
 
 /// One anchored run (P5): the player held one anchor from `start`. Each run gives at most one
@@ -92,6 +94,10 @@ struct Flight {
 struct Run {
     key: String,
     start: [f64; 3],
+    /// Distance from the body's middle to the anchor when the run started, and the feet of the
+    /// last tick: a run counts how far the force moved the player along its line.
+    start_distance: f64,
+    last: [f64; 3],
     /// A push off an anchor under the feet (as `physics::step` judges it at the start).
     below: bool,
     coin: bool,
@@ -106,6 +112,8 @@ struct Run {
 const RUN_MOVE: f64 = 2.0;
 /// Rise of a push off an anchor below that counts as a lift (coin jump, the lift evidence).
 const RUN_LIFT: f64 = 1.5;
+/// A move between two ticks longer than this is not the force's (a teleport): the run is spent.
+const RUN_STEP: f64 = 2.0;
 /// A pulled item picked up within this many ticks of its last pull is the pull's evidence.
 const PULL_EVIDENCE_TICKS: u64 = 40;
 
@@ -139,6 +147,8 @@ pub(crate) struct Hit {
     kind: String,
     speed: f64,
     damage: f32,
+    /// Counts as the shooter's coin practice (pushed, not pulled since).
+    practice: bool,
 }
 
 #[derive(Default)]
@@ -419,6 +429,9 @@ impl Powers {
         let written = entity.set_velocity(host, [next.x, next.y, next.z]);
         if written && direction == Direction::Pull {
             self.pulled.insert(*entity, (uuid, tick));
+            for flight in self.flights.iter_mut().filter(|f| f.coin == *entity) {
+                flight.pulled = true;
+            }
         }
         let speed = physics::norm(next);
         // Any velocity written on a followed coin (a pull too) is what it moves by next.
@@ -497,21 +510,23 @@ impl Powers {
     /// Follows the player's anchored run and records its practice and evidence once each.
     fn track_run(&mut self, uuid: u128, prep: &Prepared, feet: [f64; 3]) {
         let key = run_key(&prep.target);
+        let middle = feet[1] + BODY_MIDDLE;
+        let offset = v3([
+            prep.point.x - feet[0],
+            prep.point.y - middle,
+            prep.point.z - feet[2],
+        ]);
+        let now_distance = physics::norm(offset).max(1e-6);
         if self.runs.get(&uuid).is_none_or(|run| run.key != key) {
-            let middle = feet[1] + BODY_MIDDLE;
-            let offset = v3([
-                prep.point.x - feet[0],
-                prep.point.y - middle,
-                prep.point.z - feet[2],
-            ]);
-            let distance = physics::norm(offset).max(1e-6);
             let push = prep.direction == Direction::Push;
             self.runs.insert(
                 uuid,
                 Run {
                     key,
                     start: feet,
-                    below: push && offset.y / distance < -prep.rules.anchor_down,
+                    start_distance: now_distance,
+                    last: feet,
+                    below: push && offset.y / now_distance < -prep.rules.anchor_down,
                     coin: matches!(&prep.target, Target::Item { id, .. } if is_coin(id)),
                     block: matches!(prep.target, Target::Block { .. }),
                     pull: !push,
@@ -524,8 +539,23 @@ impl Powers {
         let Some(run) = self.runs.get_mut(&uuid) else {
             return;
         };
-        let moved = distance(feet, v3(run.start));
-        let rise = feet[1] - run.start[1];
+        if distance(feet, v3(run.last)) > RUN_STEP {
+            // A teleport (or a lost reading): nothing more from this run.
+            run.practiced = true;
+            run.self_pull = true;
+            run.lift = true;
+        }
+        run.last = feet;
+        // How far the force carried the player along its line: closer for a pull, farther for
+        // a push. Walking away during a pull, or a fall, moves the wrong way and counts nothing.
+        let moved = if run.pull {
+            run.start_distance - now_distance
+        } else {
+            now_distance - run.start_distance
+        };
+        // A lift is a rise that is also a move away from the anchor below (not a ladder climb
+        // beside it).
+        let rise = (feet[1] - run.start[1]).min(moved);
         let mut found = Vec::new();
         if !run.practiced {
             // A coin underfoot counts only as a coin jump, once it lifts.
@@ -690,6 +720,7 @@ impl Powers {
                 flight.shooter = shooter;
                 flight.expected = speed;
                 flight.ticks_left = FLIGHT_TICKS;
+                flight.pulled = false;
             }
             None => {
                 eprintln!(
@@ -704,6 +735,7 @@ impl Powers {
                     last: at,
                     expected: speed,
                     ticks_left: FLIGHT_TICKS,
+                    pulled: false,
                 });
             }
         }
@@ -736,7 +768,7 @@ pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) -> Vec<Entity
             health(before),
             health(after)
         );
-        if dealt == Some(true) && hit.kind != "minecraft:player" {
+        if dealt == Some(true) && hit.practice && hit.kind != "minecraft:player" {
             practice.push(hit.shooter);
         }
     }
@@ -757,7 +789,10 @@ fn flight_hit(host: &dyn Host, level: LevelRef, flight: &Flight, to: Vec3) -> Op
     if distance([from.x, from.y, from.z], to) > flight.expected + COIN_STEP_SLACK {
         return None;
     }
-    coin_victim(host, level, flight.shooter, flight.coin, from, to)
+    coin_victim(host, level, flight.shooter, flight.coin, from, to).map(|hit| Hit {
+        practice: !flight.pulled,
+        ..hit
+    })
 }
 
 /// The first living body the coin's real move (`from` → `to`, last tick to this one) crossed,
@@ -800,6 +835,7 @@ fn coin_victim(
         kind: victim.kind(host).map(|k| k.id(host)).unwrap_or_default(),
         speed,
         damage,
+        practice: true,
     })
 }
 

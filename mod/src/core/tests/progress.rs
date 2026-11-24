@@ -633,7 +633,11 @@ fn impossible_progress_is_rejected_on_decode() {
     );
     // Experience below what the owned nodes cost.
     let poor = edited(|b| b[PROGRESS_AT..PROGRESS_AT + 4].copy_from_slice(&0u32.to_le_bytes()));
-    assert_eq!(decode(&poor), invalid(ProgressError::Overspent));
+    // (the conclusion's own 200 is checked first)
+    assert_eq!(
+        decode(&poor),
+        invalid(ProgressError::ConcludedWithoutExperience)
+    );
     // An unknown node code (reach 1 → 9: still in order).
     assert_eq!(
         decode(&edited(|b| b[NODES_AT] = 9)),
@@ -772,4 +776,29 @@ fn the_push_below_gain_applies_only_to_a_push_off_an_anchor_underfoot() {
         ..ForceRules::BURNING
     };
     assert!(!weaker.is_valid());
+}
+
+// Catches schema 2 states the operations can never produce (Codex review, P5 final).
+#[test]
+fn impossible_windows_and_conclusions_are_rejected_on_decode() {
+    // Window counts: anchor_move's window is the first of the three, after the research.
+    let window_count_at = RESEARCH_AT + 5 + 8;
+    let saved = learned();
+    assert_eq!(saved.progress().windows()[0].count, 1);
+    assert_eq!(
+        decode(&edited(|b| b[window_count_at] = 4)),
+        Err(SaveError::Progress(ProgressError::WindowOutOfRange))
+    );
+    assert!(decode(&edited(|b| b[window_count_at] = 3)).is_ok());
+    // A conclusion worth 200 experience with less experience saved.
+    let xp = edited(|b| b[PROGRESS_AT..PROGRESS_AT + 4].copy_from_slice(&199u32.to_le_bytes()));
+    assert!(matches!(decode(&xp), Err(SaveError::Progress(_))));
+}
+
+#[test]
+fn evidence_needs_the_pair_but_hints_alone_do_not() {
+    let mut saved = fresh();
+    commit(&mut saved, |s| prepare_hint(s, RESEARCH_ANCHOR, 1));
+    assert_eq!(saved.progress().research(RESEARCH_ANCHOR).hints, 1);
+    assert_eq!(decode(&encode_save(&saved).unwrap()).unwrap(), saved);
 }

@@ -74,6 +74,8 @@ struct Wheel {
 /// close chosen in a screen hook (which cannot send), applied on the next tick.
 struct Notebook {
     tab: Tab,
+    /// The revealed hint shown in the diary (`None`: the newest).
+    hint_page: Option<u8>,
     size: Option<[f32; 2]>,
     request: Option<ControlRequest>,
     close: bool,
@@ -209,6 +211,7 @@ pub(crate) fn open_notebook(host: &mut dyn ClientHost) {
         eprintln!("MISTBRN event=notebook result=open");
         state.notebook = Some(Notebook {
             tab: Tab::Tree,
+            hint_page: None,
             size: None,
             request: None,
             close: false,
@@ -495,11 +498,11 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
                 eprintln!("MISTBRN event=notebook_tabs diary={dx},{dy}");
             }
             book.size = Some(size);
-            let tab = book.tab;
+            let (tab, page) = (book.tab, book.hint_page);
             let progress = state.progress.clone();
             let unlocked = unlocked_in(state.hud);
             drop(state);
-            notebook::draw(host, draw, tab, progress.as_ref(), &unlocked, pointer);
+            notebook::draw(host, draw, tab, progress.as_ref(), &unlocked, pointer, page);
             return;
         }
     }
@@ -519,17 +522,12 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
     hud::draw_wheel(host, draw, hud.as_ref(), hovered);
 }
 
-/// V let go over the wheel (`release_action`), or B over the notebook (closes it). True when
-/// the release was ours.
+/// V let go over the wheel (`release_action`). True when the release was ours.
 pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
     {
-        let mut state = state();
-        if let Some(book) = state.notebook.as_mut() {
-            let bound = host.mod_key(MOD_ID, NOTEBOOK_KEY.0).map(|(bound, _)| bound);
-            if bound.as_deref() == Some(key) {
-                book.close = true;
-                return true;
-            }
+        // Over the notebook, releases are not ours: J closes it on its press
+        // (`notebook_key_pressed`), so letting go of the J that opened it changes nothing.
+        if state().notebook.is_some() {
             return false;
         }
     }
@@ -565,7 +563,12 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
         };
         match notebook::target(size, pointer, book.tab) {
             Some(notebook::Target::Tab(tab)) => book.tab = tab,
+            Some(notebook::Target::HintPage(index)) => book.hint_page = Some(index),
             Some(target) => {
+                if target == notebook::Target::RevealHint {
+                    // Show the hint about to be revealed.
+                    book.hint_page = None;
+                }
                 if let Some(request) = progress
                     .as_ref()
                     .and_then(|p| notebook::request(target, p, &unlocked))
@@ -586,6 +589,23 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
     {
         wheel.hovered = Some(pair);
         wheel.action.get_or_insert(WheelAction::Select(pair));
+    }
+    true
+}
+
+/// A fresh press of the notebook key over the open notebook closes it (not its release: the
+/// release of the press that opened it would close it at once). True when the press was ours.
+pub(crate) fn notebook_key_pressed(host: &dyn ClientHost, key: &str, repeat: bool) -> bool {
+    let mut state = state();
+    let Some(book) = state.notebook.as_mut() else {
+        return false;
+    };
+    let bound = host.mod_key(MOD_ID, NOTEBOOK_KEY.0).map(|(bound, _)| bound);
+    if bound.as_deref() != Some(key) {
+        return false;
+    }
+    if !repeat {
+        book.close = true;
     }
     true
 }

@@ -23,8 +23,8 @@ use mod_api::{
     PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
     PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
     RegistrationContext, RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent,
-    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenRenderPostEvent, ServerHost,
-    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -170,9 +170,11 @@ impl Hooks for Allomancy {
         };
         let click = event.click;
         let read: &dyn mod_api::Host = host;
-        if !click
-            .stack
-            .is_some_and(|stack| content::is_notebook(read, stack))
+        // The main hand only, as the plan says (an off-hand notebook leaves the table alone).
+        if click.hand != mod_api::Hand::Main
+            || !click
+                .stack
+                .is_some_and(|stack| content::is_notebook(read, stack))
         {
             return Flow::Continue;
         }
@@ -364,6 +366,18 @@ impl Hooks for Allomancy {
 
     fn screen_render_post(&self, host: &dyn ClientHost, event: &mut ScreenRenderPostEvent<'_>) {
         client::screen_draw(host, event.screen.mouse, event.draw);
+    }
+
+    fn screen_key_pressed_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenKeyPressedPreEvent<'_>,
+    ) -> Flow {
+        if client::notebook_key_pressed(host, event.key, event.repeat) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
     }
 
     fn screen_key_released_pre(

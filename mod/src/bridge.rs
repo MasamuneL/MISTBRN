@@ -646,7 +646,9 @@ impl Session {
             return;
         };
         let mut observed = Observed::Nothing;
-        let result = self.change(uuid, false, |saved| {
+        // Written on this tick's flush: experience and evidence must not wait for the interval
+        // (a death followed by leaving from the death screen takes no later write).
+        let result = self.change(uuid, true, |saved| {
             observed = observe(saved, &event, game_time)?;
             Ok(())
         });

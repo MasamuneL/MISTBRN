@@ -527,6 +527,8 @@ pub enum ProgressError {
     EvidenceOutOfRange,
     HintsOutOfRange,
     ConcludedWithoutEvidence,
+    ConcludedWithoutExperience,
+    WindowOutOfRange,
     RulesMismatch,
     // Refused requests (preparations and observations).
     AlreadyOwned,
@@ -567,8 +569,24 @@ pub fn validate_progress(
             return Err(ProgressError::PairLocked);
         }
     }
+    // A window counts at most one action past its falloff: `apply_practice` stops counting.
+    if progress
+        .windows
+        .iter()
+        .any(|window| usize::from(window.count) > catalog.falloff_percent.len())
+    {
+        return Err(ProgressError::WindowOutOfRange);
+    }
     for (&code, research) in &progress.research {
         let def = research_def(code, catalog).ok_or(ProgressError::UnknownResearch)?;
+        // Evidence and conclusions are only observed with the pair unlocked, and a conclusion
+        // brought its experience (hints alone need nothing).
+        if (research.evidence != 0 || research.concluded) && !pair_unlocked(state, def.pair) {
+            return Err(ProgressError::PairLocked);
+        }
+        if research.concluded && progress.pair_xp(def.pair) < def.pair_xp {
+            return Err(ProgressError::ConcludedWithoutExperience);
+        }
         if research.evidence & !def.evidence != 0 {
             return Err(ProgressError::EvidenceOutOfRange);
         }

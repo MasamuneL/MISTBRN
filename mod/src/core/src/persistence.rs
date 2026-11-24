@@ -712,6 +712,19 @@ pub fn decode_save(
     if !r.bytes.is_empty() {
         return Err(SaveError::LengthMismatch);
     }
+    if schema == 1 {
+        // Since P5 the reduction and the capacity bonus are what the general nodes give, and a
+        // schema 1 save owns none. No shipped adapter wrote anything but 0 there; a save that
+        // did keeps its fuel: the bonus is dropped only while every reserve still fits the
+        // base capacity, otherwise the save stays invalid and the adapter blocks it unwritten.
+        rules.reduction_milli = 0;
+        let fits = Metal::ALL.iter().all(|metal| {
+            state.metals[metal.index()].reserve_milli <= rules.base_capacity_milli[metal.index()]
+        });
+        if fits {
+            rules.capacity_bonus_milli = 0;
+        }
+    }
     let saved = SavedPlayer {
         state,
         accounting,
