@@ -9,6 +9,7 @@ mod client;
 mod content;
 mod controls;
 mod hud;
+mod milestones;
 mod notebook;
 mod p4;
 mod save;
@@ -18,7 +19,8 @@ use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
     ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
-    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelTickPostEvent,
+    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelRandomHost,
+    LevelTickPostEvent, LivingDamagePostEvent, LivingDeathEvent, LivingDeathPostEvent,
     LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
     PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
     PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
@@ -36,6 +38,7 @@ struct Allomancy {
     content: Mutex<content::Content>,
     powers: Mutex<p4::Powers>,
     controls: Mutex<controls::Controls>,
+    milestones: Mutex<milestones::Milestones>,
 }
 
 impl Default for Allomancy {
@@ -47,6 +50,7 @@ impl Default for Allomancy {
             content: Mutex::default(),
             powers: Mutex::default(),
             controls: Mutex::default(),
+            milestones: Mutex::default(),
         }
     }
 }
@@ -93,11 +97,36 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .chest_drops(event);
+        self.milestones()
+            .loot(event.context.table, event.context.opener);
+    }
+
+    /// Boss hits that took health count towards milestones (absorbed ones do not).
+    fn living_damage_post(
+        &self,
+        _: &mut dyn LevelRandomHost,
+        event: &mut LivingDamagePostEvent<'_>,
+    ) {
+        let damage = event.container.health_damage();
+        self.milestones()
+            .damaged(event.entity, event.kind, event.source, damage);
+    }
+
+    fn living_death(&self, _: &mut dyn ServerHost, event: &mut LivingDeathEvent<'_>) -> Flow {
+        if !event.cancelled {
+            self.milestones().dying(event.entity, event.kind);
+        }
+        Flow::Continue
+    }
+
+    fn living_death_post(&self, _: &mut dyn ServerHost, event: &mut LivingDeathPostEvent<'_>) {
+        self.milestones().died(event.entity);
     }
 
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
+        *self.milestones() = milestones::Milestones::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -134,6 +163,15 @@ impl Hooks for Allomancy {
                 session.observe_event(host, player, kind);
             }
         }
+        // Milestones queued by this tick's hooks, each in its own transaction (P6).
+        let claims = self.milestones().take(host, tick);
+        for (uuid, bit) in claims {
+            let result = match host.player(uuid) {
+                Some(player) => session.claim(host, player, bit).map(|seq| seq.0),
+                None => Err("offline".into()),
+            };
+            self.milestones().outcome(uuid, bit, &result);
+        }
         controls.sync_hud(host, &session, tick);
         controls.sync_progress(host, &session, tick);
     }
@@ -157,6 +195,8 @@ impl Hooks for Allomancy {
                     .observe_event(host, player, p4::coin_hit_practice());
             }
         }
+        let session = self.session();
+        self.milestones().tick_level(host, &session, event.level);
     }
 
     fn item_picked_up_post(
@@ -271,6 +311,11 @@ impl Hooks for Allomancy {
             Some("xp") => {
                 self.session()
                     .test_xp(host, *player, integer("amount").unwrap_or(0));
+                return Flow::Cancel;
+            }
+            Some(probe @ ("bastion-find" | "bastion-probe")) => {
+                self.milestones()
+                    .test_probe(player.uuid(), probe == "bastion-find");
                 return Flow::Cancel;
             }
             Some("evidence") => {
@@ -435,6 +480,12 @@ impl Allomancy {
 
     fn controls(&self) -> MutexGuard<'_, controls::Controls> {
         self.controls.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn milestones(&self) -> MutexGuard<'_, milestones::Milestones> {
+        self.milestones
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn session(&self) -> MutexGuard<'_, bridge::Session> {

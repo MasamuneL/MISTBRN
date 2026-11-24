@@ -7,8 +7,9 @@ use allomancy_core::{
     Authority, BurnState, CATALOG, EMPTY_VIAL, EventId, EventKind, InputContext, Metal, Observed,
     PlayerId, PreparedCredit, ReserveRules, SaveError, SavedPlayer, Tick, TransactionSeq,
     VIAL_MILLI, Vec3, VerifiedEvent, WorldId, WorldSnapshot, advance_tick, commit_credit,
-    consume_reserves, node_def, observe, on_death, on_reconnect, prepare_conclude, prepare_hint,
-    prepare_purchase, prepare_unlock, prepare_vial, research_def, update_player,
+    consume_reserves, milestone_def, node_def, observe, on_death, on_reconnect, prepare_claim,
+    prepare_conclude, prepare_hint, prepare_purchase, prepare_unlock, prepare_vial, research_def,
+    update_player,
 };
 use mod_api::{
     GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
@@ -491,14 +492,16 @@ impl Session {
         if host.transaction_current().is_some() {
             return Err("nested_transaction".into());
         }
-        let Some(Slot::Active {
-            saved,
-            dirty,
-            urgent,
-            since_write,
-        }) = self.players.get_mut(&uuid)
-        else {
-            return Err("not_active".into());
+        let (saved, dirty, urgent, since_write) = match self.players.get_mut(&uuid) {
+            Some(Slot::Active {
+                saved,
+                dirty,
+                urgent,
+                since_write,
+            }) => (saved, dirty, urgent, since_write),
+            // A blocked save is never written this session: nothing to retry.
+            Some(Slot::Blocked(_)) => return Err("blocked".into()),
+            None => return Err("not_active".into()),
         };
         let prepared = prepare(saved).map_err(|error| match error {
             SaveError::Progress(error) => format!("{error:?}"),
@@ -563,6 +566,36 @@ impl Session {
             Err(error) => eprintln!(
                 "MISTBRN event=hint_revealed research={research} index={index} result={error}"
             ),
+        }
+        result
+    }
+
+    /// Claims milestone `bit` for `player` (P6) in its own host transaction: its pair is
+    /// unlocked (not selected) and the player told. A second claim is refused by the core and
+    /// changes nothing; both outcomes are logged.
+    pub(crate) fn claim(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        bit: u8,
+    ) -> Result<TransactionSeq, String> {
+        let key = milestone_def(bit, &CATALOG).map_or("unknown", |def| def.key);
+        let mut unlocks = None;
+        let result = self.commit_save_only(host, player, |saved| {
+            let (prepared, pair) = prepare_claim(saved, bit)?;
+            unlocks = pair;
+            Ok(prepared)
+        });
+        match &result {
+            Ok(seq) => {
+                eprintln!(
+                    "MISTBRN event=milestone key={key} result=ok seq={} unlocks={}",
+                    seq.0,
+                    unlocks.map_or("none", pair_name)
+                );
+                tell(host, player, &format!("message.mistbrn.milestone.{key}"));
+            }
+            Err(error) => eprintln!("MISTBRN event=milestone key={key} result={error}"),
         }
         result
     }

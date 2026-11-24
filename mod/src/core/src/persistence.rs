@@ -1,7 +1,7 @@
 //! One player's canonical save: state, reserve accounting, the rules that explain it, and the
 //! transaction counters that make every credit apply exactly once.
 //!
-//! Binary format, schema 2 (all integers little-endian):
+//! Binary format, schema 3 (all integers little-endian):
 //!
 //! ```text
 //! "MBRN" | schema:u16 | payload_len:u32 | payload | crc32:u32 (IEEE, over everything before it)
@@ -18,10 +18,14 @@
 //!   | n_nodes:u8 | n × (code:u16 | rank:u8)                       strictly increasing codes
 //!   | n_research:u8 | n × (code:u16 | evidence:u8 | hints:u8 | concluded:u8)   increasing
 //!   | 3 × (window_start:u64 | window_count:u8)                    practice categories
+//!
+//! schema 3 appends the claimed milestones (P6) to the schema 2 payload:
+//!   | milestones:u8                                               one bit per milestone
 //! ```
 //!
-//! Schema 1 still decodes: it is migrated to an empty progress, everything else identical, and
-//! the next write stores schema 2. Any other schema is refused before its payload is read.
+//! Schemas 1 and 2 still decode: they are migrated to an empty progress (1) or no milestones
+//! (2), everything else identical, and the next write stores schema 3. Any other schema is
+//! refused before its payload is read.
 //!
 //! `last_tick` is not saved: server ticks restart with every world open, so a loaded player
 //! starts with `None`. Decoding never repairs or defaults anything; any defect is an error and the
@@ -29,13 +33,13 @@
 use crate::{
     BurnState, CATALOG, EventKind, Metal, Observed, Pair, PlayerId, PlayerState, Progress,
     ProgressError, ResearchState, ReserveAccounting, ReserveError, ReserveRules, VerifiedEvent,
-    WorldId, apply_conclusion, apply_evidence, apply_hint, apply_practice, check_purchase,
-    clear_reserves_on_death, credit_reserve, practice_def, research_def, validate_progress,
-    validate_reserves,
+    WorldId, apply_claim, apply_conclusion, apply_evidence, apply_hint, apply_practice,
+    check_purchase, clear_reserves_on_death, credit_reserve, milestone_mask, practice_def,
+    research_def, validate_progress, validate_reserves,
 };
 use std::collections::BTreeMap;
 
-pub const SAVE_SCHEMA: u16 = 2;
+pub const SAVE_SCHEMA: u16 = 3;
 /// The oldest schema still read (and migrated).
 pub const OLDEST_SCHEMA: u16 = 1;
 pub const MAX_SAVE_BYTES: usize = 64 * 1024;
@@ -258,11 +262,15 @@ pub fn prepare_credit(
 }
 
 fn unlock_pair(state: &mut PlayerState, pair: Pair) {
+    unlock_metals(state, pair);
+    // The pair just learned becomes the selected one: its keys act on it at once.
+    state.selected_pair = pair;
+}
+
+fn unlock_metals(state: &mut PlayerState, pair: Pair) {
     for metal in pair.metals() {
         state.metals[metal.index()].unlocked = true;
     }
-    // The pair just learned becomes the selected one: its keys act on it at once.
-    state.selected_pair = pair;
 }
 
 fn pair_unlocked(state: &PlayerState, pair: Pair) -> bool {
@@ -345,6 +353,27 @@ pub fn prepare_conclude(saved: &SavedPlayer, code: u16) -> Result<PreparedCredit
         apply_conclusion(&mut next.progress, &next.state, code, &CATALOG)
             .map_err(SaveError::Progress)
     })
+}
+
+/// Prepares claiming milestone `bit` (P6) as transaction `last_transaction + 1`: once per
+/// player; a second claim is `AlreadyClaimed` and prepares nothing. The milestone's pair is
+/// unlocked in the same transaction but not selected (the player may be using another), and
+/// its knowledge follows from the claim. Returns the pair it unlocks, if any.
+pub fn prepare_claim(
+    saved: &SavedPlayer,
+    bit: u8,
+) -> Result<(PreparedCredit, Option<Pair>), SaveError> {
+    validate_save(saved)?;
+    let mut unlocks = None;
+    let prepared = prepare(saved, |next| {
+        let def = apply_claim(&mut next.progress, bit, &CATALOG).map_err(SaveError::Progress)?;
+        if let Some(pair) = def.unlocks {
+            unlock_metals(&mut next.state, pair);
+            unlocks = Some(pair);
+        }
+        Ok(())
+    })?;
+    Ok((prepared, unlocks))
 }
 
 /// Prepares revealing hint `index` (1-based) of research `code`: only the next one, never
@@ -444,6 +473,7 @@ fn encode_progress(out: &mut Vec<u8>, progress: &Progress) -> Result<(), SaveErr
         out.extend_from_slice(&window.start.to_le_bytes());
         out.push(window.count);
     }
+    out.push(progress.milestones);
     Ok(())
 }
 
@@ -703,12 +733,20 @@ pub fn decode_save(
     rules.capacity_bonus_milli = r.u16()?;
     let revision = r.u64()?;
     let last_transaction = r.u64()?;
-    // Schema 1 → 2: nothing learned yet; every schema 1 field is kept as it was.
-    let progress = if schema >= 2 {
+    // Schema 1 → 3: nothing learned yet; every schema 1 field is kept as it was.
+    let mut progress = if schema >= 2 {
         decode_progress(&mut r)?
     } else {
         Progress::default()
     };
+    // Schema 2 → 3: no milestone claimed yet.
+    if schema >= 3 {
+        let milestones = r.u8()?;
+        if milestones & !milestone_mask(&CATALOG) != 0 {
+            return Err(SaveError::InvalidEnum);
+        }
+        progress.milestones = milestones;
+    }
     if !r.bytes.is_empty() {
         return Err(SaveError::LengthMismatch);
     }

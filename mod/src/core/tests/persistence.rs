@@ -42,7 +42,8 @@ fn rich() -> SavedPlayer {
 }
 
 /// Schema 2's progress block with nothing learned: 4 × xp, two empty lists, 3 windows.
-const EMPTY_PROGRESS_BYTES: usize = 4 * 4 + 1 + 1 + 3 * 9;
+// Schema 2 progress (xp, node and research counts, windows) and schema 3 milestones.
+const EMPTY_PROGRESS_BYTES: usize = 4 * 4 + 1 + 1 + 3 * 9 + 1;
 
 fn decode(bytes: &[u8]) -> Result<SavedPlayer, SaveError> {
     decode_save(bytes, &world(), &player())
@@ -136,7 +137,7 @@ fn trailing_bytes_magic_and_checksum_are_distinct_errors() {
 #[test]
 fn other_schemas_are_rejected_before_reading_the_payload() {
     let bytes = encode_save(&rich()).unwrap();
-    for schema in [0u16, 3, u16::MAX] {
+    for schema in [0u16, 4, u16::MAX] {
         let mut other = bytes.clone();
         other[4..6].copy_from_slice(&schema.to_le_bytes());
         let other = reseal(other);
@@ -438,7 +439,7 @@ fn a_preparation_for_another_identity_is_stale() {
 
 // Catches a migration that drops or alters anything a V1 world saved.
 #[test]
-fn schema_1_fixture_migrates_to_schema_2_keeping_every_field() {
+fn schema_1_fixture_migrates_to_schema_3_keeping_every_field() {
     let bytes = include_bytes!("fixtures/saved-player-v1.bin");
     assert_eq!(save_schema(bytes), Some(1));
     let migrated = decode(bytes).unwrap();
@@ -450,9 +451,9 @@ fn schema_1_fixture_migrates_to_schema_2_keeping_every_field() {
     assert_eq!(migrated.last_transaction(), expected.last_transaction());
     assert_eq!(migrated.progress(), &Progress::default());
     assert_eq!(migrated, expected);
-    // The next write is schema 2, and reads back the same.
+    // The next write is schema 3, and reads back the same.
     let rewritten = encode_save(&migrated).unwrap();
-    assert_eq!(save_schema(&rewritten), Some(2));
+    assert_eq!(save_schema(&rewritten), Some(3));
     assert_eq!(rewritten.len(), bytes.len() + EMPTY_PROGRESS_BYTES);
     assert_eq!(decode(&rewritten).unwrap(), migrated);
 }
@@ -478,16 +479,6 @@ fn schema_2_bytes_labelled_schema_1_are_rejected() {
     let mut bytes = encode_save(&rich()).unwrap();
     bytes[4..6].copy_from_slice(&1u16.to_le_bytes());
     assert_eq!(decode(&reseal(bytes)), Err(SaveError::LengthMismatch));
-}
-
-#[test]
-#[ignore = "regenerates tests/fixtures/saved-player-v1.bin; run only when schema 1 is defined anew"]
-fn write_schema_1_fixture() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/saved-player-v1.bin"
-    );
-    std::fs::write(path, encode_save(&rich()).unwrap()).unwrap();
 }
 
 #[test]
