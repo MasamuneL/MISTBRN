@@ -74,14 +74,14 @@ BRINE = vial([
     "spwsws",
 ], {"p": color("FCFEF7"), "w": color("D8E6E8"), "s": color("A8BFC5")})
 
-# Bright tin and zinc above dark iron and a subdued copper deposit.
+# Bright tin and zinc above a two-pixel ochre copper band: unlike vial_iron's cold grey.
 BASIC_METALS = vial([
     "twwt",
-    "zzwzzz",
-    "isisii",
-    "ccccci",
+    "zzwzzs",
+    "oOoooO",
+    "ooOooi",
 ], {"w": color("FAFCFF"), "t": color("E0E5EB"), "z": color("A8B4BF"),
-    "s": color("7D8894"), "i": color("343B46"), "c": color("524B48")})
+    "s": color("7D8894"), "i": color("343B46"), "o": color("B8862F"), "O": color("E0B458")})
 
 SALT = grid([
     "................",
