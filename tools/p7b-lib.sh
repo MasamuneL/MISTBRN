@@ -125,7 +125,8 @@ p7b_scenario() {
       ctl setblock 514 100 512 crafting_table >/dev/null
       ctl look -90 -90 >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
-      ctl command "tp @s 507.5 100 512.5" >/dev/null; ctl wait 10 >/dev/null
+      # 5.5 blocks from the table's face, still on the stone floor (it starts at x 508).
+      ctl command "tp @s 508.5 100 512.5" >/dev/null; ctl wait 10 >/dev/null
       # The table's west face centre, as a point: `look-at block` needs it within reach.
       ctl look-at 514.0 100.5 512.5 >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
@@ -168,7 +169,8 @@ p7b_scenario() {
       done
       quit_game
       expect_log 1 'MISTBRN event=test_setting key=book_scale value=2 result=true'
-      expect_log 1 'MISTBRN event=book_view .* scale=1.25 '
+      # 125 % does not fit a 427x240 GUI: the book takes the largest scale that does (> 1).
+      expect_log 1 'MISTBRN event=book_view .* scale=1\.[0-9]* '
       expect_log 1 'MISTBRN event=book_view .* scale=0.75 '
       expect_log 1 'MISTBRN event=hud_box .* scale=1.25 '
       # The warning's strength as drawn (test runs log each change): several values while it
