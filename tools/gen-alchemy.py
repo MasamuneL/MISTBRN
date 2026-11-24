@@ -74,14 +74,14 @@ BRINE = vial([
     "spwsws",
 ], {"p": color("FCFEF7"), "w": color("D8E6E8"), "s": color("A8BFC5")})
 
-# Broken layers of tin, zinc and iron over a muted copper deposit.
+# Bright tin and zinc above dark iron and a subdued copper deposit.
 BASIC_METALS = vial([
-    "twtt",
-    "ttzztt",
-    "zzziiz",
+    "twwt",
+    "zzwzzz",
+    "isisii",
     "ccccci",
-], {"w": color("F4F6F2"), "t": color("D8DDE4"), "z": color("9EA9B4"),
-    "i": color("454A50"), "c": color("946B5C")})
+], {"w": color("FAFCFF"), "t": color("E0E5EB"), "z": color("A8B4BF"),
+    "s": color("7D8894"), "i": color("343B46"), "c": color("524B48")})
 
 SALT = grid([
     "................",
@@ -103,26 +103,27 @@ SALT = grid([
 ], {"W": color("FFFFFF"), "L": color("E6E4DC"), "S": color("C9C6BA"),
     "O": color("A59F92"), "D": color("777369")})
 
-# Broad crystal faces with stepped corners. Facets cross both tile boundaries.
+# Cubic faces embedded in a pale matrix, with short, stepped fractures.
+# The upper-right cluster continues across both edges of the tile.
 SALT_ROCK = grid([
-    "mmddlllllshhllll",
-    "mmsshhhhhsllllll",
-    "mmshllhlmslllllm",
-    "mmshllhmmsmmmmmm",
-    "mmshlmmmmdmsssss",
-    "ddshmmmmdshhhhhs",
-    "hlsddddddshllllm",
-    "hldshhhhsshlmmmm",
-    "hldshlllmshmmlmd",
-    "mmdshlllmshmllmd",
-    "ddsshllmmdddddsd",
-    "hhhshmmmmdhhhshh",
-    "lllshmmmmdlllshl",
-    "lmmdddddddlllshl",
-    "mmdshhhhhdmlmshm",
-    "mmdshllllsmmmsmm",
-], {"h": color("F3EEE5"), "l": color("DDD8CD"), "m": color("CCC7BC"),
-    "s": color("B6AEA2"), "d": color("A49B8E")})
+    "lsmmllmmlllslhhl",
+    "msmhhhlmmllsslll",
+    "lmlhhhhhsmmllmll",
+    "lmlhllllsmlhllml",
+    "lmhhllllsmlhslml",
+    "mmlhllllssmllmll",
+    "mslhlllssmlllmms",
+    "smmllssmmllhhlds",
+    "mllmmmlmllhhhhsm",
+    "llhhlmlmmhllllsm",
+    "lhhhlsmllhllllsm",
+    "hhllssmmlhllsslh",
+    "lllsmllmsllssmll",
+    "lslmllssdmmlmmll",
+    "mllmmllmsmlslmhm",
+    "lsmmllmmlllslhhl",
+], {"h": color("F9F7F0"), "l": color("EAE6DB"), "m": color("DCD8CC"),
+    "s": color("C7C4BD"), "d": color("AAA8A5")})
 
 COPPER = {
     "d": color("573B31"), "s": color("794C38"),
