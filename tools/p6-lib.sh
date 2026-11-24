@@ -106,7 +106,11 @@ p6_scenario() {
       [[ "$px" =~ ^-?[0-9]+$ && "$py" =~ ^[0-9]+$ && "$pz" =~ ^-?[0-9]+$ ]] ||
         die "no bastion piece near $x,$z: '$probe'"
       k_ok "bastion start $x,$z; piece block $px,$py,$pz"
-      # Whole coordinates: a negative "x.5" floors to the next block, outside the probed one.
+      # The probe gives the piece's lowest block: stand there on stone, with room to breathe,
+      # so the player does not fall out of it. Whole coordinates: a negative "x.5" floors to
+      # the next block, outside the probed one.
+      ctl command "execute in minecraft:the_nether run fill $px $py $pz $px $((py + 1)) $pz minecraft:air" >/dev/null
+      ctl command "execute in minecraft:the_nether run setblock $px $((py - 1)) $pz minecraft:stone" >/dev/null
       ctl command "execute in minecraft:the_nether run tp @s $px $py $pz" >/dev/null
       ctl wait 60 >/dev/null
       ctl command "execute in minecraft:the_nether run tp @s $((px + 400)) 120 $pz" >/dev/null
@@ -153,6 +157,8 @@ p6_scenario() {
       p6_lane
       p6_kill minecraft:ender_dragon p6a 80
       ctl command "data get entity @e[tag=p6a,limit=1] Health" > "$dir/health-p6a.json"
+      # A second dragon cannot be summoned while the first plays its death (200 ticks).
+      ctl wait 220 >/dev/null
       p6_kill minecraft:ender_dragon p6b 80 506.5
       ctl command "data get entity @e[tag=p6b,limit=1] Health" > "$dir/health-p6b.json"
       ctl save >/dev/null; quit_game
