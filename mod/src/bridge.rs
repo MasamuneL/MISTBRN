@@ -492,14 +492,16 @@ impl Session {
         if host.transaction_current().is_some() {
             return Err("nested_transaction".into());
         }
-        let Some(Slot::Active {
-            saved,
-            dirty,
-            urgent,
-            since_write,
-        }) = self.players.get_mut(&uuid)
-        else {
-            return Err("not_active".into());
+        let (saved, dirty, urgent, since_write) = match self.players.get_mut(&uuid) {
+            Some(Slot::Active {
+                saved,
+                dirty,
+                urgent,
+                since_write,
+            }) => (saved, dirty, urgent, since_write),
+            // A blocked save is never written this session: nothing to retry.
+            Some(Slot::Blocked(_)) => return Err("blocked".into()),
+            None => return Err("not_active".into()),
         };
         let prepared = prepare(saved).map_err(|error| match error {
             SaveError::Progress(error) => format!("{error:?}"),

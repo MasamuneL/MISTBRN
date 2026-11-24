@@ -94,10 +94,19 @@ impl Milestones {
     /// A death finished (`living_death_post`, never after a cancelled one): a candidate's
     /// claimants are queued.
     pub(crate) fn died(&mut self, entity: u32) {
-        if let Some((boss, bit)) = i32::try_from(entity)
-            .ok()
-            .and_then(|boss| self.dying.remove(&boss).map(|bit| (boss, bit)))
-        {
+        // A guardian whose `living_death` this listener skipped (cancelled, then let through by
+        // a later one) is still known by its hits.
+        if let Some((boss, bit)) = i32::try_from(entity).ok().and_then(|boss| {
+            self.dying
+                .remove(&boss)
+                .or_else(|| {
+                    self.bosses
+                        .get(&boss)
+                        .copied()
+                        .filter(|&bit| bit == MILESTONE_ELDER_GUARDIAN)
+                })
+                .map(|bit| (boss, bit))
+        }) {
             self.boss_died(boss, bit);
         }
     }
@@ -301,7 +310,7 @@ impl Milestones {
 /// Whether a failed claim may succeed later: not a refusal of the claim itself, nor a save
 /// the session blocked after the host committed.
 fn retryable(error: &str) -> bool {
-    !matches!(error, "AlreadyClaimed" | "UnknownMilestone")
+    !matches!(error, "AlreadyClaimed" | "UnknownMilestone" | "blocked")
         && !error.starts_with("commit_after_host")
 }
 
@@ -321,7 +330,12 @@ mod tests {
         m.outcome(7, 2, &Err("AlreadyClaimed".into()));
         assert!(m.retries.is_empty());
         m.outcome(7, 4, &Err("commit_after_host:Duplicate".into()));
+        m.outcome(7, 8, &Err("blocked".into()));
         assert!(m.retries.is_empty());
+        // A save not loaded yet may load: retried.
+        m.outcome(8, 1, &Err("not_active".into()));
+        assert_eq!(m.retries.get(&(8, 1)), Some(&1));
+        m.retries.clear();
         for _ in 0..MAX_RETRIES {
             m.outcome(9, 8, &Err("nested_transaction".into()));
         }
@@ -345,5 +359,35 @@ mod tests {
         );
         m.dying(6, "minecraft:zombie");
         assert!(m.dying.is_empty());
+        // Its living_death skipped, a guardian known by its hits is still confirmed.
+        m.queued.clear();
+        m.ledger.hit(9, 43, 0);
+        m.bosses.insert(9, MILESTONE_ELDER_GUARDIAN);
+        m.died(9);
+        assert_eq!(
+            m.queued,
+            vec![(Claimant::Entity(43), MILESTONE_ELDER_GUARDIAN)]
+        );
+    }
+
+    // Catches a hit that took no health (absorbed, blocked) earning a share of the kill.
+    #[test]
+    fn only_hits_that_take_health_count() {
+        let source = |causing| HurtSource {
+            damage_type: "minecraft:player_attack",
+            causing,
+            direct: causing,
+            position: None,
+        };
+        let mut m = Milestones::default();
+        m.damaged(5, ELDER_GUARDIAN, &source(41), 0.0);
+        m.damaged(5, ELDER_GUARDIAN, &source(42), 3.0);
+        m.damaged(5, "minecraft:zombie", &source(44), 3.0);
+        m.dying(5, ELDER_GUARDIAN);
+        m.died(5);
+        assert_eq!(
+            m.queued,
+            vec![(Claimant::Entity(42), MILESTONE_ELDER_GUARDIAN)]
+        );
     }
 }
