@@ -13,7 +13,9 @@ stage="$RT/staged/$name"; logdir="$RT/logs/$name"
 pkg="$stage/mistbrn"; mkdir -p "$pkg" "$logdir"
 ( cd "$REPO_ROOT/mod" && for p in horizon-mod.toml Cargo.toml src assets data; do
     cp -R "$p" "$pkg/"; done )
-find "$pkg" -name target -type d -prune -exec rm -rf {} + -o -name Cargo.lock -delete -o -name .DS_Store -delete
+# Two passes: GNU find refuses -prune together with -delete.
+find "$pkg" -name target -type d -prune -exec rm -rf {} +
+find "$pkg" \( -name Cargo.lock -o -name .DS_Store \) -delete
 
 receipt="$stage/receipt.txt"
 {

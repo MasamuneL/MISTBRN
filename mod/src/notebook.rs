@@ -45,7 +45,11 @@ const LINE: f32 = 10.0;
 pub(crate) enum Tab {
     Tree,
     Diary,
+    /// The milestones claimed and still to find (P6).
+    Milestones,
 }
+
+const TABS: [Tab; 3] = [Tab::Tree, Tab::Diary, Tab::Milestones];
 
 /// Something under the pointer that a click acts on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +98,7 @@ fn tab_rect(o: [f32; 2], tab: Tab) -> [f32; 4] {
     let x = match tab {
         Tab::Tree => 6.0,
         Tab::Diary => 58.0,
+        Tab::Milestones => 110.0,
     };
     [o[0] + x, o[1] - TAB[3] + 1.0, TAB[2], TAB[3]]
 }
@@ -123,7 +128,7 @@ pub(crate) fn tab_centre(size: [f32; 2], tab: Tab) -> [f32; 2] {
 /// What the pointer is over on `tab`. Only the `revealed` hints have page buttons.
 pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab, revealed: u8) -> Option<Target> {
     let o = origin(size);
-    for candidate in [Tab::Tree, Tab::Diary] {
+    for candidate in TABS {
         if inside(pointer, tab_rect(o, candidate)) {
             return Some(Target::Tab(candidate));
         }
@@ -143,6 +148,7 @@ pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab, revealed: u8) 
                 .find(|&i| inside(pointer, hint_page_rect(o, i)))
                 .map(Target::HintPage)
         }
+        Tab::Milestones => None,
     }
 }
 
@@ -241,7 +247,7 @@ pub(crate) fn draw(
     let size = draw.size();
     let o = origin(size);
     draw.fill([0.0, 0.0, size[0], size[1]], 0x6000_0000);
-    for candidate in [Tab::Tree, Tab::Diary] {
+    for candidate in TABS {
         let rect = tab_rect(o, candidate);
         let src = if candidate == tab { TAB_SELECTED } else { TAB };
         if !sprite(draw, src, [rect[0], rect[1]], None) {
@@ -250,6 +256,7 @@ pub(crate) fn draw(
         let key = match candidate {
             Tab::Tree => "notebook.mistbrn.tab.tree",
             Tab::Diary => "notebook.mistbrn.tab.diary",
+            Tab::Milestones => "notebook.mistbrn.tab.milestones",
         };
         let label = tr(host, key);
         let color = if candidate == tab { BRASS } else { DIM };
@@ -275,6 +282,65 @@ pub(crate) fn draw(
     match tab {
         Tab::Tree => draw_tree(host, draw, o, progress, unlocked, hovered),
         Tab::Diary => draw_diary(host, draw, o, progress, hovered, hint_page),
+        Tab::Milestones => draw_milestones(host, draw, o, progress),
+    }
+}
+
+/// One row per milestone: claimed or not, what it gives and where to look.
+fn draw_milestones(
+    host: &dyn ClientHost,
+    draw: &mut dyn DrawContext,
+    o: [f32; 2],
+    progress: &Progress,
+) {
+    let mut y = o[1] + 8.0;
+    for def in CATALOG.milestones {
+        let claimed = progress.claimed(def.bit);
+        let check = if claimed { CHECK_FOUND } else { CHECK_MISSING };
+        sprite(draw, check, [o[0] + 8.0, y], None);
+        let name = tr(host, &format!("milestone.mistbrn.{}", def.key));
+        draw.text(
+            &name,
+            [o[0] + 22.0, y + 1.0],
+            if claimed { BRASS } else { TEXT },
+            true,
+        );
+        let status = tr(
+            host,
+            if claimed {
+                "notebook.mistbrn.milestone.claimed"
+            } else {
+                "notebook.mistbrn.milestone.pending"
+            },
+        );
+        let x = o[0] + PANEL_W - 8.0 - draw.text_width(&status);
+        draw.text(
+            &status,
+            [x, y + 1.0],
+            if claimed { BRASS } else { DIM },
+            true,
+        );
+        let reward = match def.unlocks {
+            Some(pair) => tr_args(
+                host,
+                "notebook.mistbrn.milestone.unlocks",
+                &[tr(
+                    host,
+                    &format!("hud.mistbrn.pair.{}", crate::controls::pair_name(pair)),
+                )],
+            ),
+            None => tr_args(
+                host,
+                "notebook.mistbrn.milestone.knowledge",
+                &[def.knowledge.to_string()],
+            ),
+        };
+        draw.text(&reward, [o[0] + 22.0, y + 12.0], TEXT, true);
+        let hint = tr(host, &format!("milestone.mistbrn.{}.where", def.key));
+        for (i, line) in wrap(draw, &hint, PANEL_W - 30.0).iter().take(2).enumerate() {
+            draw.text(line, [o[0] + 22.0, y + 22.0 + LINE * i as f32], DIM, true);
+        }
+        y += 40.0;
     }
 }
 

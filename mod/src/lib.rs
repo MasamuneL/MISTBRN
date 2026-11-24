@@ -9,6 +9,7 @@ mod client;
 mod content;
 mod controls;
 mod hud;
+mod milestones;
 mod notebook;
 mod p4;
 mod save;
@@ -18,13 +19,14 @@ use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
     ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
-    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelTickPostEvent,
-    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
-    PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
-    PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
-    RegistrationContext, RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent,
-    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
-    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelRandomHost,
+    LevelTickPostEvent, LivingDamagePreEvent, LivingDeathEvent, LivingEntityUseItemFinishEvent,
+    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
+    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
+    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
+    RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent,
+    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenRenderPostEvent, ServerHost,
+    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -36,6 +38,7 @@ struct Allomancy {
     content: Mutex<content::Content>,
     powers: Mutex<p4::Powers>,
     controls: Mutex<controls::Controls>,
+    milestones: Mutex<milestones::Milestones>,
 }
 
 impl Default for Allomancy {
@@ -47,6 +50,7 @@ impl Default for Allomancy {
             content: Mutex::default(),
             powers: Mutex::default(),
             controls: Mutex::default(),
+            milestones: Mutex::default(),
         }
     }
 }
@@ -93,11 +97,28 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .chest_drops(event);
+        self.milestones()
+            .loot(event.context.table, event.context.opener);
+    }
+
+    fn living_damage_pre(&self, _: &mut dyn LevelRandomHost, event: &mut LivingDamagePreEvent<'_>) {
+        let damage = event.container.new_damage();
+        self.milestones()
+            .damaged(event.entity, event.kind, event.source, damage);
+    }
+
+    fn living_death(&self, _: &mut dyn ServerHost, event: &mut LivingDeathEvent<'_>) -> Flow {
+        if !event.cancelled {
+            self.milestones()
+                .died(event.entity, event.kind, event.source);
+        }
+        Flow::Continue
     }
 
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
+        *self.milestones() = milestones::Milestones::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -134,6 +155,13 @@ impl Hooks for Allomancy {
                 session.observe_event(host, player, kind);
             }
         }
+        // Milestones queued by this tick's hooks, each in its own transaction (P6).
+        let claims = self.milestones().take(host, tick);
+        for (uuid, bit) in claims {
+            if let Some(player) = host.player(uuid) {
+                let _ = session.claim(host, player, bit);
+            }
+        }
         controls.sync_hud(host, &session, tick);
         controls.sync_progress(host, &session, tick);
     }
@@ -157,6 +185,8 @@ impl Hooks for Allomancy {
                     .observe_event(host, player, p4::coin_hit_practice());
             }
         }
+        let session = self.session();
+        self.milestones().tick_level(host, &session, event.level);
     }
 
     fn item_picked_up_post(
@@ -435,6 +465,12 @@ impl Allomancy {
 
     fn controls(&self) -> MutexGuard<'_, controls::Controls> {
         self.controls.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn milestones(&self) -> MutexGuard<'_, milestones::Milestones> {
+        self.milestones
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn session(&self) -> MutexGuard<'_, bridge::Session> {
