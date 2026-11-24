@@ -269,7 +269,7 @@ Aprobado por el usuario el 2026-11-23. Primera entrega vertical: un árbol (hier
 - Desbloqueo: tutorial. El primer vial de hierro o de acero que se bebe con la pareja bloqueada la desbloquea y la selecciona en la misma transacción del crédito (`prepare_vial`). La cartilla sale de las recetas; el ítem sigue registrado y las existentes siguen funcionando. Nada ya ganado se pierde: la migración conserva los desbloqueos.
 - Práctica: XP de pareja por acciones útiles verificadas por el servidor, con ventana y rendimiento decreciente; la XP, los nodos, las evidencias y las ventanas se conservan al morir y al reconectar.
 - Investigación: 3 evidencias, bastan 2, en cualquier orden y aunque no se haya visto ninguna pista. 3 pistas voluntarias en el diario, reveladas una a una, sin penalización. Conclusión usando el cuaderno sobre una mesa de crafteo vanilla.
-- UI: ítem `mistbrn:notebook` (libro + pepita de hierro) y tecla B reasignable abren una pantalla propia con pestañas Árbol y Diario; perder el cuaderno no bloquea nada.
+- UI: ítem `mistbrn:notebook` (libro + pepita de hierro) y tecla J reasignable (B la usa la rueda de emotes de Horizon) abren una pantalla propia con pestañas Árbol y Diario; perder el cuaderno no bloquea nada.
 
 **Catálogo (datos en `core/src/progress.rs`; valores de ensayo)**
 
@@ -320,7 +320,7 @@ payload v2 = payload v1 (idéntico)
 
 **Adaptador**: `progress.rs` (detectores y transacciones; P4 informa de las tiradas y de los golpes), paquete `mistbrn:progress` servidor → cliente al cambiar, al entrar y al reaparecer, pantalla del cuaderno (`client`), hoja de iconos con `tools/gen-progress.py` hecha con Codex (regla de assets). `/mistbrn-test xp <n>` y `knowledge <n>` con `MISTBRN_TEST_SCENARIO=p4`.
 
-**Escenarios** (`tools/p5-lib.sh`): M1 mundo V1 real (copia de `v1-12-u1`) migra sin perder nada; M2 esquema 3 bloquea; T1 tutorial del primer vial; X1 práctica con topes, ventana y relanzar; R1 evidencia sin pistas, pista, conclusión única; B1 compra de `reach` (alcance medible), sin puntos, doble petición, `capacity` en el HUD; B2/B3 corte tras comprar; D1 muerte y reconexión; Q1 pantalla con B, bloqueada con el chat. Regresión U1, v1, K1, K6, K9, S1, C2 (ahora beber desbloquea) y N1.
+**Escenarios** (`tools/p5-lib.sh`): M1 mundo V1 real (copia de `v1-12-u1`) migra sin perder nada; M2 esquema 3 bloquea; T1 tutorial del primer vial; X1 práctica con topes, ventana y relanzar; R1 evidencia sin pistas, pista, conclusión única; B1 compra de `reach` (alcance medible), sin puntos, doble petición, `capacity` en el HUD; B2/B3 corte tras comprar; D1 muerte y reconexión; Q1 pantalla con J, bloqueada con el chat. Regresión U1, v1, K1, K6, K9, S1, C2 (ahora beber desbloquea) y N1.
 
 ## Archivos críticos
 - Nuevos/movidos: `mod/horizon-mod.toml`, `mod/Cargo.toml`, `mod/src/{lib,bridge,save,scenario}.rs`, `mod/src/core/src/{reserves,persistence}.rs`, `mod/src/core/tests/{reserves,persistence}.rs`, `tools/{fetch-sdk,build-native,native-test,check}.sh`, `docs/{plan,design,compatibility,contracts,STATUS,history}.md`, `docs/evidence/{p0b,p2}.md`.

@@ -40,8 +40,9 @@ const KEYS: [(&str, &str, ControlRequest); 5] = [
     ("off", "key.keyboard.g", ControlRequest::Off),
     ("cycle_pair", "key.keyboard.v", ControlRequest::CyclePair),
 ];
-/// B opens the notebook (P5); with the notebook open, B or Esc closes it.
-const NOTEBOOK_KEY: (&str, &str) = ("notebook", "key.keyboard.b");
+/// J opens the notebook (P5); with the notebook open, J or Esc closes it. B was taken by
+/// Horizon's emote wheel (p5-1 smoke run).
+const NOTEBOOK_KEY: (&str, &str) = ("notebook", "key.keyboard.j");
 /// Test runs only (`MISTBRN_TEST_SCENARIO=p4`): sends malformed requests and a burst (K7).
 const FUZZ_KEY: (&str, &str) = ("test_fuzz", "key.keyboard.k");
 /// Clicks taken per key per tick at most; the rest wait (a held key auto-repeats).

@@ -61,15 +61,16 @@ const LAYOUT: [(u16, f32, f32); 5] = [
     (allomancy_core::NODE_REACH, 24.0, 34.0),
     (allomancy_core::NODE_ACCEL, 84.0, 34.0),
     (allomancy_core::NODE_COIN_JUMP, 144.0, 34.0),
-    (allomancy_core::NODE_ECONOMY, 24.0, 96.0),
-    (allomancy_core::NODE_CAPACITY, 84.0, 96.0),
+    (allomancy_core::NODE_ECONOMY, 24.0, 84.0),
+    (allomancy_core::NODE_CAPACITY, 84.0, 84.0),
 ];
 const HINT_BUTTON: [f32; 4] = [PANEL_W - 104.0, 84.0, 96.0, 12.0];
 
 fn origin(size: [f32; 2]) -> [f32; 2] {
     [
         ((size[0] - PANEL_W) / 2.0).floor(),
-        ((size[1] - PANEL_H) / 2.0).floor() + 6.0,
+        // Room for the tabs above; the panel's bottom stays clear of the XP bar and hotbar.
+        ((size[1] - PANEL_H) / 2.0).floor() - 2.0,
     ]
 }
 
@@ -288,9 +289,9 @@ fn draw_tree(
     draw.text(&next, [o[0] + 8.0, o[1] + 19.0], DIM, true);
 
     let general = tr(host, "notebook.mistbrn.general");
-    draw.text(&general, [o[0] + 8.0, o[1] + 72.0], BRASS, true);
+    draw.text(&general, [o[0] + 8.0, o[1] + 70.0], BRASS, true);
     let knowledge = progress.available(Pool::Knowledge, &CATALOG).to_string();
-    draw_points(draw, [o[0] + PANEL_W - 8.0, o[1] + 72.0], &knowledge);
+    draw_points(draw, [o[0] + PANEL_W - 8.0, o[1] + 70.0], &knowledge);
 
     for &(code, x, y) in &LAYOUT {
         let Some(def) = node_def(code, &CATALOG) else {
