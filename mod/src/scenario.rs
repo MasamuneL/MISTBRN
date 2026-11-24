@@ -284,12 +284,13 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
         .and_then(|b| allomancy_core::save_schema(&b))
         .map_or("none".into(), |v| v.to_string());
     let common = format!(
-        "uuid={} vials={} empty_vials={} primers={} notebooks={} dimension={dimension} raw_hash={raw} schema={schema}",
+        "uuid={} vials={} empty_vials={} primers={} notebooks={} basic_vials={} dimension={dimension} raw_hash={raw} schema={schema}",
         dashed_uuid(player.uuid()),
         item_count(read, player, IRON_VIAL),
         item_count(read, player, EMPTY_VIAL),
         item_count(read, player, UNLOCK_ITEMS[0].0),
-        item_count(read, player, crate::content::NOTEBOOK)
+        item_count(read, player, crate::content::NOTEBOOK),
+        item_count(read, player, allomancy_core::BASIC_VIAL)
     );
     match session.slot(player.uuid()) {
         Some(Slot::Blocked(blocked)) => {
@@ -300,12 +301,14 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
             let steel = saved.state().metals[Metal::Steel.index()];
             let progress = progress_fields(saved);
             format!(
-                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
+                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} reserve_steel={} reserve_tin={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
                 iron.reserve_milli,
                 burn_name(iron.burn),
                 iron.unlocked,
                 steel.unlocked,
                 burn_name(steel.burn),
+                steel.reserve_milli,
+                saved.state().metals[Metal::Tin.index()].reserve_milli,
                 saved.accounting().remainder[Metal::Iron.index()],
                 saved.revision(),
                 saved.last_transaction(),
