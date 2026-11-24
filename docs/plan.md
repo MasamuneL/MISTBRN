@@ -322,6 +322,21 @@ payload v2 = payload v1 (idéntico)
 
 **Escenarios** (`tools/p5-lib.sh`): M1 mundo V1 real (copia de `v1-12-u1`) migra sin perder nada; M2 esquema 3 bloquea; T1 tutorial del primer vial; X1 práctica con topes, ventana y relanzar; R1 evidencia sin pistas, pista, conclusión única; B1 compra de `reach` (alcance medible), sin puntos, doble petición, `capacity` en el HUD; B2/B3 corte tras comprar; D1 muerte y reconexión; Q1 pantalla con J, bloqueada con el chat. Regresión U1, v1, K1, K6, K9, S1, C2 (ahora beber desbloquea) y N1.
 
+### P6 — Hitos
+
+Aprobado por el usuario el 2026-11-24. Superficie del pin sin fork: `LevelRef::structures_at` (bastión), `living_death` (guardián anciano), `container_loot_filled` con `opener` (ciudad antigua), `living_damage_pre` y `LivingRef::health` (dragona: no dispara ningún hook de muerte), `LevelRef::find_nearest_structure` (solo pruebas).
+
+**Decisiones del usuario**
+- Hitos: entrar en una pieza de un bastión; matar a un guardián anciano; abrir un cofre de ciudad antigua que nadie había abierto; la dragona. Sin Warden.
+- Fragmento: registro directo en el guardado, sin ítem. Nada que perder, tirar ni pasar.
+- Recompensa: el bastión desbloquea estaño/peltre, el guardián zinc/latón y la ciudad cobre/bronce, en la misma transacción y sin seleccionarla (sus poderes llegan en P8). La dragona da 3 puntos de conocimiento.
+- Grupo: reclaman los jugadores que dañaron al jefe en los 600 ticks anteriores a su muerte.
+- Cuaderno: pestaña Hitos (pendiente o reclamado, recompensa, dónde buscar), con los sprites existentes.
+- Guardado: esquema 3 = payload 2 | `milestones:u8`; migración 2→3 sin hitos.
+- Pruebas en Windows x64 (Horizon de Windows con Git Bash), en una instancia propia `mistbrn-p6`, por turnos con otras sesiones.
+
+**Escenarios** (`tools/p6-lib.sh`): H1 bastión real (comandos de prueba `bastion-find`/`bastion-probe`), entrar, salir y volver; H2 guardián, segundo guardián `AlreadyClaimed`, muerte sin jugador; H3 cofres de ciudad antigua y de otra tabla; H4 dos dragonas; H5 corte tras reclamar; M3 mundo P5 real (`t1` de un build de `main`). Regresión: t1 x1 r1 b1 b2 b3 pd1 m1 q1 u1 v1 k1 k6 k9 s1 c2 c4 s10 n1 (S10: ahora bloquea el esquema 4).
+
 ## Archivos críticos
 - Nuevos/movidos: `mod/horizon-mod.toml`, `mod/Cargo.toml`, `mod/src/{lib,bridge,save,scenario}.rs`, `mod/src/core/src/{reserves,persistence}.rs`, `mod/src/core/tests/{reserves,persistence}.rs`, `tools/{fetch-sdk,build-native,native-test,check}.sh`, `docs/{plan,design,compatibility,contracts,STATUS,history}.md`, `docs/evidence/{p0b,p2}.md`.
 - Reutilizados del núcleo actual: `types.rs`, `state.rs`, `commands.rs` (`apply_command`, `advance_tick`, `VerifiedEvent::from_server_observation`), `tests/contracts.rs`.
