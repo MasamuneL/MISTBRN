@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Generate the P3c alchemy textures (items and blocks) at native 16x16 resolution.
 
-Provisional art: reviewed in Claude/Codex rounds before it is kept (asset rule).
 Usage: python3 tools/gen-alchemy.py
 """
 from pathlib import Path
@@ -17,7 +16,7 @@ def color(rgb, alpha=255):
 
 TRANSPARENT = (0, 0, 0, 0)
 
-# The vial outline of vial_empty.png; "~" marks the liquid, "*" a highlight in it.
+# Shared glass and cork from vial_empty. Underscores mark the liquid cavity.
 VIAL = [
     "................",
     "......AAAA......",
@@ -28,62 +27,61 @@ VIAL = [
     ".....FJHHJF.....",
     ".....FJIHJF.....",
     "....FGH..HJF....",
-    "...FGH~*~~HJF...",
-    "...FG~~~~~~JF...",
-    "...FI~~~~~~JF...",
-    "...FH~~~~~~JF...",
+    "...FGH____HJF...",
+    "...FG______JF...",
+    "...FI______JF...",
+    "...FH______JF...",
     "....FHIIIHJF....",
     ".....FFFFFF.....",
     "................",
 ]
 VIAL_PALETTE = {
-    "A": color("3A2218"), "B": color("E7A760"), "C": color("C17C42"), "D": color("A05B30"),
-    "E": color("753B20"), "F": color("242E3A"), "G": color("EBF9FF"), "H": color("97B1C7", 0xB0),
+    "A": color("3A2218"), "B": color("E7A760"), "C": color("C17C42"),
+    "D": color("A05B30"), "E": color("753B20"), "F": color("242E3A"),
+    "G": color("EBF9FF"), "H": color("97B1C7", 0xB0),
     "I": color("BBD5E7", 0xE7), "J": color("4F6074"),
 }
 
 
-def vial(liquid):
-    """`liquid(x, y, highlight)` gives the colour of each liquid pixel."""
-    pixels = []
-    for y, row in enumerate(VIAL):
-        line = []
-        for x, symbol in enumerate(row):
-            if symbol == ".":
-                line.append(TRANSPARENT)
-            elif symbol in "~*":
-                line.append(liquid(x, y, symbol == "*"))
-            else:
-                line.append(VIAL_PALETTE[symbol])
-        pixels.append(line)
-    return pixels
-
-
-def water(x, y, highlight):
-    if highlight:
-        return color("CFEFFF")
-    return color("3F7FD0") if y >= 11 else color("5C9BE6")
-
-
-def brine(x, y, highlight):
-    if highlight or (x + 2 * y) % 5 == 0:
-        return color("F4F6F2")
-    return color("A9C4CF") if y >= 11 else color("C3D8DE")
-
-
-# Iron, tin, zinc and copper bands: the four base metals in one vial.
-BANDS = [color("C8C8C4"), color("D9DCDF"), color("9AA5AE"), color("B77658")]
-
-
-def basic(x, y, highlight):
-    if highlight:
-        return color("F3F8FA")
-    return BANDS[(y - 9) % 4]
-
-
 def grid(rows, palette):
-    return [[palette.get(ch, TRANSPARENT) for ch in row] for row in rows]
+    assert len(rows) == 16 and all(len(row) == 16 for row in rows)
+    colors = {".": TRANSPARENT, **palette}
+    return [[colors[symbol] for symbol in row] for row in rows]
 
+
+def vial(fill, palette):
+    rows = VIAL.copy()
+    for y, liquid in enumerate(fill, start=9):
+        row = rows[y]
+        start = row.index("_")
+        assert len(liquid) == row.count("_")
+        rows[y] = row[:start] + liquid + row[start + len(liquid):]
+    return grid(rows, {**VIAL_PALETTE, **palette})
+
+
+WATER = vial([
+    "lsll",
+    "lmmmmm",
+    "lmmmmd",
+    "mmdddd",
+], {"s": color("CFEFFF"), "l": color("8ABDE4"),
+    "m": color("578CBE"), "d": color("426992")})
+
+BRINE = vial([
+    "wwww",
+    "wpwwpw",
+    "wwswww",
+    "spwsws",
+], {"p": color("FCFEF7"), "w": color("D8E6E8"), "s": color("A8BFC5")})
+
+# Broken layers of tin, zinc and iron over a muted copper deposit.
+BASIC_METALS = vial([
+    "twtt",
+    "ttzztt",
+    "zzziiz",
+    "ccccci",
+], {"w": color("F4F6F2"), "t": color("D8DDE4"), "z": color("9EA9B4"),
+    "i": color("454A50"), "c": color("946B5C")})
 
 SALT = grid([
     "................",
@@ -98,51 +96,79 @@ SALT = grid([
     "..WLSLWLSLWLSLW.",
     ".WLSSSLWLWLSSSLW",
     ".OLSSSSLOLSSSSLO",
-    "..OOLSSLOOLSSLO.",
-    "....OOOO..OOOO..",
+    "..DDLSSDOOLSSDO.",
+    "....DDDDDDDDDD..",
     "................",
     "................",
-], {"W": color("FFFFFF"), "L": color("E6E4DC"), "S": color("C9C6BA"), "O": color("8E8A7E")})
+], {"W": color("FFFFFF"), "L": color("E6E4DC"), "S": color("C9C6BA"),
+    "O": color("A59F92"), "D": color("777369")})
 
+# Broad crystal faces with stepped corners. Facets cross both tile boundaries.
+SALT_ROCK = grid([
+    "mmddlllllshhllll",
+    "mmsshhhhhsllllll",
+    "mmshllhlmslllllm",
+    "mmshllhmmsmmmmmm",
+    "mmshlmmmmdmsssss",
+    "ddshmmmmdshhhhhs",
+    "hlsddddddshllllm",
+    "hldshhhhsshlmmmm",
+    "hldshlllmshmmlmd",
+    "mmdshlllmshmllmd",
+    "ddsshllmmdddddsd",
+    "hhhshmmmmdhhhshh",
+    "lllshmmmmdlllshl",
+    "lmmdddddddlllshl",
+    "mmdshhhhhdmlmshm",
+    "mmdshllllsmmmsmm",
+], {"h": color("F3EEE5"), "l": color("DDD8CD"), "m": color("CCC7BC"),
+    "s": color("B6AEA2"), "d": color("A49B8E")})
 
-def block(fn):
-    return [[fn(x, y) for x in range(16)] for y in range(16)]
+COPPER = {
+    "d": color("573B31"), "s": color("794C38"),
+    "m": color("A8694C"), "l": color("B77658"), "h": color("E1A17D"),
+}
 
+# A flared still with a cap and a glass condenser tube routed down its side.
+ALEMBIC_SIDE = grid([
+    "mmmmmmmmmmmmmmmm",
+    "dddddshhldsddddd",
+    "sssssmlhhllsssss",
+    "ssssdhlmmdllssss",
+    "sssdhllmmmsldsss",
+    "ssdhhlllmmmsldss",
+    "sdhhllllmddlddss",
+    "sdhllllmdabggdss",
+    "sdhlllmmdbgagdss",
+    "sdhlllmsdbgagdss",
+    "sdllllmsdbgagdss",
+    "sdmllmmssdbgydss",
+    "ssdmmmmmssddddss",
+    "ssddddddddddssss",
+    "llllllllllllllll",
+    "mmmmmmmmmmmmmmmm",
+], {**COPPER, "a": color("E2F1F7"), "b": color("BBD5E7"),
+    "g": color("6F8A9F"), "y": color("354957")})
 
-def salt_rock(x, y):
-    # Pale halite with grey veins and bright crystal faces.
-    h = (x * 7 + y * 13 + (x * y) % 5) % 11
-    if (x + y) % 7 == 0 or (x - y) % 9 == 0:
-        return color("A7A398")
-    if h in (0, 1):
-        return color("FBFAF5")
-    if h in (2, 3, 4):
-        return color("E3DFD3")
-    return color("CFCABC")
-
-
-def alembic_side(x, y):
-    # Copper bands at top and bottom, a glass window in the middle.
-    if y in (0, 15) or x in (0, 15):
-        return color("4A2E22")
-    if y <= 2 or y >= 13:
-        return color("E1A17D") if y in (1, 13) else color("B77658")
-    if 3 <= x <= 12 and 4 <= y <= 11:
-        if x in (3, 12) or y in (4, 11):
-            return color("242E3A")
-        return color("BBD5E7") if (x + y) % 6 else color("EBF9FF")
-    return color("794C38")
-
-
-def alembic_top(x, y):
-    if x in (0, 15) or y in (0, 15):
-        return color("4A2E22")
-    r = abs(x - 7.5) + abs(y - 7.5)
-    if r < 3:
-        return color("242E3A")
-    if r < 4:
-        return color("E1A17D")
-    return color("B77658") if (x + y) % 2 else color("A8694C")
+# Concentric hammered shoulders and the capped neck seen from above.
+ALEMBIC_TOP = grid([
+    "mmmmmmmmmmmmmmmm",
+    "mmmmllllllllmmmm",
+    "mmmllhhhhhhllmmm",
+    "mmllhlllllmmllmm",
+    "mllhllhhhmmssllm",
+    "mlhllhmmsdmmsslm",
+    "mlhlhmlhlsdmsslm",
+    "mlhlhmlmlsdmsslm",
+    "mlhlhmlmsddmsslm",
+    "mlhlhmsdddsmsslm",
+    "mllhlhsddsmssllm",
+    "mmllhlmmmsssllmm",
+    "mmmllhsssslllmmm",
+    "mmmmllllllllmmmm",
+    "mmmmmmmmmmmmmmmm",
+    "mmmmmmmmmmmmmmmm",
+], COPPER)
 
 
 def write(path, pixels):
@@ -161,13 +187,13 @@ def write(path, pixels):
 
 
 def main():
-    write(ROOT / "item/vial_water.png", vial(water))
-    write(ROOT / "item/vial_brine.png", vial(brine))
-    write(ROOT / "item/vial_basic_metals.png", vial(basic))
+    write(ROOT / "item/vial_water.png", WATER)
+    write(ROOT / "item/vial_brine.png", BRINE)
+    write(ROOT / "item/vial_basic_metals.png", BASIC_METALS)
     write(ROOT / "item/salt.png", SALT)
-    write(ROOT / "block/salt_rock.png", block(salt_rock))
-    write(ROOT / "block/alembic_side.png", block(alembic_side))
-    write(ROOT / "block/alembic_top.png", block(alembic_top))
+    write(ROOT / "block/salt_rock.png", SALT_ROCK)
+    write(ROOT / "block/alembic_side.png", ALEMBIC_SIDE)
+    write(ROOT / "block/alembic_top.png", ALEMBIC_TOP)
 
 
 if __name__ == "__main__":
