@@ -15,7 +15,7 @@ pub struct BossLedger {
 }
 
 impl BossLedger {
-    /// `player` hit `boss` at `tick`.
+    /// `player` (any stable key: the adapter uses the attacker's entity id) hit `boss` at `tick`.
     pub fn hit(&mut self, boss: i32, player: u128, tick: u64) {
         let last = self
             .hits
@@ -36,7 +36,8 @@ impl BossLedger {
         self.hits.keys().copied()
     }
 
-    /// `boss` died at `tick`: its claimants, in UUID order, and the boss is forgotten.
+    /// `boss` died at `tick`: its claimants, in key order (the adapter keys by attacker entity
+    /// id), and the boss is forgotten.
     pub fn death(&mut self, boss: i32, tick: u64) -> Vec<u128> {
         self.hits
             .remove(&boss)
