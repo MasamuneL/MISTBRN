@@ -2,6 +2,8 @@
   "block.mistbrn.alembic": "Alambique",
   "block.mistbrn.salt_rock": "Piedra de sal",
   "container.mistbrn.alembic": "Alambique",
+  "container.mistbrn.alembic.idle": "Pon sal o virutas y viales que encajen",
+  "container.mistbrn.alembic.left": "Destilando: faltan %s s",
   "hud.mistbrn.burning": "ardiendo",
   "hud.mistbrn.flared": "avivado",
   "hud.mistbrn.locked": "bloqueado",

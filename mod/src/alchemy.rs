@@ -6,9 +6,10 @@ use allomancy_core::{
 };
 use mod_api::{
     BlockDropsEvent, BlockEntityPart, BlockEntityTickEvent, BlockEntityTickReply,
-    BlockEntityTicksEvent, BlockPart, ClipBlock, ClipFluid, FurnaceSmeltEvent, GameMode, Hand,
-    Host, HostTransaction, Identifier, ItemClick, ItemStack, LevelHost, LevelRef, MenuContainer,
-    MenuPart, MenuSlotRulesEvent, ModContainer, Registrar, ServerHost, Tag,
+    BlockEntityTicksEvent, BlockPart, ClientHost, ClipBlock, ClipFluid, FurnaceSmeltEvent,
+    GameMode, Hand, Host, HostTransaction, Identifier, ItemClick, ItemStack, LevelHost, LevelRef,
+    MenuContainer, MenuPart, MenuSlotRulesEvent, ModContainer, Registrar, Screen, ScreenDrawEvent,
+    ScreenEvent, ScreenTooltipEvent, ServerHost, Tag,
 };
 
 pub(crate) const ALEMBIC: &str = "mistbrn:alembic";
@@ -18,6 +19,14 @@ const PROGRESS: &str = "progress";
 const BREWING: &str = "brewing";
 /// How far the player reaches water with a vial (vanilla's block interaction range).
 const REACH: f64 = 4.5;
+/// Screen layout (GUI pixels from its top left), as vanilla's brewing stand: the ingredient
+/// on top, the three vials below and the batch bar between them.
+const VIAL_SLOTS: [[f32; 2]; ALEMBIC_VIALS] = [[56.0, 51.0], [79.0, 58.0], [102.0, 51.0]];
+const INGREDIENT_AT: [f32; 2] = [79.0, 17.0];
+const BAR: [f32; 4] = [99.0, 17.0, 6.0, 30.0];
+const BAR_TRACK: u32 = 0xFF37_3A40;
+const BAR_EDGE: u32 = 0xFF1A_1C20;
+const BAR_FILL: u32 = 0xFFB5_9654;
 
 fn stack_of(host: &dyn Host, id: &str, count: u32) -> Option<ItemStack> {
     let key = host.item_key(&Identifier::parse(id).ok()?)?;
@@ -73,6 +82,54 @@ impl BlockPart for Alembic {}
 impl BlockEntityPart for Alembic {
     fn block_entity_ticks(&self, _: &dyn Host, event: &mut BlockEntityTicksEvent<'_>) {
         event.ticks = true;
+    }
+
+    fn screen(&self, _: &dyn Host, event: &mut ScreenEvent<'_>) -> Option<Screen> {
+        (event.block == ALEMBIC).then(|| {
+            let mut slots: Vec<Option<[f32; 2]>> = VIAL_SLOTS.iter().copied().map(Some).collect();
+            slots.push(Some(INGREDIENT_AT));
+            Screen {
+                width: 176.0,
+                height: 166.0,
+                slots,
+                inventory_y: 84.0,
+                inventory_x: 8.0,
+                ..Screen::default()
+            }
+        })
+    }
+
+    /// The batch bar fills from the top as the batch brews (`data[0]`, its ticks).
+    fn screen_draw(&self, _: &dyn ClientHost, event: &mut ScreenDrawEvent<'_>) {
+        if event.block != ALEMBIC {
+            return;
+        }
+        let [ox, oy] = event.origin;
+        let [x, y, w, h] = BAR;
+        let draw = &mut *event.draw;
+        draw.fill([ox + x - 1.0, oy + y - 1.0, w + 2.0, h + 2.0], BAR_EDGE);
+        draw.fill([ox + x, oy + y, w, h], BAR_TRACK);
+        let share = bar_share(event.data.first().copied().unwrap_or(0));
+        if share > 0.0 {
+            draw.fill([ox + x, oy + y, w, (h * share).max(1.0)], BAR_FILL);
+        }
+    }
+
+    /// Over the bar: how long the batch has left, in seconds.
+    fn screen_tooltip(&self, host: &dyn ClientHost, event: &mut ScreenTooltipEvent<'_>) {
+        let [x, y, w, h] = BAR;
+        let [ax, ay] = event.at;
+        if event.block != ALEMBIC || ax < x || ax >= x + w || ay < y || ay >= y + h {
+            return;
+        }
+        let ticks = u32::try_from(event.data.first().copied().unwrap_or(0)).unwrap_or(0);
+        let line = if ticks == 0 {
+            crate::hud::tr(host, "container.mistbrn.alembic.idle")
+        } else {
+            let left = BREW_TICKS.saturating_sub(ticks).div_ceil(20);
+            crate::hud::tr_args(host, "container.mistbrn.alembic.left", &[left.to_string()])
+        };
+        event.lines.push(line);
     }
 
     /// One tick of a batch. The whole entity (slots, saved progress, menu data) is written
@@ -131,6 +188,12 @@ impl BlockEntityPart for Alembic {
         entity.nbt.insert(BREWING.into(), brewing);
         entity.data = vec![ticks];
     }
+}
+
+/// How full the batch bar is, 0 to 1, from the batch's ticks.
+fn bar_share(ticks: i32) -> f32 {
+    let total = BREW_TICKS as f32;
+    (ticks.max(0) as f32).min(total) / total
 }
 
 /// The batch's next tick count and whether this tick finishes it. A different ingredient
@@ -322,5 +385,13 @@ mod tests {
         assert_eq!(ticks, BREW_TICKS);
         assert_eq!(advance(599, false), (1, false));
         assert_eq!(advance(0, false), (1, false));
+    }
+
+    #[test]
+    fn the_bar_tracks_the_batch_and_stays_in_range() {
+        assert_eq!(bar_share(0), 0.0);
+        assert_eq!(bar_share(300), 0.5);
+        assert_eq!(bar_share(-5), 0.0);
+        assert_eq!(bar_share(10_000), 1.0);
     }
 }

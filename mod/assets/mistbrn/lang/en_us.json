@@ -2,6 +2,8 @@
   "block.mistbrn.alembic": "Alembic",
   "block.mistbrn.salt_rock": "Salt Rock",
   "container.mistbrn.alembic": "Alembic",
+  "container.mistbrn.alembic.idle": "Add salt or flakes and matching vials",
+  "container.mistbrn.alembic.left": "Brewing: %s s left",
   "hud.mistbrn.burning": "burning",
   "hud.mistbrn.flared": "flared",
   "hud.mistbrn.locked": "locked",
