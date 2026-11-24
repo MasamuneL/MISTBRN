@@ -645,13 +645,20 @@ impl Session {
         else {
             return;
         };
-        let mut observed = Observed::Nothing;
-        // Written on this tick's flush: experience and evidence must not wait for the interval
-        // (a death followed by leaving from the death screen takes no later write).
-        let result = self.change(uuid, true, |saved| {
-            observed = observe(saved, &event, game_time)?;
-            Ok(())
-        });
+        // Tried on a copy first: an observation that adds nothing (a spent window, evidence
+        // already seen) leaves the save clean. One that does is written on this tick's flush:
+        // a death followed by leaving from the death screen takes no later write.
+        let mut probe = saved.clone();
+        let observed = observe(&mut probe, &event, game_time);
+        let result = match &observed {
+            Ok(Observed::Nothing) => Ok(()),
+            Ok(_) => self.change(uuid, true, |saved| {
+                *saved = probe;
+                Ok(())
+            }),
+            Err(error) => Err(format!("{error:?}")),
+        };
+        let observed = observed.unwrap_or(Observed::Nothing);
         match (result, observed) {
             (Err(error), _) => eprintln!("MISTBRN event=observe_refused error={error}"),
             (

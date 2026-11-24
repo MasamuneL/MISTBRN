@@ -157,7 +157,9 @@ pub(crate) struct Controls {
     /// the last attempt: a refused send is retried after the interval.
     sent: BTreeMap<u128, (Option<HudSnapshot>, u64)>,
     /// The progress snapshot each player's notebook last accepted (P5).
-    sent_progress: BTreeMap<u128, (Option<[u8; PROGRESS_LEN]>, u64)>,
+    /// The progress snapshot each player's notebook last accepted (P5), the tick of the last
+    /// attempt and whether it failed (only a failed send waits the interval before retrying).
+    sent_progress: BTreeMap<u128, (Option<[u8; PROGRESS_LEN]>, u64, bool)>,
 }
 
 /// One line over the player's hotbar, with the metal's name when there is one.
@@ -402,21 +404,24 @@ impl Controls {
             let bytes = encode_progress_snapshot(saved.progress());
             let due = match self.sent_progress.get(&uuid) {
                 None => true,
-                Some((last, at)) => {
-                    *last != Some(bytes) && tick.saturating_sub(*at) >= HUD_EVERY_TICKS
+                Some((last, at, failed)) => {
+                    *last != Some(bytes)
+                        && (!*failed || tick.saturating_sub(*at) >= HUD_EVERY_TICKS)
                 }
             };
             if !due {
                 continue;
             }
-            let accepted = match player.send_payload(host, &channel, PayloadBytes(bytes.to_vec())) {
-                Ok(_) => Some(bytes),
-                Err(error) => {
-                    eprintln!("MISTBRN event=progress_send_failed error={error:?}");
-                    self.sent_progress.get(&uuid).and_then(|(last, _)| *last)
-                }
-            };
-            self.sent_progress.insert(uuid, (accepted, tick));
+            let (accepted, failed) =
+                match player.send_payload(host, &channel, PayloadBytes(bytes.to_vec())) {
+                    Ok(_) => (Some(bytes), false),
+                    Err(error) => {
+                        eprintln!("MISTBRN event=progress_send_failed error={error:?}");
+                        let last = self.sent_progress.get(&uuid).and_then(|(last, ..)| *last);
+                        (last, true)
+                    }
+                };
+            self.sent_progress.insert(uuid, (accepted, tick, failed));
         }
     }
 
