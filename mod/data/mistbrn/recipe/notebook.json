@@ -3,11 +3,10 @@
   "category": "misc",
   "ingredients": [
     "minecraft:book",
-    "minecraft:iron_ingot",
-    "mistbrn:steel_ingot"
+    "minecraft:iron_nugget"
   ],
   "result": {
-    "id": "mistbrn:primer_iron_steel",
+    "id": "mistbrn:notebook",
     "count": 1
   }
 }

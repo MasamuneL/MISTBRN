@@ -58,13 +58,15 @@ fn control_rejects_every_unknown_byte() {
             for arg in [0u8, 1, 2, 3, 4, 255] {
                 let bytes = [version, op, arg];
                 let decoded = decode_control(&bytes);
-                if valid.contains(&bytes) {
+                // The notebook's ops (P5) take any non-zero code and index.
+                let notebook = (6..=7).contains(&op) && arg >> 2 != 0 && arg & 3 != 0;
+                if valid.contains(&bytes) || (version == CONTROL_VERSION && notebook) {
                     assert!(decoded.is_ok(), "{bytes:?}");
                     continue;
                 }
                 let expected = if version != CONTROL_VERSION {
                     ControlError::Version(version)
-                } else if (1..=5).contains(&op) {
+                } else if (1..=7).contains(&op) {
                     ControlError::Arg { op, arg }
                 } else {
                     ControlError::Op(op)
@@ -286,4 +288,100 @@ fn selecting_a_locked_pair_is_allowed_and_lights_nothing() {
     assert_eq!(state.selected_pair, Pair::ZincBrass);
     assert!(state.metals.iter().all(|m| m.burn == BurnState::Off));
     assert_eq!(effects.len(), 1);
+}
+
+// ---- P5: notebook requests and the progress snapshot ----
+
+#[test]
+fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
+    for request in [
+        ControlRequest::Purchase { code: 1, rank: 1 },
+        ControlRequest::Purchase { code: 17, rank: 2 },
+        ControlRequest::Purchase { code: 63, rank: 3 },
+        ControlRequest::RevealHint {
+            research: 1,
+            index: 3,
+        },
+    ] {
+        assert_eq!(decode_control(&encode_control(request)), Ok(request));
+    }
+    for (op, arg) in [(6, 0), (6, 1 << 2), (6, 0b11), (7, 0), (7, 1 << 2)] {
+        assert_eq!(
+            decode_control(&[1, op, arg]),
+            Err(ControlError::Arg { op, arg }),
+            "op {op} arg {arg}"
+        );
+    }
+    assert_eq!(decode_control(&[1, 8, 0]), Err(ControlError::Op(8)));
+}
+
+#[test]
+fn notebook_requests_are_not_power_commands() {
+    let state = PlayerState::new(PlayerId::new("p"), WorldId::new("local"));
+    assert_eq!(
+        resolve_control(&state, ControlRequest::Purchase { code: 1, rank: 1 }),
+        None
+    );
+}
+
+#[test]
+fn the_progress_snapshot_round_trips_and_refuses_out_of_range_values() {
+    let mut saved = SavedPlayer::new(
+        PlayerId::new("0123456789abcdef0123456789abcdef"),
+        WorldId::new("local"),
+        ReserveRules {
+            consumption_milli_per_tick: [10; 8],
+            base_capacity_milli: [100_000; 8],
+            reduction_milli: 0,
+            capacity_bonus_milli: 0,
+        },
+    )
+    .unwrap();
+    let (vial, _) = prepare_vial(&saved, Metal::Iron, 1_000).unwrap();
+    commit_credit(&mut saved, vial).unwrap();
+    let hint = prepare_hint(&saved, RESEARCH_ANCHOR, 1).unwrap();
+    commit_credit(&mut saved, hint).unwrap();
+    let bytes = encode_progress_snapshot(saved.progress());
+    assert_eq!(bytes.len(), PROGRESS_LEN);
+    let shown = decode_progress_snapshot(&bytes).unwrap().progress;
+    assert_eq!(shown.research(RESEARCH_ANCHOR).hints, 1);
+    assert_eq!(shown.pair_xp(Pair::IronSteel), 0);
+
+    let mut rank = bytes;
+    rank[17] = 4; // reach has 3 ranks
+    assert_eq!(
+        decode_progress_snapshot(&rank),
+        Err(ProgressSnapshotError::Rank)
+    );
+    let mut evidence = bytes;
+    evidence[17 + CATALOG.nodes.len()] = 8;
+    assert_eq!(
+        decode_progress_snapshot(&evidence),
+        Err(ProgressSnapshotError::Research)
+    );
+    assert_eq!(
+        decode_progress_snapshot(&bytes[1..]),
+        Err(ProgressSnapshotError::Length(PROGRESS_LEN - 1))
+    );
+}
+
+#[test]
+fn node_status_follows_pair_requirements_and_points() {
+    let progress = decode_progress_snapshot(&encode_progress_snapshot(&Progress::default()))
+        .unwrap()
+        .progress;
+    let reach = node_def(NODE_REACH, &CATALOG).unwrap();
+    let accel = node_def(NODE_ACCEL, &CATALOG).unwrap();
+    assert_eq!(
+        node_status(&progress, reach, |_| false, &CATALOG),
+        NodeStatus::Locked
+    );
+    assert_eq!(
+        node_status(&progress, reach, |_| true, &CATALOG),
+        NodeStatus::TooExpensive
+    );
+    assert_eq!(
+        node_status(&progress, accel, |_| true, &CATALOG),
+        NodeStatus::Locked
+    );
 }

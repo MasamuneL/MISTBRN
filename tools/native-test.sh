@@ -623,7 +623,7 @@ case "$scenario" in
     expect 2 report state=active reserve_iron=0 burn_iron=off remainder_iron=0 last_transaction=1 ;;
   s9|s10)  # an unreadable save blocks the player and is never overwritten
     plant=corrupt-crc; reason=crc
-    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:2; }
+    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:3; }
     launch MISTBRN_TEST_SCENARIO=$plant; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; ctl save >/dev/null; quit_game
     report; quit_game

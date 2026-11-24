@@ -185,8 +185,8 @@ mod tests {
         assert_eq!(Blocked::RootNotCompound.reason(), "root_not_compound");
         assert_eq!(Blocked::Decode(SaveError::ChecksumMismatch).reason(), "crc");
         assert_eq!(
-            Blocked::Decode(SaveError::UnsupportedVersion(2)).reason(),
-            "unsupported_version:2"
+            Blocked::Decode(SaveError::UnsupportedVersion(3)).reason(),
+            "unsupported_version:3"
         );
     }
 }

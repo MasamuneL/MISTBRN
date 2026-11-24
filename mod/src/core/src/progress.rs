@@ -262,6 +262,23 @@ pub(crate) fn pair_index(pair: Pair) -> usize {
 }
 
 impl Progress {
+    /// A progress from its parts, for what the client is shown (never a save: saves come only
+    /// from `decode_save`, which validates them). Zero ranks and default research are dropped.
+    pub(crate) fn from_parts(
+        pair_xp: [u32; 4],
+        nodes: Vec<(u16, u8)>,
+        research: Vec<(u16, ResearchState)>,
+    ) -> Self {
+        Self {
+            pair_xp,
+            nodes: nodes.into_iter().filter(|(_, rank)| *rank > 0).collect(),
+            research: research
+                .into_iter()
+                .filter(|(_, entry)| *entry != ResearchState::default())
+                .collect(),
+            windows: [PracticeWindow::default(); PRACTICE_CATEGORIES],
+        }
+    }
     pub fn pair_xp(&self, pair: Pair) -> u32 {
         self.pair_xp[pair_index(pair)]
     }
@@ -747,4 +764,48 @@ pub(crate) fn apply_hint(
     }
     entry.hints = index;
     Ok(())
+}
+
+/// How the notebook shows a node to a player.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeStatus {
+    /// Its pair is locked or a requirement is missing.
+    Locked,
+    /// The next rank can be bought now.
+    Available,
+    /// The next rank is open but costs more than the points left.
+    TooExpensive,
+    /// Every rank is owned.
+    Owned,
+}
+
+/// The status of `def` for a player with `progress` (`unlocked` answers whether a pair is).
+pub fn node_status(
+    progress: &Progress,
+    def: &NodeDef,
+    unlocked: impl Fn(Pair) -> bool,
+    catalog: &Catalog,
+) -> NodeStatus {
+    let owned = usize::from(progress.rank(def.code));
+    if owned >= def.ranks.len() {
+        return NodeStatus::Owned;
+    }
+    let pair_ok = match def.pool {
+        Pool::Pair(pair) => unlocked(pair),
+        Pool::Knowledge => true,
+    };
+    if !pair_ok || !requirements_met(progress, def) {
+        return NodeStatus::Locked;
+    }
+    if progress.available(def.pool, catalog) >= u32::from(def.ranks[owned].cost) {
+        NodeStatus::Available
+    } else {
+        NodeStatus::TooExpensive
+    }
+}
+
+/// Whether a research has enough evidence to be concluded (and is not yet).
+pub fn research_ready(progress: &Progress, def: &ResearchDef) -> bool {
+    let entry = progress.research(def.code);
+    !entry.concluded && entry.evidence.count_ones() >= u32::from(def.needed)
 }

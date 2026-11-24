@@ -8,10 +8,11 @@
 //! key does not repeat it. The server decides; the HUD only draws what the server last sent.
 use crate::controls::{CONTROL_CHANNEL, pair_name};
 use crate::hud;
+use crate::notebook::{self, Tab};
 use crate::{bridge::metal_name, scenario};
 use allomancy_core::{
-    BurnState, ControlRequest, HudSnapshot, Metal, Pair, Side, decode_hud, encode_control,
-    pair_metals,
+    BurnState, ControlRequest, HudSnapshot, Metal, Pair, Progress, Side, decode_hud,
+    decode_progress_snapshot, encode_control, pair_metals,
 };
 use mod_api::{
     ClientHost, DrawContext, GuiLayer, GuiLayerPlacement, IPayloadContext, IPayloadHandler,
@@ -39,6 +40,8 @@ const KEYS: [(&str, &str, ControlRequest); 5] = [
     ("off", "key.keyboard.g", ControlRequest::Off),
     ("cycle_pair", "key.keyboard.v", ControlRequest::CyclePair),
 ];
+/// B opens the notebook (P5); with the notebook open, B or Esc closes it.
+const NOTEBOOK_KEY: (&str, &str) = ("notebook", "key.keyboard.b");
 /// Test runs only (`MISTBRN_TEST_SCENARIO=p4`): sends malformed requests and a burst (K7).
 const FUZZ_KEY: (&str, &str) = ("test_fuzz", "key.keyboard.k");
 /// Clicks taken per key per tick at most; the rest wait (a held key auto-repeats).
@@ -66,22 +69,36 @@ struct Wheel {
     size: Option<[f32; 2]>,
 }
 
+/// The open notebook screen: the tab shown, the GUI size of the last frame, and a request or a
+/// close chosen in a screen hook (which cannot send), applied on the next tick.
+struct Notebook {
+    tab: Tab,
+    size: Option<[f32; 2]>,
+    request: Option<ControlRequest>,
+    close: bool,
+}
+
 struct ClientState {
-    was_down: [bool; KEYS.len() + 1],
+    was_down: [bool; KEYS.len() + 2],
     hud: Option<HudSnapshot>,
     ticks: u64,
     wheel: Option<Wheel>,
     /// Set when the wheel closes while V is still physically held: V must be let go before it
     /// opens the wheel again (its auto-repeat would otherwise reopen it at once).
     wheel_latched: bool,
+    /// The player's progress as the server last sent it (`mistbrn:progress`).
+    progress: Option<Progress>,
+    notebook: Option<Notebook>,
 }
 
 static STATE: Mutex<ClientState> = Mutex::new(ClientState {
-    was_down: [false; KEYS.len() + 1],
+    was_down: [false; KEYS.len() + 2],
     hud: None,
     ticks: 0,
     wheel: None,
     wheel_latched: false,
+    progress: None,
+    notebook: None,
 });
 
 fn state() -> std::sync::MutexGuard<'static, ClientState> {
@@ -135,9 +152,75 @@ pub(crate) fn hud_handler() -> Arc<dyn IPayloadHandler> {
     Arc::new(HudInbox)
 }
 
+struct ProgressInbox;
+
+impl IPayloadHandler for ProgressInbox {
+    fn handle(
+        &self,
+        payload: PayloadBytes,
+        _: &mut dyn IPayloadContext,
+    ) -> Result<(), PayloadHandleError> {
+        match decode_progress_snapshot(&payload.0) {
+            Ok(snapshot) => {
+                let progress = snapshot.progress;
+                let ranks: Vec<String> = progress
+                    .nodes()
+                    .iter()
+                    .map(|(code, rank)| format!("{code}:{rank}"))
+                    .collect();
+                let research: Vec<String> = progress
+                    .all_research()
+                    .iter()
+                    .map(|(code, r)| {
+                        format!(
+                            "{code}:e{}h{}c{}",
+                            r.evidence,
+                            r.hints,
+                            u8::from(r.concluded)
+                        )
+                    })
+                    .collect();
+                eprintln!(
+                    "MISTBRN progress xp_iron_steel={} nodes={} research={}",
+                    progress.pair_xp(Pair::IronSteel),
+                    ranks.join(","),
+                    research.join(",")
+                );
+                state().progress = Some(progress);
+            }
+            Err(error) => eprintln!("MISTBRN event=progress_rejected error={error:?}"),
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn progress_handler() -> Arc<dyn IPayloadHandler> {
+    Arc::new(ProgressInbox)
+}
+
+/// Opens the notebook screen (the notebook item, or B). Nothing if another screen is open.
+pub(crate) fn open_notebook(host: &mut dyn ClientHost) {
+    let mut state = state();
+    if state.wheel.is_some() || state.notebook.is_some() {
+        return;
+    }
+    if host.mod_screen_open(MOD_ID) {
+        eprintln!("MISTBRN event=notebook result=open");
+        state.notebook = Some(Notebook {
+            tab: Tab::Tree,
+            size: None,
+            request: None,
+            close: false,
+        });
+    } else {
+        eprintln!("MISTBRN event=notebook result=no_screen");
+    }
+}
+
 pub(crate) fn register_keys(registrar: &mut dyn Registrar) {
     let fuzz = scenario::commands_enabled().then_some(FUZZ_KEY);
-    for (id, key) in KEYS.iter().map(|(id, key, _)| (*id, *key)).chain(fuzz) {
+    let keys = KEYS.iter().map(|(id, key, _)| (*id, *key));
+    for (id, key) in keys.chain(Some(NOTEBOOK_KEY)).chain(fuzz) {
         registrar.register_key_mapping(
             KeyRegistration::new(id, key)
                 .label(&format!("key.mistbrn.{id}"))
@@ -179,6 +262,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
     state.ticks += 1;
     let mut sends = Vec::new();
     wheel_tick(host, &mut state, &mut sends);
+    notebook_tick(host, &mut state, &mut sends);
     if state.wheel_latched && !wheel_key_down(host) {
         state.wheel_latched = false;
     }
@@ -208,6 +292,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
             }
         }
     }
+    let notebook_pressed = pressed(host, KEYS.len() + 1, NOTEBOOK_KEY.0, &mut state.was_down);
     if scenario::commands_enabled()
         && pressed(host, KEYS.len(), FUZZ_KEY.0, &mut state.was_down)
         && allowed
@@ -218,6 +303,49 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
     drop(state);
     for bytes in sends {
         send(host, bytes);
+    }
+    if notebook_pressed {
+        if allowed {
+            eprintln!("MISTBRN event=key key={}", NOTEBOOK_KEY.0);
+            open_notebook(host);
+        } else {
+            eprintln!("MISTBRN event=key key={} result=blocked", NOTEBOOK_KEY.0);
+        }
+    }
+}
+
+/// Sends the notebook's chosen request, closes it when asked, and forgets a notebook that
+/// something else closed (Esc, another screen).
+fn notebook_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Vec<Vec<u8>>) {
+    let Some(book) = state.notebook.as_mut() else {
+        return;
+    };
+    if host.mod_screen() != Some(MOD_ID) {
+        state.notebook = None;
+        eprintln!("MISTBRN event=notebook result=closed");
+        return;
+    }
+    if let Some(request) = book.request.take()
+        && host.window_focused()
+    {
+        eprintln!("MISTBRN event=notebook result=request:{request:?}");
+        sends.push(encode_control(request).to_vec());
+    }
+    if book.close {
+        state.notebook = None;
+        host.mod_screen_close(MOD_ID);
+        eprintln!("MISTBRN event=notebook result=closed");
+    }
+}
+
+/// Whether a pair is unlocked, from the HUD the server last sent.
+fn unlocked_in(hud: Option<HudSnapshot>) -> impl Fn(Pair) -> bool {
+    move |pair| {
+        hud.is_some_and(|hud| {
+            pair_metals(pair)
+                .iter()
+                .all(|metal| hud.metals[metal.index()].unlocked)
+        })
     }
 }
 
@@ -314,7 +442,9 @@ pub(crate) fn logged_out() {
     state.hud = None;
     state.wheel = None;
     state.wheel_latched = false;
-    state.was_down = [false; KEYS.len() + 1];
+    state.was_down = [false; KEYS.len() + 2];
+    state.progress = None;
+    state.notebook = None;
 }
 
 /// The reserve layer: the selected pair beside the hotbar (`hud::draw_reserves`).
@@ -333,10 +463,44 @@ fn wheel_open(host: &dyn ClientHost) -> bool {
     host.mod_screen() == Some(MOD_ID)
 }
 
-/// Over our own screen (the wheel): track the slot under the cursor and draw it.
+/// Over our own screen (the wheel or the notebook): track what is under the cursor, draw it.
 pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut dyn DrawContext) {
     if !wheel_open(host) {
         return;
+    }
+    {
+        let mut state = state();
+        if let Some(book) = state.notebook.as_mut() {
+            let size = draw.size();
+            if book.size.is_none() {
+                // Node centres in GUI pixels, for scenarios that click them.
+                let nodes: Vec<String> = allomancy_core::CATALOG
+                    .nodes
+                    .iter()
+                    .filter_map(|def| {
+                        notebook::node_centre(size, def.code)
+                            .map(|[x, y]| format!("{}@{x},{y}", def.code))
+                    })
+                    .collect();
+                eprintln!(
+                    "MISTBRN event=notebook_open gui={}x{} nodes={} hint_button={}",
+                    size[0],
+                    size[1],
+                    nodes.join(";"),
+                    notebook::hint_button_centre(size)
+                        .map_or_else(String::new, |[x, y]| format!("{x},{y}")),
+                );
+                let [dx, dy] = notebook::tab_centre(size, Tab::Diary);
+                eprintln!("MISTBRN event=notebook_tabs diary={dx},{dy}");
+            }
+            book.size = Some(size);
+            let tab = book.tab;
+            let progress = state.progress.clone();
+            let unlocked = unlocked_in(state.hud);
+            drop(state);
+            notebook::draw(host, draw, tab, progress.as_ref(), &unlocked, pointer);
+            return;
+        }
     }
     let size = draw.size();
     let hovered = hud::hovered(size, pointer);
@@ -354,8 +518,20 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
     hud::draw_wheel(host, draw, hud.as_ref(), hovered);
 }
 
-/// V let go over the wheel (`release_action`). True when the release was ours.
+/// V let go over the wheel (`release_action`), or B over the notebook (closes it). True when
+/// the release was ours.
 pub(crate) fn key_released(host: &dyn ClientHost, key: &str) -> bool {
+    {
+        let mut state = state();
+        if let Some(book) = state.notebook.as_mut() {
+            let bound = host.mod_key(MOD_ID, NOTEBOOK_KEY.0).map(|(bound, _)| bound);
+            if bound.as_deref() == Some(key) {
+                book.close = true;
+                return true;
+            }
+            return false;
+        }
+    }
     if !wheel_open(host)
         || host
             .mod_key(MOD_ID, WHEEL_KEY)
@@ -380,6 +556,30 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
         return false;
     }
     let mut state = state();
+    let unlocked = unlocked_in(state.hud);
+    let progress = state.progress.clone();
+    if let Some(book) = state.notebook.as_mut() {
+        let Some(size) = book.size else {
+            return true;
+        };
+        match notebook::target(size, pointer, book.tab) {
+            Some(notebook::Target::Tab(tab)) => book.tab = tab,
+            Some(target) => {
+                if let Some(request) = progress
+                    .as_ref()
+                    .and_then(|p| notebook::request(target, p, &unlocked))
+                {
+                    book.request.get_or_insert(request);
+                }
+            }
+            None => {}
+        }
+        eprintln!(
+            "MISTBRN event=notebook_click at={},{}",
+            pointer[0], pointer[1]
+        );
+        return true;
+    }
     if let Some(wheel) = state.wheel.as_mut()
         && let Some(pair) = wheel.size.and_then(|size| hud::hovered(size, pointer))
     {

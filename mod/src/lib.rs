@@ -9,6 +9,7 @@ mod client;
 mod content;
 mod controls;
 mod hud;
+mod notebook;
 mod p4;
 mod save;
 mod scenario;
@@ -17,12 +18,13 @@ use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
     ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
-    Hooks, HostSide, LevelHost, LevelTickPostEvent, LivingEntityUseItemFinishEvent,
-    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
-    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
-    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
-    RunModCommandEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
-    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelTickPostEvent,
+    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
+    PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
+    PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
+    RegistrationContext, RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent,
+    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenRenderPostEvent, ServerHost,
+    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -56,7 +58,7 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .register(registrar);
-        controls::register(registrar, client::hud_handler());
+        controls::register(registrar, client::hud_handler(), client::progress_handler());
         client::register_keys(registrar);
     }
 
@@ -126,7 +128,14 @@ impl Hooks for Allomancy {
         // Key requests first, so a metal put out this tick takes no force.
         controls.apply(host, &mut session, &mut powers, tick);
         powers.apply_prepared(host, &session, tick);
+        // Practice and evidence seen this tick (P5), after the forces that caused them.
+        for (uuid, kind) in powers.take_observations() {
+            if let Some(player) = host.player(uuid) {
+                session.observe_event(host, player, kind);
+            }
+        }
         controls.sync_hud(host, &session, tick);
+        controls.sync_progress(host, &session, tick);
     }
 
     fn level_tick_post(&self, side: HostSide<'_>, event: &mut LevelTickPostEvent) {
@@ -136,7 +145,68 @@ impl Hooks for Allomancy {
             .powers()
             .tick_level(host, &mut self.session(), event.level);
         // A lethal hit runs the death hooks, which take the session and power locks again.
-        p4::deal_hits(host, hits);
+        let shooters = p4::deal_hits(host, hits);
+        for shooter in shooters {
+            let player = host
+                .players()
+                .server_players()
+                .into_iter()
+                .find(|player| player.entity() == shooter);
+            if let Some(player) = player {
+                self.session()
+                    .observe_event(host, player, p4::coin_hit_practice());
+            }
+        }
+    }
+
+    fn item_picked_up_post(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpPostEvent<'_>) {
+        self.powers().picked_up(event.player, event.item.entity());
+    }
+
+    /// The notebook used on a crafting table concludes the research that is ready (P5).
+    fn right_click_block(&self, side: HostSide<'_>, event: &mut RightClickBlockEvent<'_>) -> Flow {
+        let HostSide::Server(host) = side else {
+            return Flow::Continue;
+        };
+        let click = event.click;
+        let read: &dyn mod_api::Host = host;
+        if !click
+            .stack
+            .is_some_and(|stack| content::is_notebook(read, stack))
+        {
+            return Flow::Continue;
+        }
+        let Some(player) = host.player(click.player) else {
+            return Flow::Continue;
+        };
+        let read: &dyn mod_api::Host = host;
+        let table = player
+            .level(read)
+            .and_then(|level| level.block(read, click.pos))
+            .is_some_and(|block| block.id(read) == "minecraft:crafting_table");
+        let playing = matches!(
+            player.game_mode(read),
+            Some(mod_api::GameMode::Survival | mod_api::GameMode::Adventure)
+        );
+        if !table || !playing {
+            return Flow::Continue;
+        }
+        self.session().conclude(host, player);
+        *event.cancellation_result = InteractionResult::Success;
+        Flow::Cancel
+    }
+
+    /// The notebook in the hand opens the notebook screen (client side; B does too).
+    fn right_click_item(&self, side: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow {
+        let HostSide::Client(host) = side else {
+            return Flow::Continue;
+        };
+        if !content::is_notebook(host, event.click.stack) {
+            return Flow::Continue;
+        }
+        client::open_notebook(host);
+        *event.cancellation_result = InteractionResult::Success;
+        Flow::Cancel
     }
 
     fn register_commands(&self, _: &mut dyn ServerHost, event: &mut RegisterCommandsEvent<'_>) {
@@ -183,6 +253,28 @@ impl Hooks for Allomancy {
                 controls::inject(player.uuid(), op);
             }
             return Flow::Cancel;
+        }
+        let integer = |name: &str| match command.argument(name) {
+            Some(CommandArgumentValue::Integer(value)) => u32::try_from(*value).ok(),
+            _ => None,
+        };
+        match command.literals.get(1).map(String::as_str) {
+            Some("xp") => {
+                self.session()
+                    .test_xp(host, *player, integer("amount").unwrap_or(0));
+                return Flow::Cancel;
+            }
+            Some("evidence") => {
+                let bit = integer("bit")
+                    .and_then(|b| u8::try_from(b).ok())
+                    .unwrap_or(0);
+                let kind = anchor_evidence(bit);
+                let mut session = self.session();
+                session.observe_event(host, *player, kind);
+                session.flush(host, *player);
+                return Flow::Cancel;
+            }
+            _ => {}
         }
         let test = p4::TestCommand {
             literals: &command.literals,
@@ -304,6 +396,14 @@ impl Hooks for Allomancy {
         _: &mut ClientPlayerLoggingOutEvent,
     ) {
         client::logged_out();
+    }
+}
+
+/// The anchor research's evidence `bit`, as the server would observe it (test runs).
+fn anchor_evidence(bit: u8) -> allomancy_core::EventKind {
+    allomancy_core::EventKind::ResearchEvidence {
+        research: allomancy_core::RESEARCH_ANCHOR,
+        evidence: bit,
     }
 }
 

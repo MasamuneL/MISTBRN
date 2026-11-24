@@ -9,12 +9,15 @@
 //! logged; the session goes on.
 //!
 //! The server answers with `mistbrn:hud` (82 bytes) whenever what the HUD shows changed, at
-//! most every `HUD_EVERY_TICKS`.
+//! most every `HUD_EVERY_TICKS`, and with `mistbrn:progress` (the notebook, P5) whenever the
+//! player's progress changed. The notebook's requests (buy a node, reveal a hint) are save
+//! transactions (`Session::purchase`, `Session::reveal_hint`), not power commands.
 use crate::bridge::{Session, metal_name};
 use crate::p4::{Powers, run_core_with};
 use allomancy_core::{
-    BurnState, Command, ControlError, ControlRequest, HudSnapshot, Metal, Pair, RequestBudget,
-    Side, Vec3, decode_control, encode_hud, resolve_control,
+    BurnState, Command, ControlError, ControlRequest, HudSnapshot, Metal, PROGRESS_LEN, Pair,
+    RequestBudget, Side, Vec3, decode_control, encode_hud, encode_progress_snapshot,
+    resolve_control,
 };
 use mod_api::{
     Host, IPayloadContext, IPayloadHandler, PayloadBytes, PayloadHandleError, PayloadId, PlayerRef,
@@ -26,6 +29,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 pub(crate) const CONTROL_CHANNEL: &str = "mistbrn:control";
 pub(crate) const HUD_CHANNEL: &str = "mistbrn:hud";
+pub(crate) const PROGRESS_CHANNEL: &str = "mistbrn:progress";
 /// Both channels' schema version, negotiated at join.
 const CHANNEL_VERSION: &str = "1";
 /// Requests waiting for the tick: at most this many from one player, the rest dropped.
@@ -78,13 +82,32 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         "flare" => ControlRequest::ToggleFlare,
         "off" => ControlRequest::Off,
         "select_tin_pewter" => ControlRequest::SelectPair(Pair::TinPewter),
-        _ => {
-            eprintln!("MISTBRN event=test_command result=unknown");
-            return;
-        }
+        // P5: notebook requests as the client sends them (`buy:<code>:<rank>`, `hint:<r>:<i>`).
+        other => match parse_notebook(other) {
+            Some(request) => request,
+            None => {
+                eprintln!("MISTBRN event=test_command result=unknown");
+                return;
+            }
+        },
     };
     let bytes = allomancy_core::encode_control(request);
     enqueue(uuid, decode_control(&bytes));
+}
+
+fn parse_notebook(op: &str) -> Option<ControlRequest> {
+    let mut parts = op.split(':');
+    let kind = parts.next()?;
+    let a: u8 = parts.next()?.parse().ok()?;
+    let b: u8 = parts.next()?.parse().ok()?;
+    match kind {
+        "buy" => Some(ControlRequest::Purchase { code: a, rank: b }),
+        "hint" => Some(ControlRequest::RevealHint {
+            research: a,
+            index: b,
+        }),
+        _ => None,
+    }
 }
 
 fn enqueue(uuid: u128, decoded: Decoded) {
@@ -97,12 +120,17 @@ fn enqueue(uuid: u128, decoded: Decoded) {
     }
 }
 
-/// Declares both channels. The client's HUD handler is supplied by `client::register`.
-pub(crate) fn register(registrar: &mut dyn Registrar, hud: Arc<dyn IPayloadHandler>) {
+/// Declares the channels. The client's handlers are supplied by `client`.
+pub(crate) fn register(
+    registrar: &mut dyn Registrar,
+    hud: Arc<dyn IPayloadHandler>,
+    progress: Arc<dyn IPayloadHandler>,
+) {
     let mut payloads = registrar.payload_handlers();
     let mut view = payloads.registrar(CHANNEL_VERSION);
     view.play_to_server(PayloadId(CONTROL_CHANNEL.into()), Arc::new(ControlInbox));
     view.play_to_client(PayloadId(HUD_CHANNEL.into()), Some(hud));
+    view.play_to_client(PayloadId(PROGRESS_CHANNEL.into()), Some(progress));
 }
 
 #[derive(Default)]
@@ -115,6 +143,8 @@ pub(crate) struct Controls {
     /// What each player's HUD last accepted (none until a send is queued) and the tick of
     /// the last attempt: a refused send is retried after the interval.
     sent: BTreeMap<u128, (Option<HudSnapshot>, u64)>,
+    /// The progress snapshot each player's notebook last accepted (P5).
+    sent_progress: BTreeMap<u128, (Option<[u8; PROGRESS_LEN]>, u64)>,
 }
 
 /// One line over the player's hotbar, with the metal's name when there is one.
@@ -141,6 +171,8 @@ fn op_name(request: ControlRequest) -> &'static str {
         ControlRequest::ToggleFlare => "flare",
         ControlRequest::Off => "off",
         ControlRequest::SelectPair(_) => "select",
+        ControlRequest::Purchase { .. } => "buy",
+        ControlRequest::RevealHint { .. } => "hint",
     }
 }
 
@@ -176,6 +208,7 @@ impl Controls {
     /// Login, respawn, dimension change: send the HUD again on the next tick.
     pub(crate) fn resend(&mut self, uuid: u128) {
         self.sent.remove(&uuid);
+        self.sent_progress.remove(&uuid);
     }
 
     /// Drops the player's waiting requests: one queued before a death, a dimension change or a
@@ -199,6 +232,7 @@ impl Controls {
         self.rate_logged.remove(&uuid);
         self.menus.remove(&uuid);
         self.sent.remove(&uuid);
+        self.sent_progress.remove(&uuid);
     }
 
     /// Applies the requests that arrived since the last tick, oldest first.
@@ -264,6 +298,30 @@ impl Controls {
         // What the server can see of the player's input: no container menu open and not a
         // spectator. The client also sends nothing with a screen (chat, inventory) open.
         let allowed = !self.menus.contains(&uuid) && player.is_spectator(read) != Some(true);
+        // The notebook's requests: save transactions, refused with the input captured.
+        match request {
+            ControlRequest::Purchase { code, rank }
+            | ControlRequest::RevealHint {
+                research: code,
+                index: rank,
+            } => {
+                if !allowed {
+                    eprintln!("MISTBRN event=control op={op} result=InputCaptured");
+                    return;
+                }
+                let result = if matches!(request, ControlRequest::Purchase { .. }) {
+                    session.purchase(host, player, u16::from(code), rank)
+                } else {
+                    session.reveal_hint(host, player, u16::from(code), rank)
+                };
+                eprintln!(
+                    "MISTBRN event=control op={op} result={}",
+                    result.map_or_else(|error| error, |_| "ok".into())
+                );
+                return;
+            }
+            _ => {}
+        }
         let Some(saved) = session.saved(uuid) else {
             eprintln!("MISTBRN event=control op={op} result=not_active");
             return;
@@ -311,6 +369,41 @@ impl Controls {
             } else if result.starts_with("EmptyReserve") {
                 hint(host, player, "message.mistbrn.metal_empty", Some(metal));
             }
+        }
+    }
+
+    /// Sends each active player's progress snapshot (the notebook) when it changed. Changes
+    /// are rare (an action, a purchase): no interval beyond a retry after a refused send.
+    pub(crate) fn sync_progress(
+        &mut self,
+        host: &mut dyn ServerHost,
+        session: &Session,
+        tick: u64,
+    ) {
+        let channel = PayloadId(PROGRESS_CHANNEL.into());
+        for player in host.players().server_players() {
+            let uuid = player.uuid();
+            let Some(saved) = session.saved(uuid) else {
+                continue;
+            };
+            let bytes = encode_progress_snapshot(saved.progress());
+            let due = match self.sent_progress.get(&uuid) {
+                None => true,
+                Some((last, at)) => {
+                    *last != Some(bytes) && tick.saturating_sub(*at) >= HUD_EVERY_TICKS
+                }
+            };
+            if !due {
+                continue;
+            }
+            let accepted = match player.send_payload(host, &channel, PayloadBytes(bytes.to_vec())) {
+                Ok(_) => Some(bytes),
+                Err(error) => {
+                    eprintln!("MISTBRN event=progress_send_failed error={error:?}");
+                    self.sent_progress.get(&uuid).and_then(|(last, _)| *last)
+                }
+            };
+            self.sent_progress.insert(uuid, (accepted, tick));
         }
     }
 
