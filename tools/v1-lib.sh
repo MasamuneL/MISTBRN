@@ -104,7 +104,7 @@ v1_scenario() {
         *) k_fail "after the cut: primers unlocked_iron unlocked_steel last_transaction = '$after'" ;;
       esac ;;
     v1)  # Craft from raw ingredients, drink to unlock, pull with Z and put iron out with G.
-      # Glass makes two empties: one is filled and drunk (it comes back), one stays spare.
+      # Glass makes two empties that stay spare; the drunk iron vial gives a third back.
       launch MISTBRN_TEST_SCENARIO= MISTBRN_TEST_FAIL_VIAL=0
       ctl command "difficulty peaceful" >/dev/null
       v1_pull_fixture
@@ -114,10 +114,17 @@ v1_scenario() {
       ctl open-inventory >/dev/null
       put minecraft:glass 100; put minecraft:glass 102; take
       put minecraft:iron_ingot 100; put minecraft:cobblestone 101; take
-      put mistbrn:vial_empty 100; put mistbrn:iron_flakes 101; take
       # Steel still uses its three-ingredient shapeless recipe (2x2).
       put minecraft:iron_ingot 100; put minecraft:coal 101 102; take
       ctl close >/dev/null
+      ctl wait 10 >/dev/null
+      # P3c: the flake brews a brine vial into iron in an alembic (600 ticks); stage 1 is A3's.
+      ctl command "setblock ~2 ~ ~ mistbrn:alembic" >/dev/null
+      ctl command "item replace block ~2 ~ ~ container.0 with mistbrn:vial_brine" >/dev/null
+      ctl command "clear @s mistbrn:iron_flakes 1" >/dev/null
+      ctl command "item replace block ~2 ~ ~ container.3 with mistbrn:iron_flakes" >/dev/null
+      ctl wait 610 >/dev/null
+      ctl command "item replace entity @s hotbar.8 from block ~2 ~ ~ container.0" >/dev/null
       ctl wait 10 >/dev/null
       v1_use mistbrn:vial_iron
       p4_iron_block 524
@@ -139,7 +146,7 @@ v1_scenario() {
       k_expect_commands activate:iron=ok off:all=ok
       k_pull_check
       expect 2 report state=active burn_iron=off burn_steel=off unlocked_iron=true unlocked_steel=true \
-        vials=0 primers=0 empty_vials=2 selected_pair=iron_steel last_transaction=1
+        vials=0 primers=0 empty_vials=3 selected_pair=iron_steel last_transaction=1
       server="$(field 2 report reserve_iron)"; hud="$(k_hud_last iron)"
       check_range "reserve consumed but not empty" "$server" 0 25000
       if [[ -n "$hud" && "$hud" == "$server" ]]; then k_ok "HUD reserve $hud = server $server"
