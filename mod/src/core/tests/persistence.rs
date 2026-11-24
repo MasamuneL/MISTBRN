@@ -41,6 +41,9 @@ fn rich() -> SavedPlayer {
     saved
 }
 
+/// Schema 2's progress block with nothing learned: 4 × xp, two empty lists, 3 windows.
+const EMPTY_PROGRESS_BYTES: usize = 4 * 4 + 1 + 1 + 3 * 9;
+
 fn decode(bytes: &[u8]) -> Result<SavedPlayer, SaveError> {
     decode_save(bytes, &world(), &player())
 }
@@ -133,7 +136,7 @@ fn trailing_bytes_magic_and_checksum_are_distinct_errors() {
 #[test]
 fn other_schemas_are_rejected_before_reading_the_payload() {
     let bytes = encode_save(&rich()).unwrap();
-    for schema in [0u16, 2, u16::MAX] {
+    for schema in [0u16, 3, u16::MAX] {
         let mut other = bytes.clone();
         other[4..6].copy_from_slice(&schema.to_le_bytes());
         let other = reseal(other);
@@ -212,7 +215,8 @@ fn decoded_reserves_are_fully_validated() {
 fn transaction_counter_cannot_exceed_revision() {
     let bytes = encode_save(&fresh()).unwrap();
     let mut bad = bytes.clone();
-    let last = bad.len() - 4 - 8;
+    // last_transaction ends schema 1's fields; schema 2's empty progress follows it.
+    let last = bad.len() - 4 - EMPTY_PROGRESS_BYTES - 8;
     bad[last..last + 8].copy_from_slice(&1u64.to_le_bytes());
     assert_eq!(decode(&reseal(bad)), Err(SaveError::InvalidCounters));
 }
@@ -432,11 +436,48 @@ fn a_preparation_for_another_identity_is_stale() {
     assert_eq!(other, before);
 }
 
-// Fixture for future migrations (P5 adds schema 2 and must load this file).
+// Catches a migration that drops or alters anything a V1 world saved.
 #[test]
-fn schema_1_fixture_still_decodes() {
+fn schema_1_fixture_migrates_to_schema_2_keeping_every_field() {
     let bytes = include_bytes!("fixtures/saved-player-v1.bin");
-    assert_eq!(decode(bytes).unwrap(), rich());
+    assert_eq!(save_schema(bytes), Some(1));
+    let migrated = decode(bytes).unwrap();
+    let expected = rich();
+    assert_eq!(migrated.state(), expected.state());
+    assert_eq!(migrated.accounting(), expected.accounting());
+    assert_eq!(migrated.rules(), expected.rules());
+    assert_eq!(migrated.revision(), expected.revision());
+    assert_eq!(migrated.last_transaction(), expected.last_transaction());
+    assert_eq!(migrated.progress(), &Progress::default());
+    assert_eq!(migrated, expected);
+    // The next write is schema 2, and reads back the same.
+    let rewritten = encode_save(&migrated).unwrap();
+    assert_eq!(save_schema(&rewritten), Some(2));
+    assert_eq!(rewritten.len(), bytes.len() + EMPTY_PROGRESS_BYTES);
+    assert_eq!(decode(&rewritten).unwrap(), migrated);
+}
+
+// Catches a schema 1 reader that accepts a cut or padded V1 save.
+#[test]
+fn every_truncation_of_the_schema_1_fixture_is_rejected() {
+    let bytes = include_bytes!("fixtures/saved-player-v1.bin");
+    for len in 0..bytes.len() {
+        assert!(decode(&bytes[..len]).is_err(), "length {len}");
+    }
+    let mut longer = bytes.to_vec();
+    longer.push(0);
+    assert_eq!(decode(&longer), Err(SaveError::TrailingBytes));
+    let mut flipped = bytes.to_vec();
+    flipped[20] ^= 1;
+    assert_eq!(decode(&flipped), Err(SaveError::ChecksumMismatch));
+}
+
+// Catches schema 2 bytes relabelled as schema 1 being read with the old layout.
+#[test]
+fn schema_2_bytes_labelled_schema_1_are_rejected() {
+    let mut bytes = encode_save(&rich()).unwrap();
+    bytes[4..6].copy_from_slice(&1u16.to_le_bytes());
+    assert_eq!(decode(&reseal(bytes)), Err(SaveError::LengthMismatch));
 }
 
 #[test]

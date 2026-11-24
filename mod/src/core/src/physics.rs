@@ -40,6 +40,9 @@ pub struct ForceRules {
     /// Falloff makes a hover a spring; this damps it near critical (2·√(accel/range) ≈ 0.17),
     /// and absorbs the client's late velocity reports.
     pub lift_damping: f64,
+    /// Acceleration factor when pushing an anchor below the feet (the coin jump node, P5): 1
+    /// without it. Applies where `step` itself finds the anchor below (`anchor_down`).
+    pub push_below_gain: f64,
 }
 
 impl ForceRules {
@@ -51,6 +54,7 @@ impl ForceRules {
         item_mass: 0.05,
         anchor_down: 0.5,
         lift_damping: 0.25,
+        push_below_gain: 1.0,
     };
     pub const FLARED: Self = Self {
         accel: 0.24,
@@ -68,6 +72,7 @@ impl ForceRules {
             self.item_mass,
             self.anchor_down,
             self.lift_damping,
+            self.push_below_gain,
         ];
         values.iter().all(|v| v.is_finite())
             && self.accel >= 0.0
@@ -76,6 +81,7 @@ impl ForceRules {
             && self.item_cap > 0.0
             && self.item_mass > 0.0
             && (0.0..=1.0).contains(&self.lift_damping)
+            && self.push_below_gain >= 1.0
     }
 
     pub fn for_flare(flared: bool) -> Self {
@@ -183,7 +189,7 @@ fn step_unchecked(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, 
     }
     // `toward` points from the player to the target.
     let toward = scale(offset, 1.0 / distance);
-    let a = acceleration(rules, distance);
+    let mut a = acceleration(rules, distance);
     let sign = match input.direction {
         Direction::Pull => 1.0,
         Direction::Push => -1.0,
@@ -195,6 +201,9 @@ fn step_unchecked(rules: &ForceRules, input: &StepInput) -> Result<StepOutcome, 
         }
     };
     if anchored {
+        if input.direction == Direction::Push && toward.y < -rules.anchor_down {
+            a *= rules.push_below_gain;
+        }
         let mut player_delta = scale(toward, sign * a);
         if player_delta.y > 0.0 {
             // Damp the last real move, not the held velocity: at rest the client holds

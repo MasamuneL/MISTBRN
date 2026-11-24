@@ -120,8 +120,21 @@ pub struct Effect {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventKind {
-    ResearchObserved { research: ResearchId },
-    MilestoneReached { key: String },
+    ResearchObserved {
+        research: ResearchId,
+    },
+    MilestoneReached {
+        key: String,
+    },
+    /// P5: one piece of evidence (a single bit of the research's mask) seen by the server.
+    ResearchEvidence {
+        research: u16,
+        evidence: u8,
+    },
+    /// P5: one useful practice action of a catalog category, verified by the server.
+    PracticeAction {
+        category: u8,
+    },
 }
 
 /// Trusted-adapter data: only [`VerifiedEvent::from_server_observation`] builds it, so client

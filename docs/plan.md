@@ -282,8 +282,8 @@ Aprobado por el usuario el 2026-11-23. Primera entrega vertical: un árbol (hier
 | 17 | `capacity` Capacidad | capacidad +10 / +25 % (`capacity_bonus_milli` 100 / 250) | 1 / 2 | — | conocimiento |
 
 - Códigos estables (≤ 63, nunca reutilizados). Los nodos de pareja exigen la pareja desbloqueada. `validate_catalog()` (test): sin ciclos, requisitos existentes, ninguna técnica exige el descubrimiento que ella misma abre, efectos dentro de los topes de `reserves.rs`.
-- Puntos de pareja ganados por XP acumulada: 100, 250, 450, 700, 1000 y después cada +400. Disponibles = ganados − gastados (no se guarda saldo). Los de pareja no se transfieren; los de conocimiento solo los da la investigación.
-- `ReserveRules.reduction_milli` y `capacity_bonus_milli` se derivan de los nodos generales: `validate_save` exige que coincidan. El adaptador construye `ForceRules` por jugador desde `reach`/`accel`/`coin_jump`.
+- Puntos de pareja ganados por XP acumulada: 100, 250, 450, 700, 1000 y después cada +400. Ni el saldo ni lo gastado se guardan: gastado = suma de los costes de los rangos que se tienen, conocimiento = suma de las investigaciones concluidas, disponibles = ganados − gastados (revisión de Gemini). Los de pareja no se transfieren; los de conocimiento solo los da la investigación.
+- `ReserveRules.reduction_milli` y `capacity_bonus_milli` se derivan de los nodos generales: `prepare_purchase` los cambia en el mismo candidato y `validate_save` (también `replace_rules`) exige que coincidan. El adaptador construye `ForceRules` por jugador con `tuned_force` (alcance, aceleración y `push_below_gain`, que `physics::step` aplica solo al empujar un ancla bajo los pies).
 
 **Práctica** (`PracticeAction`, del servidor)
 
@@ -293,7 +293,7 @@ Aprobado por el usuario el 2026-11-23. Primera entrega vertical: un árbol (hier
 | 1 `coin_jump` | Empujar una moneda en el suelo bajo los pies eleva al jugador ≥ 1,5 bloques | 15 |
 | 2 `coin_hit` | Una moneda empujada por el jugador daña a una criatura viva que no es un jugador | 10 |
 
-Ventana de 1200 ticks de `game_time` por categoría, guardada; dentro de ella la 1.ª acción da 100 %, la 2.ª 50 %, la 3.ª 25 % y las siguientes 0 (enteros por defecto: 10, 5, 2, 0). Un `game_time` anterior al inicio guardado abre ventana nueva. Una tirada da como mucho una acción (`coin_jump` antes que `anchor_move`).
+Ventana de 1200 ticks de `game_time` por categoría, guardada, que se abre con la primera acción; dentro de ella la 1.ª acción da 100 %, la 2.ª 50 %, la 3.ª 25 % y las siguientes nada, sin contar más (el contador no pasa de 3, así que nunca da la vuelta). Un `game_time` anterior al inicio guardado abre ventana nueva. La XP va siempre a la pareja de la categoría (hierro/acero), sea cual sea la seleccionada. Una tirada (un mismo objetivo sostenido, desde que se engancha hasta que se suelta o cambia) da como mucho una acción de práctica (`coin_jump` antes que `anchor_move`) y una evidencia de cada tipo.
 
 **Investigación `anchor_principle`** (código 1; `ResearchEvidence`, del servidor)
 - (a) bit 1: un ítem metálico suelto, del que el jugador tiró sin ancla en los últimos 40 ticks, termina recogido por él (`item_picked_up_post`).
@@ -310,13 +310,13 @@ Ventana de 1200 ticks de `game_time` por categoría, guardada; dentro de ella la
 
 ```text
 payload v2 = payload v1 (idéntico)
-  | 4 × pair_xp:u32 | 4 × pair_spent:u16 | knowledge:u16 | knowledge_spent:u16
+  | 4 × pair_xp:u32
   | n_nodes:u8 | n × (code:u16 | rank:u8)                          ordenado, sin duplicados
   | n_research:u8 | n × (code:u16 | evidence:u8 | hints:u8 | concluded:u8)   ordenado
   | 3 × (window_start:u64 | count:u8)
 ```
 
-`decode_save`: esquema 1 → progreso vacío, resto idéntico (la siguiente escritura es esquema 2); esquema 2 → lectura; 0 y ≥ 3 → `UnsupportedVersion` antes de leer el payload. Rechazos nuevos: código desconocido o rango fuera de límites (`InvalidEnum`), listas desordenadas o duplicadas, gastado > ganado, bits o pistas fuera de rango, conclusión sin evidencia suficiente, reglas que no coinciden con los nodos (`InvalidProgress`). Fixture nuevo `saved-player-v2.bin` para P6. Tests: el fixture v1 carga y migra campo a campo; round-trip v2; todo truncado v1 y v2; CRC; sobrantes; esquema 3; compra única, rango repetido, falta de puntos o requisito; topes y ventanas; conclusión doble; muerte y reconexión.
+`decode_save`: esquema 1 → progreso vacío, resto idéntico (la siguiente escritura es esquema 2); esquema 2 → lectura; 0 y ≥ 3 → `UnsupportedVersion` antes de leer el payload. Rechazos nuevos: listas desordenadas o duplicadas y `concluded` distinto de 0/1 (`InvalidEnum`); código desconocido, rango 0 o mayor que el del nodo, requisito o pareja que faltan, gastado > ganado, bits o pistas fuera de rango, conclusión sin evidencia suficiente y reglas que no coinciden con los nodos (`Progress(..)`). Fixture nuevo `saved-player-v2.bin` para P6. Tests: el fixture v1 carga y migra campo a campo; round-trip v2; todo truncado v1 y v2; CRC; sobrantes; esquema 3; compra única, rango repetido, falta de puntos o requisito; topes y ventanas; conclusión doble; muerte y reconexión.
 
 **Adaptador**: `progress.rs` (detectores y transacciones; P4 informa de las tiradas y de los golpes), paquete `mistbrn:progress` servidor → cliente al cambiar, al entrar y al reaparecer, pantalla del cuaderno (`client`), hoja de iconos con `tools/gen-progress.py` hecha con Codex (regla de assets). `/mistbrn-test xp <n>` y `knowledge <n>` con `MISTBRN_TEST_SCENARIO=p4`.
 
