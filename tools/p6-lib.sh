@@ -3,13 +3,21 @@
 # ShellCheck also checks this file directly, without the caller's dir and scenario.
 # shellcheck disable=SC2154
 
+# p6_place: the player on a stone floor at 512.5 100 512.5, looking east (chunks loaded first).
+p6_place() {
+  ctl command "tp @s 512.5 100 512.5" >/dev/null
+  ctl wait 20 >/dev/null
+  ctl command "fill 508 99 508 518 99 518 minecraft:stone" >/dev/null
+  ctl command "tp @s 512.5 100 512.5" >/dev/null
+  ctl look -90 0 >/dev/null
+  ctl wait 10 >/dev/null
+}
+
 # p6_lane [MOD_SCENARIO]: a fresh creative world, iron and steel locked, bosses allowed.
 p6_lane() {
   launch MISTBRN_TEST_SCENARIO="${1:-}"
   ctl command "difficulty easy" >/dev/null
-  ctl command "tp @s 512.5 100 512.5" >/dev/null
-  ctl look -90 0 >/dev/null
-  ctl wait 20 >/dev/null
+  p6_place
 }
 
 # p6_kill KIND TAG [WAIT]: summon a still boss three blocks east and kill it with one hit
@@ -17,7 +25,7 @@ p6_lane() {
 p6_kill() {
   ctl command "summon $1 515.5 100 512.5 {NoAI:1b,Tags:[$2]}" >/dev/null
   ctl wait 5 >/dev/null
-  ctl command "damage @e[tag=$2,limit=1] 2000 minecraft:player_attack by @s" >/dev/null
+  ctl command "damage @e[tag=$2,limit=1] 2000 minecraft:player_attack by @s" > "$dir/damage-$2.json"
   ctl wait "${3:-40}" >/dev/null
 }
 
@@ -32,11 +40,12 @@ p6_chest() {
   ctl wait 10 >/dev/null
 }
 
-# p6_wait_line NAME: the newest `MISTBRN_TEST scenario=NAME` line of launch 1 (logs can lag).
+# p6_wait_line NAME: the newest `MISTBRN_TEST scenario=NAME` line of the running launch, read
+# from its live log beside the socket (logs can lag; the run folder gets a copy at exit).
 p6_wait_line() {
   local line=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    line="$(grep -a "MISTBRN_TEST scenario=$1 " "$(log 1)" | tail -1 || true)"
+    line="$(grep -a "MISTBRN_TEST scenario=$1 " "$sockdir/l$launch_no.log" 2>/dev/null | tail -1 || true)"
     [[ -n "$line" ]] && break
     ctl wait 20 >/dev/null
   done
@@ -142,7 +151,9 @@ p6_scenario() {
     h4)  # dragon: no death hook; its health reaching 0 after a player's hit claims knowledge once
       p6_lane
       p6_kill minecraft:ender_dragon p6a 80
+      ctl command "data get entity @e[tag=p6a,limit=1] Health" > "$dir/health-p6a.json"
       p6_kill minecraft:ender_dragon p6b 80
+      ctl command "data get entity @e[tag=p6b,limit=1] Health" > "$dir/health-p6b.json"
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=milestone key=dragon result=ok seq=1 unlocks=none'
@@ -153,6 +164,7 @@ p6_scenario() {
       p6_kill minecraft:elder_guardian p6a
       kill_game
       report
+      p6_place
       p6_kill minecraft:elder_guardian p6b
       ctl save >/dev/null
       kill_game
