@@ -44,6 +44,7 @@ const DIM: u32 = 0xFF90_9090;
 const BRASS: u32 = 0xFFF0_D48A;
 const READY: u32 = 0xFFB8_E0A0;
 const LOCKED_TINT: u32 = 0xFF70_7070;
+const LOCKED_ICON_TINT: u32 = 0xFF9C_9C9C;
 /// A silhouette: the locked frame, darker, with no icon.
 const HIDDEN_TINT: u32 = 0xFF48_4A4E;
 const BUTTON: u32 = 0xFF2E_3238;
@@ -493,7 +494,8 @@ fn draw_place(
                     alpha << 24 | 0x00F0_D48A,
                 );
             }
-            let tint = (status == NodeStatus::Locked).then_some(LOCKED_TINT);
+            // Lighter than the locked frame, so the icon still reads (Codex, round 1).
+            let tint = (status == NodeStatus::Locked).then_some(LOCKED_ICON_TINT);
             sprite(p, icon(code), [at[0] + 3.0, at[1] + 3.0], tint);
             let owned = usize::from(progress.rank(code));
             let start = at[0] + 11.0 - (def.ranks.len() as f32 * 6.0 - 2.0) / 2.0;

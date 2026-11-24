@@ -19,7 +19,7 @@ use allomancy_core::{
     NodeStatus, PAIRS, Pair, Progress, node_def, node_status, research_def, research_ready,
 };
 
-pub(crate) const PANEL_W: f32 = 336.0;
+pub(crate) const PANEL_W: f32 = 344.0;
 pub(crate) const PANEL_H: f32 = 200.0;
 /// Room above the panel for the tabs, in local pixels.
 const TABS_H: f32 = 14.0;
@@ -172,11 +172,11 @@ pub(crate) fn tab_rect(tab: Tab) -> [f32; 4] {
 
 /// The tree selector's buttons.
 pub(crate) fn view_rect(view: u8) -> [f32; 4] {
-    [6.0, 8.0 + 20.0 * f32::from(view), 92.0, 18.0]
+    [6.0, 8.0 + 20.0 * f32::from(view), 100.0, 18.0]
 }
 
 /// The tree canvas's window (local) and the diary list's.
-pub(crate) const CANVAS: [f32; 4] = [104.0, 30.0, 226.0, 164.0];
+pub(crate) const CANVAS: [f32; 4] = [112.0, 30.0, 226.0, 164.0];
 pub(crate) const LIST: [f32; 4] = [6.0, 8.0, 112.0, 186.0];
 /// A row of the diary list: the name in up to two lines.
 pub(crate) const LIST_ROW: f32 = 30.0;
