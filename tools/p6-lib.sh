@@ -20,10 +20,10 @@ p6_lane() {
   p6_place
 }
 
-# p6_kill KIND TAG [WAIT]: summon a still boss three blocks east and kill it with one hit
-# that names the player as its attacker, as a melee kill does.
+# p6_kill KIND TAG [WAIT] [Z]: summon a still boss three blocks east (at Z, default 512.5) and
+# kill it with one hit that names the player as its attacker, as a melee kill does.
 p6_kill() {
-  ctl command "summon $1 515.5 100 512.5 {NoAI:1b,Tags:[$2]}" >/dev/null
+  ctl command "summon $1 515.5 100 ${4:-512.5} {NoAI:1b,Tags:[$2]}" > "$dir/summon-$2.json"
   ctl wait 5 >/dev/null
   ctl command "damage @e[tag=$2,limit=1] 2000 minecraft:player_attack by @s" > "$dir/damage-$2.json"
   ctl wait "${3:-40}" >/dev/null
@@ -106,11 +106,12 @@ p6_scenario() {
       [[ "$px" =~ ^-?[0-9]+$ && "$py" =~ ^[0-9]+$ && "$pz" =~ ^-?[0-9]+$ ]] ||
         die "no bastion piece near $x,$z: '$probe'"
       k_ok "bastion start $x,$z; piece block $px,$py,$pz"
-      ctl command "execute in minecraft:the_nether run tp @s $px.5 $py $pz.5" >/dev/null
+      # Whole coordinates: a negative "x.5" floors to the next block, outside the probed one.
+      ctl command "execute in minecraft:the_nether run tp @s $px $py $pz" >/dev/null
       ctl wait 60 >/dev/null
-      ctl command "execute in minecraft:the_nether run tp @s $((px + 400)).5 120 $pz.5" >/dev/null
+      ctl command "execute in minecraft:the_nether run tp @s $((px + 400)) 120 $pz" >/dev/null
       ctl wait 60 >/dev/null
-      ctl command "execute in minecraft:the_nether run tp @s $px.5 $py $pz.5" >/dev/null
+      ctl command "execute in minecraft:the_nether run tp @s $px $py $pz" >/dev/null
       ctl wait 60 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
@@ -152,7 +153,7 @@ p6_scenario() {
       p6_lane
       p6_kill minecraft:ender_dragon p6a 80
       ctl command "data get entity @e[tag=p6a,limit=1] Health" > "$dir/health-p6a.json"
-      p6_kill minecraft:ender_dragon p6b 80
+      p6_kill minecraft:ender_dragon p6b 80 506.5
       ctl command "data get entity @e[tag=p6b,limit=1] Health" > "$dir/health-p6b.json"
       ctl save >/dev/null; quit_game
       report; quit_game
