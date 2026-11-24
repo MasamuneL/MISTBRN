@@ -71,7 +71,8 @@ p3c_scenario() {
       ctl give mistbrn:vial_empty 2 >/dev/null
       ctl wait 10 >/dev/null
       ctl select mistbrn:vial_empty >/dev/null
-      ctl look-at block 515 99 512 up >/dev/null
+      # The water is no collision face: aim at a point inside it.
+      ctl look-at 515.5 99.9 512.5 >/dev/null
       ctl use-item > "$dir/fill.json"
       ctl wait 10 >/dev/null
       p3c_check "water vials" "$(p3c_count mistbrn:vial_water)" 1
