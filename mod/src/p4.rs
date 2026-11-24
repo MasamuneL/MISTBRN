@@ -13,9 +13,12 @@ use allomancy_core::{
     Authority, BurnState, CATALOG, Command, EVIDENCE_ITEM_PULLED, EVIDENCE_PUSH_LIFT,
     EVIDENCE_SELF_PULL, Effect, EventKind, InputContext, Metal, PRACTICE_ANCHOR_MOVE,
     PRACTICE_COIN_HIT, PRACTICE_COIN_JUMP, RESEARCH_ANCHOR, Tick, Vec3, WorldSnapshot,
-    apply_command, credit_reserve, is_coin, is_metal, tuned_force, update_player,
+    apply_command, credit_reserve, is_anchor_entity, is_coin, is_metal, is_metal_entity,
+    tuned_force, update_player,
 };
-use mod_api::{ClipBlock, ClipFluid, EntityRef, Host, LevelRef, PlayerRef, ServerHost};
+use mod_api::{
+    ClipBlock, ClipFluid, EntityRef, EquipmentSlot, Host, LevelRef, PlayerRef, ServerHost,
+};
 use std::collections::{BTreeMap, HashMap};
 
 /// The middle of a standing player's body, above the feet.
@@ -26,6 +29,14 @@ const RAY_MARGIN: f64 = 0.3;
 const COIN_MARGIN: f64 = 0.1;
 /// Damage type of a coin's hit (`minecraft:thrown`, as a snowball's).
 const COIN_DAMAGE: &str = "minecraft:thrown";
+/// Damage type of a pushed body slammed into a wall (as an elytra crash).
+const SLAM_DAMAGE: &str = "minecraft:fly_into_wall";
+/// A pushed body slower than this (horizontal, blocks per tick) never slams.
+const SLAM_MIN_SPEED: f64 = 0.5;
+/// How far ahead of a body, along its push, a block must stand for a stop to be a slam.
+const SLAM_PROBE: f64 = 0.1;
+/// Ticks after a slam before the same body can be hurt by another.
+const SLAM_COOLDOWN: u64 = 20;
 /// Slack before a block in front of a held target counts as an obstacle.
 const SIGHT_SLACK: f64 = 0.05;
 
@@ -41,18 +52,29 @@ enum Target {
         entity: EntityRef,
         id: String,
     },
+    /// A metal body (golem, minecart) or a living body carrying metal gear.
+    Entity {
+        level: LevelRef,
+        entity: EntityRef,
+        /// The entity type id.
+        id: String,
+        /// Too heavy to move: the player moves instead.
+        anchor: bool,
+    },
 }
 
 impl Target {
     fn level(&self) -> LevelRef {
         match self {
-            Self::Block { level, .. } | Self::Item { level, .. } => *level,
+            Self::Block { level, .. } | Self::Item { level, .. } | Self::Entity { level, .. } => {
+                *level
+            }
         }
     }
 
     fn id(&self) -> &str {
         match self {
-            Self::Block { id, .. } | Self::Item { id, .. } => id,
+            Self::Block { id, .. } | Self::Item { id, .. } | Self::Entity { id, .. } => id,
         }
     }
 
@@ -60,6 +82,7 @@ impl Target {
         match self {
             Self::Block { .. } => "block",
             Self::Item { .. } => "item",
+            Self::Entity { .. } => "entity",
         }
     }
 }
@@ -129,6 +152,7 @@ fn run_key(target: &Target) -> String {
     match target {
         Target::Block { pos, .. } => format!("block:{},{},{}", pos[0], pos[1], pos[2]),
         Target::Item { entity, .. } => format!("item:{}", entity.id()),
+        Target::Entity { entity, .. } => format!("entity:{}", entity.id()),
     }
 }
 
@@ -147,10 +171,22 @@ struct Prepared {
     direction: Direction,
 }
 
-/// A coin's hit, dealt after the tick's locks are released.
+/// A living body pushed this tick: next tick, a move much shorter than its speed against a
+/// block is a slam.
+struct Slam {
+    body: EntityRef,
+    level: LevelRef,
+    shooter: EntityRef,
+    tick: u64,
+    from: [f64; 3],
+    velocity: Vec3,
+}
+
+/// A coin's hit or a slam, dealt after the tick's locks are released.
 pub(crate) struct Hit {
     victim: EntityRef,
-    coin: EntityRef,
+    /// The coin; `None` for a slam.
+    coin: Option<EntityRef>,
     shooter: EntityRef,
     kind: String,
     speed: f64,
@@ -173,6 +209,12 @@ pub(crate) struct Powers {
     flights: Vec<Flight>,
     /// Hits found during a teleport notice, dealt with the tick's own.
     pending_hits: Vec<Hit>,
+    /// Living bodies pushed last tick, and when each may slam again.
+    slams: Vec<Slam>,
+    slam_ready: HashMap<EntityRef, u64>,
+    /// Each pushed body's last horizontal move, with its tick: only a body that was flying
+    /// slams, so one held against a wall is not hurt again and again.
+    slam_moved: HashMap<EntityRef, (u64, f64)>,
     /// Anchored runs per player (P5 practice and evidence).
     runs: BTreeMap<u128, Run>,
     /// Items each player pulled without an anchor, with the tick of the last pull.
@@ -241,6 +283,7 @@ impl Powers {
         // must not take over a segment it did not cause.
         let mut hits = std::mem::take(&mut self.pending_hits);
         self.follow_flights(host, level, tick, &mut hits);
+        self.check_slams(host, level, tick, &mut hits);
         for player in online {
             let uuid = player.uuid();
             match acting(session, uuid) {
@@ -358,7 +401,7 @@ impl Powers {
         let Some(point) = target_point(read, level, &target) else {
             let reason = match target {
                 Target::Block { .. } => "broken",
-                Target::Item { .. } => "gone",
+                Target::Item { .. } | Target::Entity { .. } => "gone",
             };
             self.clear(uuid, reason);
             return;
@@ -368,8 +411,10 @@ impl Powers {
             return;
         }
         let (target_body, target_velocity) = match &target {
-            Target::Block { .. } => (Body::Anchor, Vec3::default()),
-            Target::Item { entity, .. } => (
+            Target::Block { .. } | Target::Entity { anchor: true, .. } => {
+                (Body::Anchor, Vec3::default())
+            }
+            Target::Item { entity, .. } | Target::Entity { entity, .. } => (
                 Body::Item {
                     on_ground: entity.on_ground(read).unwrap_or(false),
                 },
@@ -430,8 +475,48 @@ impl Powers {
             fmt3(outcome.player_delta),
             outcome.anchored
         );
-        let (Some(next), Target::Item { entity, id, .. }) = (outcome.target_velocity, &target)
-        else {
+        let Some(next) = outcome.target_velocity else {
+            return;
+        };
+        if let Target::Entity { entity, id, .. } = &target {
+            let from = entity.position(host);
+            // A player's motion reaches its client only through the player's own setter.
+            let player = host
+                .players()
+                .server_players()
+                .into_iter()
+                .find(|p| p.entity() == *entity);
+            let velocity = [next.x, next.y, next.z];
+            let written = match player {
+                Some(player) => player.set_velocity(host, velocity),
+                None => entity.set_velocity(host, velocity),
+            };
+            if written && next.y > 0.0 {
+                let _ = entity.reset_fall_distance(host);
+            }
+            let read: &dyn Host = host;
+            if let (true, Direction::Push, Some(from), Some(_)) =
+                (written, direction, from, read.living(*entity))
+            {
+                self.slams.retain(|s| s.body != *entity);
+                self.slams.push(Slam {
+                    body: *entity,
+                    level,
+                    shooter: body,
+                    tick,
+                    from,
+                    velocity: next,
+                });
+            }
+            eprintln!(
+                "MISTBRN p4entity tick={tick} entity={} kind={id} pos={} vel={} written={written}",
+                entity.id(),
+                fmt3(point),
+                fmt3(next)
+            );
+            return;
+        }
+        let Target::Item { entity, id, .. } = &target else {
             return;
         };
         let written = entity.set_velocity(host, [next.x, next.y, next.z]);
@@ -694,6 +779,78 @@ impl Powers {
         }
     }
 
+    /// Last tick's pushed bodies: one that moved much less than its speed with a block right
+    /// ahead hit a wall, and takes the speed it lost as damage.
+    fn check_slams(
+        &mut self,
+        host: &mut dyn ServerHost,
+        level: LevelRef,
+        tick: u64,
+        hits: &mut Vec<Hit>,
+    ) {
+        self.slam_ready.retain(|_, ready| *ready > tick);
+        self.slam_moved.retain(|_, (at, _)| *at + 1 >= tick);
+        let read: &dyn Host = host;
+        for slam in std::mem::take(&mut self.slams) {
+            if slam.level != level {
+                self.slams.push(slam);
+                continue;
+            }
+            if slam.tick + 1 != tick || self.slam_ready.contains_key(&slam.body) {
+                continue;
+            }
+            let speed = slam.velocity.x.hypot(slam.velocity.z);
+            let (Some(now), Some([lo, hi])) =
+                (slam.body.position(read), slam.body.bounding_box(read))
+            else {
+                continue;
+            };
+            let moved = (now[0] - slam.from[0]).hypot(now[2] - slam.from[2]);
+            let flying = self
+                .slam_moved
+                .insert(slam.body, (tick, moved))
+                .is_some_and(|(at, before)| at + 1 == tick && before >= SLAM_MIN_SPEED);
+            if !flying {
+                continue;
+            }
+            let Some(damage) = physics::impact_damage(speed - moved) else {
+                continue;
+            };
+            if speed < SLAM_MIN_SPEED {
+                continue;
+            }
+            // The box nudged along the push, lifted off the floor: a block there is the wall.
+            let (dx, dz) = (
+                slam.velocity.x / speed * SLAM_PROBE,
+                slam.velocity.z / speed * SLAM_PROBE,
+            );
+            let probe = [
+                lo[0] + dx,
+                lo[1] + 0.05,
+                lo[2] + dz,
+                hi[0] + dx,
+                hi[1],
+                hi[2] + dz,
+            ];
+            if level.has_collisions(read, probe) != Some(true) {
+                continue;
+            }
+            if read.living(slam.body).and_then(|l| l.alive(read)) != Some(true) {
+                continue;
+            }
+            self.slam_ready.insert(slam.body, tick + SLAM_COOLDOWN);
+            hits.push(Hit {
+                victim: slam.body,
+                coin: None,
+                shooter: slam.shooter,
+                kind: slam.body.kind(read).map(|k| k.id(read)).unwrap_or_default(),
+                speed: speed - moved,
+                damage,
+                practice: false,
+            });
+        }
+    }
+
     /// Ends a coin's flight at a body: it stops, is never a target again, and every player
     /// holding it lets go.
     fn land(&mut self, host: &mut dyn ServerHost, coin: EntityRef, level: LevelRef) {
@@ -797,18 +954,24 @@ pub(crate) fn deal_hits(host: &mut dyn ServerHost, hits: Vec<Hit>) -> Vec<Entity
     for hit in hits {
         let read: &dyn Host = host;
         let before = read.living(hit.victim).and_then(|l| l.health(read));
-        let dealt = hit.victim.hurt(
-            host,
-            COIN_DAMAGE,
-            hit.damage,
-            Some(hit.coin),
-            Some(hit.shooter),
-        );
+        let damage_type = if hit.coin.is_some() {
+            COIN_DAMAGE
+        } else {
+            SLAM_DAMAGE
+        };
+        let dealt = hit
+            .victim
+            .hurt(host, damage_type, hit.damage, hit.coin, Some(hit.shooter));
         let read: &dyn Host = host;
         let after = read.living(hit.victim).and_then(|l| l.health(read));
         let health = |h: Option<f32>| h.map_or_else(|| "none".into(), |h| format!("{h:.3}"));
         eprintln!(
-            "MISTBRN event=coin_hit entity={} speed={:.6} damage={:.3} dealt={} health_before={} health_after={}",
+            "MISTBRN event={} entity={} speed={:.6} damage={:.3} dealt={} health_before={} health_after={}",
+            if hit.coin.is_some() {
+                "coin_hit"
+            } else {
+                "slam_hit"
+            },
             hit.kind,
             hit.speed,
             hit.damage,
@@ -878,7 +1041,7 @@ fn coin_victim(
         })?;
     Some(Hit {
         victim,
-        coin,
+        coin: Some(coin),
         shooter,
         kind: victim.kind(host).map(|k| k.id(host)).unwrap_or_default(),
         speed,
@@ -898,7 +1061,7 @@ fn in_sight(host: &dyn Host, level: LevelRef, eye: [f64; 3], point: Vec3, target
     }
     match target {
         Target::Block { pos, .. } => hit.block == *pos,
-        Target::Item { .. } => {
+        Target::Item { .. } | Target::Entity { .. } => {
             distance(eye, v3(hit.location)) + SIGHT_SLACK >= distance(eye, point)
         }
     }
@@ -951,11 +1114,20 @@ fn acquire(
         .take_while(|hit| hit.distance <= block_distance)
         .filter(|hit| !spent.contains_key(&hit.entity))
         .find_map(|hit| {
-            let id = host.item_entity(hit.entity)?.stack(host)?.item().id(host);
-            is_metal(&id).then_some(Target::Item {
+            if let Some(item) = host.item_entity(hit.entity) {
+                let id = item.stack(host)?.item().id(host);
+                return is_metal(&id).then_some(Target::Item {
+                    level,
+                    entity: hit.entity,
+                    id,
+                });
+            }
+            let (id, anchor) = metal_entity(host, hit.entity)?;
+            Some(Target::Entity {
                 level,
                 entity: hit.entity,
                 id,
+                anchor,
             })
         });
     if item.is_some() {
@@ -989,7 +1161,40 @@ fn target_point(host: &dyn Host, level: LevelRef, target: &Target) -> Option<Vec
             let [x, y, z] = entity.position(host)?;
             Some(Vec3 { x, y: y + 0.125, z })
         }
+        Target::Entity { entity, id, .. } => {
+            if metal_entity(host, *entity)?.0 != *id {
+                return None;
+            }
+            let [lo, hi] = entity.bounding_box(host)?;
+            Some(Vec3 {
+                x: (lo[0] + hi[0]) / 2.0,
+                y: (lo[1] + hi[1]) / 2.0,
+                z: (lo[2] + hi[2]) / 2.0,
+            })
+        }
     }
+}
+
+/// An entity iron and steel can reach, as its type id and whether it is an anchor: a metal body
+/// (golem, minecart) or a living one (players too) wearing or holding metal. Spectators and the
+/// dead are not.
+fn metal_entity(host: &dyn Host, entity: EntityRef) -> Option<(String, bool)> {
+    let kind = entity.kind(host)?.id(host);
+    if is_metal_entity(&kind) {
+        let anchor = is_anchor_entity(&kind);
+        return Some((kind, anchor));
+    }
+    let living = host.living(entity)?;
+    if living.alive(host) != Some(true) {
+        return None;
+    }
+    let spectator = entity.spectator(host) == Some(true);
+    let geared = EquipmentSlot::ALL.into_iter().any(|slot| {
+        living
+            .equipment(host, slot)
+            .is_some_and(|stack| is_metal(&stack.item().id(host)))
+    });
+    (geared && !spectator).then_some((kind, false))
 }
 
 /// Applies one command through the core, with the player's own last tick (a snapshot older

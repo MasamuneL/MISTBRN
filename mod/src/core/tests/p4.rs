@@ -1,5 +1,5 @@
 use allomancy_core::physics::*;
-use allomancy_core::{Vec3, is_coin, is_metal};
+use allomancy_core::{Vec3, is_anchor_entity, is_coin, is_metal, is_metal_entity};
 
 fn v(x: f64, y: f64, z: f64) -> Vec3 {
     Vec3 { x, y, z }
@@ -73,6 +73,19 @@ fn metal_ids() {
     }
     assert!(is_coin("mistbrn:clip") && is_coin("mistbrn:boxing"));
     assert!(!is_coin("minecraft:iron_nugget"));
+    for kind in [
+        "minecraft:iron_golem",
+        "minecraft:copper_golem",
+        "minecraft:minecart",
+        "minecraft:chest_minecart",
+        "minecraft:hopper_minecart",
+    ] {
+        assert!(is_metal_entity(kind), "{kind} should be a metal entity");
+    }
+    for kind in ["minecraft:zombie", "minecraft:item", "minecraft:player", "othermod:minecart"] {
+        assert!(!is_metal_entity(kind), "{kind} should not be a metal entity");
+    }
+    assert!(is_anchor_entity("minecraft:iron_golem") && !is_anchor_entity("minecraft:minecart"));
 }
 
 // Catches a wrong falloff: full at the player, zero at and beyond the range.
@@ -210,6 +223,14 @@ fn coin_damage_grows_with_speed() {
     assert_eq!(coin_damage(f64::NAN), None);
     assert_eq!(coin_damage(1.0), Some(6.0));
     assert_eq!(coin_damage(2.0), Some(10.0));
+}
+
+#[test]
+fn impact_damage_is_gentle_and_capped() {
+    assert_eq!(impact_damage(0.4), None);
+    assert_eq!(impact_damage(f64::NAN), None);
+    assert!((impact_damage(1.0).unwrap() - 3.6).abs() < 1e-5);
+    assert_eq!(impact_damage(2.0), Some(8.0));
 }
 
 // Catches an undamped hover: lifted by a grounded coin, the vertical speed must be damped so

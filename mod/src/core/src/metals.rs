@@ -71,6 +71,19 @@ fn vanilla_metal(path: &str) -> bool {
         || path.ends_with("_minecart")
 }
 
+/// Entity types too heavy to move: iron and steel move the player instead, as off a block.
+pub fn is_anchor_entity(kind: &str) -> bool {
+    matches!(kind, "minecraft:iron_golem" | "minecraft:copper_golem")
+}
+
+/// Entity types made of metal whatever they carry: golems and minecarts.
+pub fn is_metal_entity(kind: &str) -> bool {
+    is_anchor_entity(kind)
+        || kind
+            .strip_prefix("minecraft:")
+            .is_some_and(|path| path == "minecart" || path.ends_with("_minecart"))
+}
+
 /// The coins: light metal items made to be pushed.
 pub fn is_coin(id: &str) -> bool {
     matches!(id, "mistbrn:clip" | "mistbrn:boxing")
