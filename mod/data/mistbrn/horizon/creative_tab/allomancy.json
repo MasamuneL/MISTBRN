@@ -3,6 +3,12 @@
   "icon": "mistbrn:vial_iron",
   "items": [
     "mistbrn:vial_empty",
+    "mistbrn:vial_water",
+    "mistbrn:vial_brine",
+    "mistbrn:vial_basic_metals",
+    "mistbrn:salt",
+    "mistbrn:salt_rock",
+    "mistbrn:alembic",
     "mistbrn:vial_iron",
     "mistbrn:iron_flakes",
     "mistbrn:vial_steel",
