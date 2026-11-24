@@ -9,29 +9,18 @@
           "children": [
             {
               "type": "minecraft:item",
-              "name": "mistbrn:salt_rock",
-              "conditions": [
-                {
-                  "condition": "minecraft:match_tool",
-                  "predicate": {
-                    "predicates": {
-                      "minecraft:enchantments": [
-                        { "enchantments": "minecraft:silk_touch", "levels": { "min": 1 } }
-                      ]
-                    }
-                  }
-                }
-              ]
+              "condition": "minecraft:tool/can_silk_touch",
+              "name": "mistbrn:salt_rock"
             },
             {
               "type": "minecraft:item",
               "name": "mistbrn:salt",
-              "functions": [
+              "modifier": [
                 {
-                  "function": "minecraft:set_count",
+                  "type": "minecraft:set_count",
                   "count": { "type": "minecraft:uniform", "min": 1, "max": 5 }
                 },
-                { "function": "minecraft:explosion_decay" }
+                { "type": "minecraft:explosion_decay" }
               ]
             }
           ]

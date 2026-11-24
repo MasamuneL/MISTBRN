@@ -247,9 +247,13 @@ p3c_scenario() {
       ctl wait 10 >/dev/null
       p5_screenshot av-world
       p3c_fill 515 100 512 0 mistbrn:vial_water 1 1 mistbrn:vial_water 1 3 mistbrn:salt 1
+      # Survival shows the player's own inventory; an empty hand opens the block.
+      ctl command "gamemode survival" >/dev/null
+      ctl select 9 >/dev/null
       ctl wait 200 >/dev/null
-      ctl interact 515 100 512 >/dev/null
+      ctl interact 515 100 512 > "$dir/interact.json"
       ctl wait 20 >/dev/null
+      ctl menu > "$dir/menu.json"
       p5_screenshot av-alembic
       ctl close >/dev/null
       ctl open-inventory >/dev/null

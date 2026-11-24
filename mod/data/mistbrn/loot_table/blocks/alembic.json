@@ -3,8 +3,8 @@
   "pools": [
     {
       "rolls": 1,
-      "entries": [{ "type": "minecraft:item", "name": "mistbrn:alembic" }],
-      "conditions": [{ "condition": "minecraft:survives_explosion" }]
+      "condition": { "type": "minecraft:survives_explosion" },
+      "entries": [{ "type": "minecraft:item", "name": "mistbrn:alembic" }]
     }
   ]
 }
