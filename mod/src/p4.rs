@@ -93,11 +93,13 @@ struct Flight {
 /// practice action and one piece of each evidence, so a long pull is one action, not many.
 struct Run {
     key: String,
-    start: [f64; 3],
-    /// Distance from the body's middle to the anchor when the run started, and the feet of the
-    /// last tick: a run counts how far the force moved the player along its line.
-    start_distance: f64,
-    last: [f64; 3],
+    /// The feet at the last tick the force was applied, if the tick before this one was one:
+    /// a step is credited only between two applied ticks.
+    last: Option<[f64; 3]>,
+    /// Distance the force carried the player along its line (closer for a pull, farther for a
+    /// push), beyond what running covers; and the rise of a push off an anchor below.
+    moved: f64,
+    risen: f64,
     /// A push off an anchor under the feet (as `physics::step` judges it at the start).
     below: bool,
     coin: bool,
@@ -114,6 +116,18 @@ const RUN_MOVE: f64 = 2.0;
 const RUN_LIFT: f64 = 1.5;
 /// A move between two ticks longer than this is not the force's (a teleport): the run is spent.
 const RUN_STEP: f64 = 2.0;
+/// Per tick, a step along the force's line counts only beyond this (sprinting covers about
+/// 0.28 blocks a tick): walking or running towards an anchor earns nothing.
+const RUN_FREE_STEP: f64 = 0.3;
+/// Blocks a player climbs by itself: a run standing in one is spent (a climb is not a lift).
+const CLIMBABLE: [&str; 6] = [
+    "ladder",
+    "vine",
+    "scaffolding",
+    "twisting_vines",
+    "weeping_vines",
+    "cave_vines",
+];
 /// A pulled item picked up within this many ticks of its last pull is the pull's evidence.
 const PULL_EVIDENCE_TICKS: u64 = 40;
 
@@ -487,10 +501,24 @@ impl Powers {
             let Ok(outcome) = physics::step(&prep.rules, &input) else {
                 continue;
             };
-            if let Some(next) = outcome.player_velocity
-                && player.set_velocity(host, [next.x, next.y, next.z])
-                && outcome.player_delta.y > 0.0
-            {
+            let climbing = player
+                .level(read)
+                .and_then(|level| {
+                    let at = [
+                        feet[0].floor() as i32,
+                        feet[1].floor() as i32,
+                        feet[2].floor() as i32,
+                    ];
+                    level.block(read, at)
+                })
+                .is_some_and(|block| {
+                    let id = block.id(read);
+                    CLIMBABLE.iter().any(|name| id.ends_with(name))
+                });
+            let applied = outcome
+                .player_velocity
+                .is_some_and(|next| player.set_velocity(host, [next.x, next.y, next.z]));
+            if applied && outcome.player_delta.y > 0.0 {
                 let _ = body.reset_fall_distance(host);
             }
             eprintln!(
@@ -503,12 +531,19 @@ impl Powers {
                 fmt3(outcome.player_delta),
                 outcome.anchored
             );
-            self.track_run(uuid, &prep, feet);
+            self.track_run(uuid, &prep, feet, applied, climbing);
         }
     }
 
     /// Follows the player's anchored run and records its practice and evidence once each.
-    fn track_run(&mut self, uuid: u128, prep: &Prepared, feet: [f64; 3]) {
+    fn track_run(
+        &mut self,
+        uuid: u128,
+        prep: &Prepared,
+        feet: [f64; 3],
+        applied: bool,
+        climbing: bool,
+    ) {
         let key = run_key(&prep.target);
         let middle = feet[1] + BODY_MIDDLE;
         let offset = v3([
@@ -516,17 +551,17 @@ impl Powers {
             prep.point.y - middle,
             prep.point.z - feet[2],
         ]);
-        let now_distance = physics::norm(offset).max(1e-6);
+        let distance_now = physics::norm(offset).max(1e-6);
         if self.runs.get(&uuid).is_none_or(|run| run.key != key) {
             let push = prep.direction == Direction::Push;
             self.runs.insert(
                 uuid,
                 Run {
                     key,
-                    start: feet,
-                    start_distance: now_distance,
-                    last: feet,
-                    below: push && offset.y / now_distance < -prep.rules.anchor_down,
+                    last: None,
+                    moved: 0.0,
+                    risen: 0.0,
+                    below: push && offset.y / distance_now < -prep.rules.anchor_down,
                     coin: matches!(&prep.target, Target::Item { id, .. } if is_coin(id)),
                     block: matches!(prep.target, Target::Block { .. }),
                     pull: !push,
@@ -539,23 +574,28 @@ impl Powers {
         let Some(run) = self.runs.get_mut(&uuid) else {
             return;
         };
-        if distance(feet, v3(run.last)) > RUN_STEP {
-            // A teleport (or a lost reading): nothing more from this run.
-            run.practiced = true;
-            run.self_pull = true;
-            run.lift = true;
+        if let Some(last) = run.last {
+            let step = [feet[0] - last[0], feet[1] - last[1], feet[2] - last[2]];
+            if climbing || physics::norm(v3(step)) > RUN_STEP {
+                // A climb or a teleport: nothing more from this run.
+                run.practiced = true;
+                run.self_pull = true;
+                run.lift = true;
+            } else {
+                // The step along the force's line, falls left out (gravity is not the force).
+                let sign = if run.pull { 1.0 } else { -1.0 };
+                let along = (step[0] * offset.x + step[1].max(0.0) * offset.y + step[2] * offset.z)
+                    / distance_now
+                    * sign;
+                run.moved += (along - RUN_FREE_STEP).max(0.0);
+                if run.below {
+                    run.risen += step[1].max(0.0);
+                }
+            }
         }
-        run.last = feet;
-        // How far the force carried the player along its line: closer for a pull, farther for
-        // a push. Walking away during a pull, or a fall, moves the wrong way and counts nothing.
-        let moved = if run.pull {
-            run.start_distance - now_distance
-        } else {
-            now_distance - run.start_distance
-        };
-        // A lift is a rise that is also a move away from the anchor below (not a ladder climb
-        // beside it).
-        let rise = (feet[1] - run.start[1]).min(moved);
+        run.last = applied.then_some(feet);
+        let moved = run.moved;
+        let rise = run.risen;
         let mut found = Vec::new();
         if !run.practiced {
             // A coin underfoot counts only as a coin jump, once it lifts.
@@ -688,6 +728,18 @@ impl Powers {
         from: [f64; 3],
         to: [f64; 3],
     ) {
+        // A teleported player's run is spent: the jump is not the force's.
+        let teleported = host
+            .players()
+            .server_players()
+            .into_iter()
+            .find(|player| player.entity().id() == entity)
+            .map(|player| player.uuid());
+        if let Some(run) = teleported.and_then(|uuid| self.runs.get_mut(&uuid)) {
+            run.practiced = true;
+            run.self_pull = true;
+            run.lift = true;
+        }
         let point = |[x, y, z]: [f64; 3]| Vec3 { x, y: y + 0.125, z };
         let Some(index) = self.flights.iter().position(|f| f.coin.id() == entity) else {
             return;

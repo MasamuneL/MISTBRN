@@ -659,6 +659,11 @@ impl Session {
             Err(error) => Err(format!("{error:?}")),
         };
         let observed = observed.unwrap_or(Observed::Nothing);
+        if result.is_ok() && observed != Observed::Nothing {
+            // Now, not at the tick's end: the player may die before it and leave from the
+            // death screen, where no write reaches a dead player.
+            self.flush(host, player);
+        }
         match (result, observed) {
             (Err(error), _) => eprintln!("MISTBRN event=observe_refused error={error}"),
             (

@@ -190,9 +190,14 @@ p5_scenario() {
       ' "$(log 1)"; then k_ok "practice per pull: 10, 5, 2, no award"
       else k_fail "expected one practice award per pull (10, 5, 2) and none on pull four"; fi
       expect 2 report state=active xp_iron_steel=17
-      [[ "$(grep -aFc 'MISTBRN event=practice category=anchor_move' "$(log 2)" || true)" == 1 ]] ||
-        k_fail "after the relaunch expected one award (pull 6 only)"
-      expect_log 2 'MISTBRN event=practice category=anchor_move xp=10 count=1 total_xp=27' ;;
+      # Each award belongs to the pull whose lighting precedes it: none for pull 5, 10 for pull 6.
+      if awk '
+        /MISTBRN event=control .* command=activate:iron allowed=true result=ok / { run++ }
+        /MISTBRN event=practice category=anchor_move / { count[run]++; if (run == 2) last = $0 }
+        END { exit !(run == 2 && !count[0] && !count[1] && count[2] == 1 &&
+                     last ~ / xp=10 count=1 total_xp=27 /) }
+      ' "$(log 2)"; then k_ok "after the relaunch: pull 5 nothing (saved window), pull 6 10 (new window)"
+      else k_fail "expected no award for pull 5 and 10 XP for pull 6"; fi ;;
     r1)
       p5_lane; p5_unlock
       p4_iron_block 524
@@ -217,7 +222,7 @@ p5_scenario() {
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=evidence research=anchor_principle bit=2 ready=false'
-      expect 2 report state=active research=1:e2h0c0
+      expect 2 report state=active research=1:e2h0c0 xp_iron_steel=10
       expect_log 2 'MISTBRN event=target_acquired kind=item id=minecraft:iron_ingot '
       expect_log 2 'MISTBRN event=evidence research=anchor_principle bit=1 ready=true'
       jq -e '.counts["minecraft:iron_ingot"] == 1' "$dir/pulled-ingot.json" >/dev/null ||

@@ -635,3 +635,20 @@ fn schema_1_rule_modifiers_migrate_when_every_reserve_still_fits() {
         Err(SaveError::Progress(ProgressError::RulesMismatch))
     );
 }
+
+// Catches a migration that normalizes a schema 1 save that schema 1 itself rejected.
+#[test]
+fn an_invalid_schema_1_save_stays_invalid_before_any_migration() {
+    assert_eq!(
+        decode(&v1_with_modifiers(201, 0, None)),
+        Err(SaveError::InvalidReserves(
+            ReserveError::ReductionLimitExceeded
+        ))
+    );
+    assert_eq!(
+        decode(&v1_with_modifiers(0, 501, None)),
+        Err(SaveError::InvalidReserves(
+            ReserveError::CapacityBonusLimitExceeded
+        ))
+    );
+}

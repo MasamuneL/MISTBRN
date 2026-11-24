@@ -120,8 +120,8 @@ pub(crate) fn tab_centre(size: [f32; 2], tab: Tab) -> [f32; 2] {
     [x + w / 2.0, y + h / 2.0]
 }
 
-/// What the pointer is over on `tab`.
-pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab) -> Option<Target> {
+/// What the pointer is over on `tab`. Only the `revealed` hints have page buttons.
+pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab, revealed: u8) -> Option<Target> {
     let o = origin(size);
     for candidate in [Tab::Tree, Tab::Diary] {
         if inside(pointer, tab_rect(o, candidate)) {
@@ -137,7 +137,7 @@ pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab) -> Option<Targ
             if inside(pointer, [o[0] + x, o[1] + y, w, h]) {
                 return Some(Target::RevealHint);
             }
-            (1..=3u8)
+            (1..=revealed.min(3))
                 .find(|&i| inside(pointer, hint_page_rect(o, i)))
                 .map(Target::HintPage)
         }
@@ -265,7 +265,11 @@ pub(crate) fn draw(
         draw.text(&wait, [o[0] + 8.0, o[1] + 8.0], DIM, true);
         return;
     };
-    let hovered = target(size, pointer, tab);
+    let revealed = CATALOG
+        .research
+        .first()
+        .map_or(0, |def| progress.research(def.code).hints);
+    let hovered = target(size, pointer, tab, revealed);
     match tab {
         Tab::Tree => draw_tree(host, draw, o, progress, unlocked, hovered),
         Tab::Diary => draw_diary(host, draw, o, progress, hovered, hint_page),

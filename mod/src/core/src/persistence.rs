@@ -713,6 +713,8 @@ pub fn decode_save(
         return Err(SaveError::LengthMismatch);
     }
     if schema == 1 {
+        // The save must be valid as schema 1 wrote it before anything is normalized.
+        validate_reserves(&state, &accounting, &rules).map_err(SaveError::InvalidReserves)?;
         // Since P5 the reduction and the capacity bonus are what the general nodes give, and a
         // schema 1 save owns none. No shipped adapter wrote anything but 0 there; a save that
         // did keeps its fuel: the bonus is dropped only while every reserve still fits the

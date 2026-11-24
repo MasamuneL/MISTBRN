@@ -802,3 +802,14 @@ fn evidence_needs_the_pair_but_hints_alone_do_not() {
     assert_eq!(saved.progress().research(RESEARCH_ANCHOR).hints, 1);
     assert_eq!(decode(&encode_save(&saved).unwrap()).unwrap(), saved);
 }
+
+#[test]
+fn an_unused_window_with_a_start_is_rejected() {
+    // The third window (coin_hit) is unused in `learned()`: give it a start and no count.
+    let start_at = RESEARCH_AT + 5 + 2 * 9;
+    assert_eq!(learned().progress().windows()[2].count, 0);
+    assert_eq!(
+        decode(&edited(|b| b[start_at] = 7)),
+        Err(SaveError::Progress(ProgressError::WindowOutOfRange))
+    );
+}

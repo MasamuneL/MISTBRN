@@ -561,7 +561,13 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
         let Some(size) = book.size else {
             return true;
         };
-        match notebook::target(size, pointer, book.tab) {
+        let revealed = progress.as_ref().map_or(0, |p| {
+            allomancy_core::CATALOG
+                .research
+                .first()
+                .map_or(0, |def| p.research(def.code).hints)
+        });
+        match notebook::target(size, pointer, book.tab, revealed) {
             Some(notebook::Target::Tab(tab)) => book.tab = tab,
             Some(notebook::Target::HintPage(index)) => book.hint_page = Some(index),
             Some(target) => {
@@ -595,13 +601,25 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
 
 /// A fresh press of the notebook key over the open notebook closes it (not its release: the
 /// release of the press that opened it would close it at once). True when the press was ours.
-pub(crate) fn notebook_key_pressed(host: &dyn ClientHost, key: &str, repeat: bool) -> bool {
+pub(crate) fn notebook_key_pressed(
+    host: &dyn ClientHost,
+    key: &str,
+    modifiers: u32,
+    repeat: bool,
+) -> bool {
+    // Shift, Control, Alt, Super: a rebinding to Ctrl+J is not closed by J alone.
+    const MODIFIERS: u32 = 0xF;
+    if !wheel_open(host) {
+        return false;
+    }
     let mut state = state();
     let Some(book) = state.notebook.as_mut() else {
         return false;
     };
-    let bound = host.mod_key(MOD_ID, NOTEBOOK_KEY.0).map(|(bound, _)| bound);
-    if bound.as_deref() != Some(key) {
+    let Some((bound, bound_modifiers)) = host.mod_key(MOD_ID, NOTEBOOK_KEY.0) else {
+        return false;
+    };
+    if bound != key || bound_modifiers.bits & MODIFIERS != modifiers & MODIFIERS {
         return false;
     }
     if !repeat {

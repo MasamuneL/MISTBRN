@@ -569,12 +569,12 @@ pub fn validate_progress(
             return Err(ProgressError::PairLocked);
         }
     }
-    // A window counts at most one action past its falloff: `apply_practice` stops counting.
-    if progress
-        .windows
-        .iter()
-        .any(|window| usize::from(window.count) > catalog.falloff_percent.len())
-    {
+    // A window counts at most its falloff's actions (`apply_practice` stops counting there),
+    // and an unused window was never opened.
+    if progress.windows.iter().any(|window| {
+        usize::from(window.count) > catalog.falloff_percent.len()
+            || (window.count == 0 && window.start != 0)
+    }) {
         return Err(ProgressError::WindowOutOfRange);
     }
     for (&code, research) in &progress.research {

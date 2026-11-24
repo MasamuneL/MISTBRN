@@ -373,7 +373,7 @@ impl Hooks for Allomancy {
         host: &dyn ClientHost,
         event: &mut ScreenKeyPressedPreEvent<'_>,
     ) -> Flow {
-        if client::notebook_key_pressed(host, event.key, event.repeat) {
+        if client::notebook_key_pressed(host, event.key, event.modifiers, event.repeat) {
             Flow::Cancel
         } else {
             Flow::Continue
