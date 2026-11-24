@@ -289,8 +289,10 @@ pub(crate) struct Book {
     pub(crate) focus: Option<Target>,
     /// The panel's top left and scale on screen, from the last frame.
     pub(crate) frame: Option<([f32; 2], f32)>,
-    /// What the targets were last logged for (tab, view, scroll, hints shown, scale).
-    pub(crate) logged: Option<(Tab, u8, i32, u8, i32)>,
+    /// The targets line last logged (`event=book_view`), to log only what changed.
+    pub(crate) logged: Option<String>,
+    /// The last Conclude was not taken by the server: the diary says why it may have been.
+    pub(crate) refused: bool,
 }
 
 impl Book {
@@ -305,6 +307,7 @@ impl Book {
             focus: None,
             frame: None,
             logged: None,
+            refused: false,
         }
     }
 
@@ -332,10 +335,10 @@ pub(crate) fn inside(point: [f32; 2], rect: [f32; 4]) -> bool {
         && point[1] < rect[1] + rect[3]
 }
 
-/// Whether `rect` shows inside the window `clip` (its middle row does).
+/// Whether `rect` shows whole inside the window `clip`: a part cut by the clip is neither
+/// clicked, focused nor given a tooltip (Codex review, round 1).
 fn shows(rect: [f32; 4], clip: [f32; 4]) -> bool {
-    let middle = rect[1] + rect[3] / 2.0;
-    middle >= clip[1] && middle < clip[1] + clip[3]
+    rect[1] >= clip[1] && rect[1] + rect[3] <= clip[1] + clip[3]
 }
 
 /// Every target of the book as it stands, in focus order, with its local rectangle and

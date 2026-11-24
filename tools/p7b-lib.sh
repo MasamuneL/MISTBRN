@@ -95,41 +95,61 @@ p7b_scenario() {
       expect_log 1 'MISTBRN event=book_scroll lines=1 scroll=0,0'
       for tab in diary milestones reserves; do expect_log 1 "MISTBRN event=book_view .* tab=$tab "; done
       k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
-    l2)  # keyboard only: Tab to reach, Enter buys it (Page Down has no horizon-ctl key name;
-         # its mapping is a unit test)
+    l2)  # keyboard only: Tab to reach, Enter buys one rank, a held Enter buys nothing more
+         # (Page Down has no horizon-ctl key name; its mapping is a unit test)
       launch MISTBRN_TEST_SCENARIO=p4
       book_quiet
       p6_place
       book_pair
+      # 450 XP: three points, enough for reach 1 (cost 1) and reach 2 (cost 2).
+      ctl command "mistbrn-test xp 350" >/dev/null; ctl wait 10 >/dev/null
       book_open l2-open
       # Focus order: 4 tabs, 5 trees, then reach (the innate power is not focusable).
       for _ in 1 2 3 4 5 6 7 8 9 10; do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
       book_shot l2-focus
       ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
-      book_shot l2-bought
+      ctl key enter repeat >/dev/null; ctl wait 20 >/dev/null
+      book_shot l2-held
+      ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
+      book_shot l2-second
       k_key esc 10
       ctl save >/dev/null; quit_game
       report; quit_game
-      expect_log 1 'MISTBRN event=book_key key=Next focus=node.1 '
-      expect_log 1 'MISTBRN event=notebook result=request:Purchase { code: 1, rank: 1 }'
+      expect_log 1 'MISTBRN event=book_key key=Next repeat=false focus=node.1 '
+      expect_log 1 'MISTBRN event=book_key key=Activate repeat=true focus=node.1 '
       expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok'
-      expect 2 report state=active nodes=1:1 ;;
-    l3)  # Conclude: refused away from a table and beyond 5 blocks, once at the table
+      expect_log 1 'MISTBRN event=purchase node=reach rank=2 result=ok'
+      # Two taps, two requests: the held Enter's repeats sent nothing.
+      k_expect_count "one request per tap" 'MISTBRN event=notebook result=request:Purchase' 2 2
+      expect 2 report state=active nodes=1:2 ;;
+    l3)  # Conclude: refused in creative, without a table in sight, beyond 5 blocks (also from
+         # the book, which then says why) and behind a block; once at the table
       launch MISTBRN_TEST_SCENARIO=p4
       book_quiet
       p6_place
       book_pair
-      ctl command "gamemode survival" >/dev/null
       ctl command "mistbrn-test evidence 2" >/dev/null
       ctl command "mistbrn-test evidence 4" >/dev/null
-      ctl setblock 514 100 512 crafting_table >/dev/null
+      book_table
+      ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
+      ctl command "gamemode survival" >/dev/null
       ctl look -90 -90 >/dev/null; ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
       # 5.5 blocks from the table's face, still on the stone floor (it starts at x 508).
       ctl command "tp @s 508.5 100 512.5" >/dev/null; ctl wait 10 >/dev/null
       # The table's west face centre, as a point: `look-at block` needs it within reach.
       ctl look-at 514.0 100.5 512.5 >/dev/null; ctl wait 5 >/dev/null
+      book_open l3-far
+      book_click tab.diary
+      book_click conclude; ctl wait 30 >/dev/null
+      book_shot l3-refused
+      k_key esc 10
+      # Glass between the eyes and the table: the ray stops there.
+      book_table
+      ctl setblock 513 100 512 glass >/dev/null; ctl setblock 513 101 512 glass >/dev/null
+      ctl wait 5 >/dev/null
       ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
+      ctl setblock 513 100 512 air >/dev/null; ctl setblock 513 101 512 air >/dev/null
       book_table
       book_open l3-open
       book_click tab.diary; book_shot l3-ready
@@ -138,10 +158,11 @@ p7b_scenario() {
       ctl command "mistbrn-test inject conclude.1.0" >/dev/null; ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
-      k_expect_count "two refusals without a table in reach" \
-        'MISTBRN event=control op=conclude research=1 result=NoTable' 2 2
-      expect_log 1 'MISTBRN event=notebook result=request:Conclude { research: 1 }'
-      expect_log 1 'MISTBRN event=conclude research=anchor_principle result=ok'
+      k_expect_count "refused in creative" 'MISTBRN event=control op=conclude research=1 result=GameMode' 1 1
+      k_expect_count "three refusals without a table in reach" \
+        'MISTBRN event=control op=conclude research=1 result=NoTable' 3 3
+      expect_log 1 'MISTBRN event=notebook result=conclude_refused'
+      k_expect_count "two requests from the book" 'MISTBRN event=notebook result=request:Conclude { research: 1 }' 2 2
       expect_log 1 'MISTBRN event=conclude research=anchor_principle result=AlreadyConcluded'
       k_expect_count "one conclusion" 'MISTBRN event=conclude research=anchor_principle result=ok' 1 1
       expect 2 report state=active research=1:e6h0c1 knowledge=3 xp_iron_steel=300 ;;

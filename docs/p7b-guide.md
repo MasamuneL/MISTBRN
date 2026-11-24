@@ -25,9 +25,9 @@ Tab (o las flechas) mueve el foco, marcado con un borde dorado, por pestañas, p
 
 No hay soporte de mando: sus clics no llegan a las pantallas del mod.
 
-## Prueba rápida en creativo
+## Prueba rápida
 
-1. Bebe un vial de hierro y abre el libro con J. Comprueba el árbol, la rueda, los recuadros y las cuatro pestañas.
+1. En supervivencia, bebe un vial de hierro (desbloquea la pareja) y abre el libro con J. Comprueba el árbol, la rueda, los recuadros y las cuatro pestañas.
 2. Sin ratón: pulsa Tab hasta Alcance e Intro. Sin puntos, el recuadro dice «Te faltan puntos».
 3. Cambia los tres ajustes y vuelve a abrir el libro.
 4. En supervivencia, junta dos evidencias del principio del ancla (el diario dice cuáles) y concluye mirando a una mesa.

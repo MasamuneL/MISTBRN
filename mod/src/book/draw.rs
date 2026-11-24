@@ -43,6 +43,8 @@ const TEXT: u32 = 0xFFE0_E0E0;
 const DIM: u32 = 0xFF90_9090;
 const BRASS: u32 = 0xFFF0_D48A;
 const READY: u32 = 0xFFB8_E0A0;
+/// The Conclude refusal note: warm and lighter than the body text's grey.
+const REFUSED: u32 = 0xFFF0_A070;
 const LOCKED_TINT: u32 = 0xFF70_7070;
 const LOCKED_ICON_TINT: u32 = 0xFF9C_9C9C;
 /// A silhouette: the locked frame, darker, with no icon.
@@ -732,8 +734,13 @@ fn draw_diary(
         }
     }
     if ready {
-        let how = fit(p, &tr(host, "notebook.mistbrn.research.how"), DETAIL_W);
-        p.text(&how, [x, CONCLUDE_BUTTON[1] - 11.0], READY, true);
+        let (key, color) = if book.refused {
+            ("message.mistbrn.research.no_table", REFUSED)
+        } else {
+            ("notebook.mistbrn.research.how", READY)
+        };
+        let how = fit(p, &tr(host, key), DETAIL_W);
+        p.text(&how, [x, CONCLUDE_BUTTON[1] - 11.0], color, true);
         button(p, CONCLUDE_BUTTON, hovered == Some(Target::Conclude));
         let label = tr(host, "notebook.mistbrn.conclude");
         let lx = CONCLUDE_BUTTON[0] + (CONCLUDE_BUTTON[2] - p.text_width(&label)) / 2.0;

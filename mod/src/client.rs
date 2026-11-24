@@ -76,7 +76,13 @@ struct Notebook {
     book: Book,
     request: Option<ControlRequest>,
     close: bool,
+    /// When a Conclude went to the server; if the research is still open 20 ticks later the
+    /// book says why it may have been refused (the action bar is under the book).
+    conclude_sent: Option<u64>,
 }
+
+/// Ticks to wait for a conclusion before the book shows the refusal note.
+const CONCLUDE_WAIT: u64 = 20;
 
 /// The book's and the HUD's scale settings (Options > Mods): 75 %, 100 % or 125 %.
 const SCALES: [f32; 3] = [0.75, 1.0, 1.25];
@@ -270,16 +276,20 @@ pub(crate) fn progress_handler() -> Arc<dyn IPayloadHandler> {
 
 /// Opens the notebook screen (the notebook item, or B). Nothing if another screen is open.
 pub(crate) fn open_notebook(host: &mut dyn ClientHost) {
-    let mut state = state();
-    if state.wheel.is_some() || state.notebook.is_some() {
-        return;
+    {
+        let state = state();
+        if state.wheel.is_some() || state.notebook.is_some() {
+            return;
+        }
     }
+    // The state is not held across the host call: its screen hooks take it too.
     if host.mod_screen_open(MOD_ID) {
         eprintln!("MISTBRN event=notebook result=open");
-        state.notebook = Some(Notebook {
+        state().notebook.get_or_insert(Notebook {
             book: Book::new(),
             request: None,
             close: false,
+            conclude_sent: None,
         });
     } else {
         eprintln!("MISTBRN event=notebook result=no_screen");
@@ -331,7 +341,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
     state.ticks += 1;
     let mut sends = Vec::new();
     wheel_tick(host, &mut state, &mut sends);
-    notebook_tick(host, &mut state, &mut sends);
+    let close_book = notebook_tick(host, &mut state, &mut sends);
     if state.wheel_latched && !wheel_key_down(host) {
         state.wheel_latched = false;
     }
@@ -370,6 +380,9 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
         sends.extend(fuzz_requests());
     }
     drop(state);
+    if close_book {
+        host.mod_screen_close(MOD_ID);
+    }
     for bytes in sends {
         send(host, bytes);
     }
@@ -385,26 +398,50 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
 
 /// Sends the notebook's chosen request, closes it when asked, and forgets a notebook that
 /// something else closed (Esc, another screen).
-fn notebook_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Vec<Vec<u8>>) {
+/// True when the book asked to close: the caller closes the screen once the state is free.
+fn notebook_tick(host: &dyn ClientHost, state: &mut ClientState, sends: &mut Vec<Vec<u8>>) -> bool {
+    let ticks = state.ticks;
+    let concluded = |code: u8| {
+        state
+            .progress
+            .as_ref()
+            .is_some_and(|p| p.research(u16::from(code)).concluded)
+    };
+    let research = state.notebook.as_ref().map(|open| open.book.research);
+    let done = research.is_some_and(|code| concluded(u8::try_from(code).unwrap_or(0)));
     let Some(open) = state.notebook.as_mut() else {
-        return;
+        return false;
     };
     if host.mod_screen() != Some(MOD_ID) {
         state.notebook = None;
         eprintln!("MISTBRN event=notebook result=closed");
-        return;
+        return false;
     }
     if let Some(request) = open.request.take()
         && host.window_focused()
     {
         eprintln!("MISTBRN event=notebook result=request:{request:?}");
+        if matches!(request, ControlRequest::Conclude { .. }) {
+            open.conclude_sent = Some(ticks);
+            open.book.refused = false;
+        }
         sends.push(encode_control(request).to_vec());
+    }
+    if let Some(sent) = open.conclude_sent
+        && (done || ticks.saturating_sub(sent) >= CONCLUDE_WAIT)
+    {
+        open.conclude_sent = None;
+        open.book.refused = !done;
+        if !done {
+            eprintln!("MISTBRN event=notebook result=conclude_refused");
+        }
     }
     if open.close {
         state.notebook = None;
-        host.mod_screen_close(MOD_ID);
         eprintln!("MISTBRN event=notebook result=closed");
+        return true;
     }
+    false
 }
 
 /// Whether a pair is unlocked, from the HUD the server last sent.
@@ -694,47 +731,57 @@ pub(crate) fn notebook_key_pressed(
     if !wheel_open(host) {
         return false;
     }
+    // The book's own binding first (a rebinding to Tab or Enter closes it), Esc is Horizon's.
+    let bound = host
+        .mod_key(MOD_ID, NOTEBOOK_KEY.0)
+        .is_some_and(|(bound, bound_modifiers)| {
+            bound == key && bound_modifiers.bits & MODIFIERS == modifiers & MODIFIERS
+        });
     let mut state = state();
     let unlocked = unlocked_in(state.hud);
     let progress = state.progress.clone();
     let Some(open) = state.notebook.as_mut() else {
         return false;
     };
-    // The book's own keys (P7b): focus, activate, scroll. Shift is bit 1.
-    if let (Some(key), Some(progress)) = (book::key(key, modifiers & 1 != 0), progress.as_ref()) {
-        match key {
-            Key::Next | Key::Previous => {
-                book::move_focus(&mut open.book, progress, key == Key::Next);
-            }
-            Key::Activate => {
-                if let Some(target) = open.book.focus
-                    && let Some(request) =
-                        book::activate(&mut open.book, target, progress, &unlocked)
-                {
-                    open.request.get_or_insert(request);
-                }
-            }
-            Key::PageUp | Key::PageDown => {
-                let lines = if key == Key::PageUp { 3.0 } else { -3.0 };
-                book::scroll(&mut open.book, None, lines);
-            }
+    if bound {
+        if !repeat {
+            open.close = true;
         }
-        eprintln!(
-            "MISTBRN event=book_key key={key:?} focus={} scroll={}",
-            open.book.focus.map_or_else(|| "-".into(), |t| t.name()),
-            open.book.scroll
-        );
         return true;
     }
-    let Some((bound, bound_modifiers)) = host.mod_key(MOD_ID, NOTEBOOK_KEY.0) else {
+    // The book's own keys (P7b): focus, activate, scroll. Shift is bit 1.
+    let (Some(key), Some(progress)) = (book::key(key, modifiers & 1 != 0), progress.as_ref())
+    else {
         return false;
     };
-    if bound != key || bound_modifiers.bits & MODIFIERS != modifiers & MODIFIERS {
-        return false;
+    match key {
+        Key::Next | Key::Previous => {
+            book::move_focus(&mut open.book, progress, key == Key::Next);
+        }
+        // A held Enter does not repeat: one press, one rank (Codex review, round 1).
+        Key::Activate if repeat => {}
+        Key::Activate => {
+            let shown = open.book.focus.filter(|focus| {
+                book::targets(&open.book, progress)
+                    .iter()
+                    .any(|(target, _, shown)| target == focus && *shown)
+            });
+            if let Some(target) = shown
+                && let Some(request) = book::activate(&mut open.book, target, progress, &unlocked)
+            {
+                open.request.get_or_insert(request);
+            }
+        }
+        Key::PageUp | Key::PageDown => {
+            let lines = if key == Key::PageUp { 3.0 } else { -3.0 };
+            book::scroll(&mut open.book, None, lines);
+        }
     }
-    if !repeat {
-        open.close = true;
-    }
+    eprintln!(
+        "MISTBRN event=book_key key={key:?} repeat={repeat} focus={} scroll={}",
+        open.book.focus.map_or_else(|| "-".into(), |t| t.name()),
+        open.book.scroll
+    );
     true
 }
 
@@ -758,24 +805,12 @@ pub(crate) fn mouse_scrolled(host: &dyn ClientHost, pointer: [f32; 2], lines: f6
     true
 }
 
-/// Logs the targets of the book's view when it changes (tab, tree, scroll, hints, scale), in
-/// screen GUI pixels, for scenarios that click them by name.
+/// Logs the targets of the book's view, in screen GUI pixels, whenever the line changes, for
+/// scenarios that click them by name.
 fn log_targets(shown: &mut Book, progress: &allomancy_core::Progress, size: [f32; 2]) {
     let Some(([ox, oy], scale)) = shown.frame else {
         return;
     };
-    let hints = progress.research(shown.research).hints;
-    let key = (
-        shown.tab,
-        shown.view,
-        (shown.scroll + shown.list_scroll) as i32,
-        hints,
-        (scale * 100.0) as i32,
-    );
-    if shown.logged == Some(key) {
-        return;
-    }
-    shown.logged = Some(key);
     let list: Vec<String> = book::targets(shown, progress)
         .into_iter()
         .filter(|(_, _, visible)| *visible)
@@ -785,7 +820,7 @@ fn log_targets(shown: &mut Book, progress: &allomancy_core::Progress, size: [f32
             format!("{}@{},{}", target.name(), cx.round(), cy.round())
         })
         .collect();
-    eprintln!(
+    let line = format!(
         "MISTBRN event=book_view gui={}x{} tab={} view={} scale={scale} origin={ox},{oy} targets={}",
         size[0],
         size[1],
@@ -793,4 +828,9 @@ fn log_targets(shown: &mut Book, progress: &allomancy_core::Progress, size: [f32
         shown.view,
         list.join(";")
     );
+    // Logged whenever anything a click needs changed: place, scale or the targets offered.
+    if shown.logged.as_deref() != Some(line.as_str()) {
+        eprintln!("{line}");
+        shown.logged = Some(line);
+    }
 }
