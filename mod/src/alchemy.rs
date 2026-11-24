@@ -7,9 +7,9 @@ use allomancy_core::{
 use mod_api::{
     BlockDropsEvent, BlockEntityPart, BlockEntityTickEvent, BlockEntityTickReply,
     BlockEntityTicksEvent, BlockPart, ClientHost, ClipBlock, ClipFluid, FurnaceSmeltEvent,
-    GameMode, Hand, Host, HostTransaction, Identifier, ItemClick, ItemStack, LevelHost, LevelRef,
-    MenuContainer, MenuPart, MenuSlotRulesEvent, ModContainer, Registrar, Screen, ScreenDrawEvent,
-    ScreenEvent, ScreenTooltipEvent, ServerHost, Tag,
+    GameMode, Hand, Host, HostTransaction, Identifier, InteractionResult, ItemClick, ItemStack,
+    LevelHost, LevelRef, MenuContainer, MenuPart, MenuSlotRulesEvent, ModContainer, Registrar,
+    Screen, ScreenDrawEvent, ScreenEvent, ScreenTooltipEvent, ServerHost, Tag, UseWithoutItemEvent,
 };
 
 pub(crate) const ALEMBIC: &str = "mistbrn:alembic";
@@ -76,7 +76,21 @@ impl MenuPart for AlembicMenu {
 struct Alembic;
 
 #[mod_api::horizon_part]
-impl BlockPart for Alembic {}
+impl BlockPart for Alembic {
+    /// An empty-hand click opens the alembic's menu (vanilla's container blocks do the same).
+    fn use_without_item(
+        &self,
+        host: &mut dyn ServerHost,
+        event: &mut UseWithoutItemEvent<'_>,
+    ) -> Option<InteractionResult> {
+        let click = event.click;
+        let player = host.player(click.player)?;
+        let level = player.level(&*host)?;
+        let entity = host.block_entity(level, click.pos)?;
+        let opened = player.open_menu(host, entity).unwrap_or(false);
+        opened.then_some(InteractionResult::SuccessServer)
+    }
+}
 
 #[mod_api::horizon_part]
 impl BlockEntityPart for Alembic {

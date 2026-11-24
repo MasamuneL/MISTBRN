@@ -209,9 +209,10 @@ p3c_scenario() {
       local found x z total=0 n dx dz
       launch
       ctl command "locate biome minecraft:beach" > "$dir/locate.json"
-      found="$(grep -aoE '\[-?[0-9]+, ~, -?[0-9]+\]' "$dir/locate.json" | head -1 || true)"
-      x="$(sed -E 's/^\[(-?[0-9]+), ~, (-?[0-9]+)\]$/\1/' <<< "$found")"
-      z="$(sed -E 's/^\[(-?[0-9]+), ~, (-?[0-9]+)\]$/\2/' <<< "$found")"
+      # "The nearest minecraft:beach is at [137, 69, 65] (...)"; Y may also read "~".
+      found="$(grep -aoE '\[-?[0-9]+, (-?[0-9]+|~), -?[0-9]+\]' "$dir/locate.json" | head -1 || true)"
+      x="$(sed -E 's/^\[(-?[0-9]+), [^,]+, (-?[0-9]+)\]$/\1/' <<< "$found")"
+      z="$(sed -E 's/^\[(-?[0-9]+), [^,]+, (-?[0-9]+)\]$/\2/' <<< "$found")"
       [[ "$x" =~ ^-?[0-9]+$ && "$z" =~ ^-?[0-9]+$ ]] || die "no beach located: $(head -c 300 "$dir/locate.json")"
       k_ok "beach at $x,$z"
       ctl command "tp @s $x 90 $z" >/dev/null
