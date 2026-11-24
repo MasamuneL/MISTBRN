@@ -574,10 +574,10 @@ fn learned() -> SavedPlayer {
 }
 
 #[test]
-fn schema_2_round_trips_every_progress_field() {
+fn the_current_schema_round_trips_every_progress_field() {
     let saved = learned();
     let bytes = encode_save(&saved).unwrap();
-    assert_eq!(save_schema(&bytes), Some(2));
+    assert_eq!(save_schema(&bytes), Some(3));
     assert_eq!(decode(&bytes).unwrap(), saved);
 }
 
@@ -695,22 +695,37 @@ fn rules_that_do_not_match_the_nodes_are_rejected_on_decode() {
     );
 }
 
-// Fixture for P6 (its schema must load it).
+// Catches a schema 3 reader that loses or invents anything of a P5 save (P6 migration).
 #[test]
-fn schema_2_fixture_still_decodes() {
+fn schema_2_fixture_migrates_to_schema_3_keeping_every_field() {
     let bytes = include_bytes!("fixtures/saved-player-v2.bin");
     assert_eq!(save_schema(bytes), Some(2));
-    assert_eq!(decode(bytes).unwrap(), learned());
+    let migrated = decode(bytes).unwrap();
+    let expected = learned();
+    assert_eq!(migrated.state(), expected.state());
+    assert_eq!(migrated.accounting(), expected.accounting());
+    assert_eq!(migrated.rules(), expected.rules());
+    assert_eq!(migrated.progress(), expected.progress());
+    assert_eq!(migrated.progress().milestones(), 0);
+    assert_eq!(migrated.revision(), expected.revision());
+    assert_eq!(migrated.last_transaction(), expected.last_transaction());
+    assert_eq!(migrated, expected);
+    let rewritten = encode_save(&migrated).unwrap();
+    assert_eq!(save_schema(&rewritten), Some(3));
+    assert_eq!(rewritten.len(), bytes.len() + 1);
+    assert_eq!(decode(&rewritten).unwrap(), migrated);
 }
 
+// Catches a schema 2 reader that accepts a cut or padded P5 save.
 #[test]
-#[ignore = "regenerates tests/fixtures/saved-player-v2.bin; run only when schema 2 is defined anew"]
-fn write_schema_2_fixture() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/saved-player-v2.bin"
-    );
-    std::fs::write(path, encode_save(&learned()).unwrap()).unwrap();
+fn every_truncation_of_the_schema_2_fixture_is_rejected() {
+    let bytes = include_bytes!("fixtures/saved-player-v2.bin");
+    for len in 0..bytes.len() {
+        assert!(decode(&bytes[..len]).is_err(), "length {len}");
+    }
+    let mut longer = bytes.to_vec();
+    longer.push(0);
+    assert_eq!(decode(&longer), Err(SaveError::TrailingBytes));
 }
 
 // ---- force ----

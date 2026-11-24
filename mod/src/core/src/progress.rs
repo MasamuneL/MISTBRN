@@ -81,6 +81,19 @@ pub struct ResearchDef {
     pub knowledge: u16,
 }
 
+/// A milestone (P6): claimed once per player, by the server, when it sees the deed done.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MilestoneDef {
+    /// The milestone's bit in the saved mask: stable, never reused.
+    pub bit: u8,
+    /// Stable name for logs and translation keys (`milestone.mistbrn.<key>`).
+    pub key: &'static str,
+    /// The pair the claim unlocks (not selected), if any.
+    pub unlocks: Option<Pair>,
+    /// General knowledge points the claim grants.
+    pub knowledge: u16,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PracticeDef {
     pub category: u8,
@@ -93,6 +106,7 @@ pub struct PracticeDef {
 pub struct Catalog {
     pub nodes: &'static [NodeDef],
     pub research: &'static [ResearchDef],
+    pub milestones: &'static [MilestoneDef],
     pub practice: &'static [PracticeDef],
     /// Length of a practice window, in game-time ticks.
     pub window_ticks: u64,
@@ -117,6 +131,14 @@ pub const EVIDENCE_ITEM_PULLED: u8 = 1;
 pub const EVIDENCE_SELF_PULL: u8 = 2;
 /// A push off an anchor below the feet that lifted the player.
 pub const EVIDENCE_PUSH_LIFT: u8 = 4;
+/// Entering a bastion remnant: unlocks tin and pewter.
+pub const MILESTONE_BASTION: u8 = 1;
+/// Killing an elder guardian: unlocks zinc and brass.
+pub const MILESTONE_ELDER_GUARDIAN: u8 = 2;
+/// Opening an unopened ancient city chest: unlocks copper and bronze.
+pub const MILESTONE_ANCIENT_CITY: u8 = 4;
+/// Killing the ender dragon: general knowledge (the final mastery).
+pub const MILESTONE_DRAGON: u8 = 8;
 pub const PRACTICE_ANCHOR_MOVE: u8 = 0;
 pub const PRACTICE_COIN_JUMP: u8 = 1;
 pub const PRACTICE_COIN_HIT: u8 = 2;
@@ -184,6 +206,32 @@ pub const CATALOG: Catalog = Catalog {
         pair_xp: 200,
         knowledge: 3,
     }],
+    milestones: &[
+        MilestoneDef {
+            bit: MILESTONE_BASTION,
+            key: "bastion",
+            unlocks: Some(Pair::TinPewter),
+            knowledge: 0,
+        },
+        MilestoneDef {
+            bit: MILESTONE_ELDER_GUARDIAN,
+            key: "elder_guardian",
+            unlocks: Some(Pair::ZincBrass),
+            knowledge: 0,
+        },
+        MilestoneDef {
+            bit: MILESTONE_ANCIENT_CITY,
+            key: "ancient_city",
+            unlocks: Some(Pair::CopperBronze),
+            knowledge: 0,
+        },
+        MilestoneDef {
+            bit: MILESTONE_DRAGON,
+            key: "dragon",
+            unlocks: None,
+            knowledge: 3,
+        },
+    ],
     practice: &[
         PracticeDef {
             category: PRACTICE_ANCHOR_MOVE,
@@ -224,6 +272,7 @@ pub enum CatalogError {
     EffectOutOfLimits(u16),
     BadResearch(u16),
     BadPractice(u8),
+    BadMilestone(u8),
     BadThresholds,
 }
 
@@ -250,6 +299,8 @@ pub struct Progress {
     pub(crate) nodes: BTreeMap<u16, u8>,
     pub(crate) research: BTreeMap<u16, ResearchState>,
     pub(crate) windows: [PracticeWindow; PRACTICE_CATEGORIES],
+    /// Claimed milestones, one `MilestoneDef::bit` each (P6, schema 3).
+    pub(crate) milestones: u8,
 }
 
 pub(crate) fn pair_index(pair: Pair) -> usize {
@@ -268,6 +319,7 @@ impl Progress {
         pair_xp: [u32; 4],
         nodes: Vec<(u16, u8)>,
         research: Vec<(u16, ResearchState)>,
+        milestones: u8,
     ) -> Self {
         Self {
             pair_xp,
@@ -277,6 +329,7 @@ impl Progress {
                 .filter(|(_, entry)| *entry != ResearchState::default())
                 .collect(),
             windows: [PracticeWindow::default(); PRACTICE_CATEGORIES],
+            milestones,
         }
     }
     pub fn pair_xp(&self, pair: Pair) -> u32 {
@@ -298,18 +351,34 @@ impl Progress {
     pub fn windows(&self) -> &[PracticeWindow; PRACTICE_CATEGORIES] {
         &self.windows
     }
+    /// The claimed milestones' bits.
+    pub fn milestones(&self) -> u8 {
+        self.milestones
+    }
+    pub fn claimed(&self, bit: u8) -> bool {
+        bit != 0 && self.milestones & bit == bit
+    }
     pub fn discovered(&self, code: u16) -> bool {
         self.research(code).concluded
     }
     pub fn earned(&self, pool: Pool, catalog: &Catalog) -> u32 {
         match pool {
             Pool::Pair(pair) => points_for_xp(self.pair_xp(pair), catalog),
-            Pool::Knowledge => catalog
-                .research
-                .iter()
-                .filter(|def| self.discovered(def.code))
-                .map(|def| u32::from(def.knowledge))
-                .sum(),
+            Pool::Knowledge => {
+                let research: u32 = catalog
+                    .research
+                    .iter()
+                    .filter(|def| self.discovered(def.code))
+                    .map(|def| u32::from(def.knowledge))
+                    .sum();
+                let milestones: u32 = catalog
+                    .milestones
+                    .iter()
+                    .filter(|def| self.claimed(def.bit))
+                    .map(|def| u32::from(def.knowledge))
+                    .sum();
+                research + milestones
+            }
         }
     }
     pub fn spent(&self, pool: Pool, catalog: &Catalog) -> u32 {
@@ -376,6 +445,18 @@ pub fn node_def(code: u16, catalog: &Catalog) -> Option<&'static NodeDef> {
 
 pub fn research_def(code: u16, catalog: &Catalog) -> Option<&'static ResearchDef> {
     catalog.research.iter().find(|def| def.code == code)
+}
+
+pub fn milestone_def(bit: u8, catalog: &Catalog) -> Option<&'static MilestoneDef> {
+    catalog.milestones.iter().find(|def| def.bit == bit)
+}
+
+/// Every bit the catalog's milestones use.
+pub fn milestone_mask(catalog: &Catalog) -> u8 {
+    catalog
+        .milestones
+        .iter()
+        .fold(0, |mask, def| mask | def.bit)
 }
 
 pub fn practice_def(category: u8, catalog: &Catalog) -> Option<&'static PracticeDef> {
@@ -501,6 +582,13 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
         }
         practice_seen.push(def.category);
     }
+    let mut milestone_bits = 0u8;
+    for def in catalog.milestones {
+        if def.bit.count_ones() != 1 || milestone_bits & def.bit != 0 {
+            return Err(CatalogError::BadMilestone(def.bit));
+        }
+        milestone_bits |= def.bit;
+    }
     let increasing = catalog.point_thresholds.windows(2).all(|w| w[0] < w[1]);
     if catalog.point_thresholds.is_empty()
         || catalog.point_thresholds[0] == 0
@@ -530,6 +618,7 @@ pub enum ProgressError {
     ConcludedWithoutExperience,
     WindowOutOfRange,
     RulesMismatch,
+    UnknownMilestone,
     // Refused requests (preparations and observations).
     AlreadyOwned,
     RankSkipped,
@@ -540,6 +629,7 @@ pub enum ProgressError {
     HintSkipped,
     UnknownCategory,
     WrongActor,
+    AlreadyClaimed,
 }
 
 fn pair_unlocked(state: &PlayerState, pair: Pair) -> bool {
@@ -596,6 +686,15 @@ pub fn validate_progress(
         if research.concluded && research.evidence.count_ones() < u32::from(def.needed) {
             return Err(ProgressError::ConcludedWithoutEvidence);
         }
+    }
+    if progress.milestones & !milestone_mask(catalog) != 0 {
+        return Err(ProgressError::UnknownMilestone);
+    }
+    // A claimed milestone unlocked its pair in the same transaction, and unlocks are kept.
+    if catalog.milestones.iter().any(|def| {
+        progress.claimed(def.bit) && def.unlocks.is_some_and(|pair| !pair_unlocked(state, pair))
+    }) {
+        return Err(ProgressError::PairLocked);
     }
     let pools = [
         Pool::Pair(Pair::IronSteel),
@@ -761,6 +860,20 @@ pub(crate) fn apply_conclusion(
     let slot = &mut progress.pair_xp[pair_index(def.pair)];
     *slot = slot.saturating_add(def.pair_xp);
     Ok(())
+}
+
+/// Claims milestone `bit` (on a copy: the caller validates and commits).
+pub(crate) fn apply_claim(
+    progress: &mut Progress,
+    bit: u8,
+    catalog: &Catalog,
+) -> Result<&'static MilestoneDef, ProgressError> {
+    let def = milestone_def(bit, catalog).ok_or(ProgressError::UnknownMilestone)?;
+    if progress.claimed(bit) {
+        return Err(ProgressError::AlreadyClaimed);
+    }
+    progress.milestones |= bit;
+    Ok(def)
 }
 
 pub(crate) fn apply_hint(

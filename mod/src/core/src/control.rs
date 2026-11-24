@@ -12,11 +12,13 @@
 //!   op 6 buy node (arg node code << 2 | rank 1..=3) · 7 reveal hint (arg research << 2 | 1..=3)
 //! hud     = version:u8 (1) | pair:u8 | 8 × (unlocked:u8 | burn:u8 | reserve:u32 LE
 //!           | capacity:u32 LE), in `Metal::ALL` order             exactly 82 bytes
-//! progress = version:u8 (1) | 4 × pair_xp:u32 LE | rank:u8 per catalog node
+//! progress = version:u8 (2) | 4 × pair_xp:u32 LE | rank:u8 per catalog node
 //!           | (evidence:u8 | hints:u8 | concluded:u8) per catalog research, in catalog order
+//!           | milestones:u8 (claimed bits, P6)
 //! ```
 use crate::{
     BurnState, CATALOG, Command, Metal, Pair, PlayerState, Progress, ResearchState, ReserveRules,
+    milestone_mask,
 };
 
 pub const CONTROL_VERSION: u8 = 1;
@@ -324,8 +326,8 @@ pub fn decode_hud(bytes: &[u8]) -> Result<HudSnapshot, HudError> {
     Ok(HudSnapshot { pair, metals })
 }
 
-pub const PROGRESS_VERSION: u8 = 1;
-pub const PROGRESS_LEN: usize = 1 + 4 * 4 + CATALOG.nodes.len() + 3 * CATALOG.research.len();
+pub const PROGRESS_VERSION: u8 = 2;
+pub const PROGRESS_LEN: usize = 1 + 4 * 4 + CATALOG.nodes.len() + 3 * CATALOG.research.len() + 1;
 
 /// What the notebook shows: the player's progress as the server holds it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -339,6 +341,7 @@ pub enum ProgressSnapshotError {
     Version(u8),
     Rank,
     Research,
+    Milestones,
 }
 
 pub fn encode_progress_snapshot(progress: &Progress) -> [u8; PROGRESS_LEN] {
@@ -359,6 +362,7 @@ pub fn encode_progress_snapshot(progress: &Progress) -> [u8; PROGRESS_LEN] {
         out[at + 2] = u8::from(entry.concluded);
         at += 3;
     }
+    out[at] = progress.milestones();
     out
 }
 
@@ -402,7 +406,11 @@ pub fn decode_progress_snapshot(bytes: &[u8]) -> Result<ProgressSnapshot, Progre
         ));
         at += 3;
     }
+    let milestones = bytes[at];
+    if milestones & !milestone_mask(&CATALOG) != 0 {
+        return Err(ProgressSnapshotError::Milestones);
+    }
     Ok(ProgressSnapshot {
-        progress: Progress::from_parts(xp, ranks, research),
+        progress: Progress::from_parts(xp, ranks, research, milestones),
     })
 }
