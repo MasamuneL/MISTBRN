@@ -215,21 +215,21 @@ p3c_scenario() {
       z="$(sed -E 's/^\[(-?[0-9]+), [^,]+, (-?[0-9]+)\]$/\2/' <<< "$found")"
       [[ "$x" =~ ^-?[0-9]+$ && "$z" =~ ^-?[0-9]+$ ]] || die "no beach located: $(head -c 300 "$dir/locate.json")"
       k_ok "beach at $x,$z"
+      ctl command "time set noon" >/dev/null
       ctl command "tp @s $x 90 $z" >/dev/null
       ctl wait 200 >/dev/null
-      # /fill ... replace with the same block counts it (≤ 32768 blocks per call).
+      ctl look 0 60 >/dev/null
+      ctl wait 40 >/dev/null
+      p5_screenshot a6-beach
+      # /fill counts only blocks it changes: replacing salt rock with air counts it (after the capture).
       for dx in -40 0 40; do
         for dz in -40 0 40; do
-          ctl command "fill $((x + dx - 20)) 58 $((z + dz - 20)) $((x + dx + 19)) 77 $((z + dz + 19)) mistbrn:salt_rock replace mistbrn:salt_rock" \
+          ctl command "fill $((x + dx - 20)) 58 $((z + dz - 20)) $((x + dx + 19)) 77 $((z + dz + 19)) minecraft:air replace mistbrn:salt_rock" \
             > "$dir/count-$dx-$dz.json"
           n="$(grep -aoE 'filled [0-9]+' "$dir/count-$dx-$dz.json" | grep -oE '[0-9]+' | head -1 || true)"
           total=$((total + ${n:-0}))
         done
       done
-      ctl command "tp @s $x 75 $z" >/dev/null
-      ctl look 0 60 >/dev/null
-      ctl wait 40 >/dev/null
-      p5_screenshot a6-beach
       quit_game
       if (( total >= 1 )); then k_ok "salt rock blocks near the beach: $total"
       else k_fail "no salt rock within 60 blocks of the beach at $x,$z"; fi ;;
