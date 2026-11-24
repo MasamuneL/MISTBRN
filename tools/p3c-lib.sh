@@ -216,9 +216,11 @@ p3c_scenario() {
       [[ "$x" =~ ^-?[0-9]+$ && "$z" =~ ^-?[0-9]+$ ]] || die "no beach located: $(head -c 300 "$dir/locate.json")"
       k_ok "beach at $x,$z"
       ctl command "time set noon" >/dev/null
-      ctl command "tp @s $x 90 $z" >/dev/null
+      # A glass pane above the beach gives a top-down view of the sand.
+      ctl command "setblock $x 94 $z minecraft:glass" >/dev/null
+      ctl command "tp @s $x.5 95 $z.5" >/dev/null
       ctl wait 200 >/dev/null
-      ctl look 0 60 >/dev/null
+      ctl look 0 90 >/dev/null
       ctl wait 40 >/dev/null
       p5_screenshot a6-beach
       # /fill counts only blocks it changes: replacing salt rock with air counts it (after the capture).
