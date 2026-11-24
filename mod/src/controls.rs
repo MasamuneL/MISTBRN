@@ -75,16 +75,18 @@ pub(crate) fn flood(uuid: u128, count: u32) {
 /// would send it, also while a screen is open (the client itself never sends then). K8 uses
 /// it to check the server's own input check.
 pub(crate) fn inject(uuid: u128, op: &str) {
-    let request = match op {
-        "cycle" => ControlRequest::CyclePair,
-        "toggle_first" => ControlRequest::Toggle(Side::First),
-        "toggle_second" => ControlRequest::Toggle(Side::Second),
-        "flare" => ControlRequest::ToggleFlare,
-        "off" => ControlRequest::Off,
-        "select_tin_pewter" => ControlRequest::SelectPair(Pair::TinPewter),
-        // P5: notebook requests as the client sends them (`buy:<code>:<rank>`, `hint:<r>:<i>`).
+    let (request, count) = match op {
+        "cycle" => (ControlRequest::CyclePair, 1),
+        "toggle_first" => (ControlRequest::Toggle(Side::First), 1),
+        "toggle_second" => (ControlRequest::Toggle(Side::Second), 1),
+        "flare" => (ControlRequest::ToggleFlare, 1),
+        "off" => (ControlRequest::Off, 1),
+        "select_tin_pewter" => (ControlRequest::SelectPair(Pair::TinPewter), 1),
+        // P5: notebook requests as the client sends them (`buy:<code>:<rank>`,
+        // `hint:<research>:<index>`), with an optional repeat count (`:<count>`, 1–4) queued
+        // in this one call, so the copies reach the server in the same tick.
         other => match parse_notebook(other) {
-            Some(request) => request,
+            Some(parsed) => parsed,
             None => {
                 eprintln!("MISTBRN event=test_command result=unknown");
                 return;
@@ -92,22 +94,32 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         },
     };
     let bytes = allomancy_core::encode_control(request);
-    enqueue(uuid, decode_control(&bytes));
+    for _ in 0..count {
+        enqueue(uuid, decode_control(&bytes));
+    }
 }
 
-fn parse_notebook(op: &str) -> Option<ControlRequest> {
+fn parse_notebook(op: &str) -> Option<(ControlRequest, u8)> {
     let mut parts = op.split(':');
     let kind = parts.next()?;
     let a: u8 = parts.next()?.parse().ok()?;
     let b: u8 = parts.next()?.parse().ok()?;
-    match kind {
-        "buy" => Some(ControlRequest::Purchase { code: a, rank: b }),
-        "hint" => Some(ControlRequest::RevealHint {
+    let count: u8 = match parts.next() {
+        None => 1,
+        Some(count) => count.parse().ok().filter(|c| (1..=4).contains(c))?,
+    };
+    if parts.next().is_some() {
+        return None;
+    }
+    let request = match kind {
+        "buy" => ControlRequest::Purchase { code: a, rank: b },
+        "hint" => ControlRequest::RevealHint {
             research: a,
             index: b,
-        }),
-        _ => None,
-    }
+        },
+        _ => return None,
+    };
+    Some((request, count))
 }
 
 fn enqueue(uuid: u128, decoded: Decoded) {
