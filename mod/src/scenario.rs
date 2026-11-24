@@ -41,7 +41,7 @@ enum Scenario {
     BurnSmall,
     /// Overwrite the save with its checksum broken, then stop writing for this session.
     CorruptCrc,
-    /// Overwrite the save with a valid-looking schema 2, then stop writing for this session.
+    /// Overwrite the save labelled with the schema after the current one, then stop writing.
     FutureSchema,
 }
 
@@ -149,7 +149,7 @@ impl Runner {
             Scenario::Burn => drink(host, session, player, VIAL_MILLI, false, true),
             Scenario::BurnSmall => drink(host, session, player, SMALL_MILLI, false, true),
             Scenario::CorruptCrc => corrupt(host, session, player, Corruption::Crc),
-            Scenario::FutureSchema => corrupt(host, session, player, Corruption::Schema3),
+            Scenario::FutureSchema => corrupt(host, session, player, Corruption::FutureSchema),
         };
         eprintln!("MISTBRN_TEST scenario={} {fields}", scenario.name());
     }
@@ -233,7 +233,7 @@ pub(crate) fn progress_fields(saved: &SavedPlayer) -> String {
         .map(|w| format!("{}/{}", w.start, w.count))
         .collect();
     format!(
-        "xp_iron_steel={} pair_points={} knowledge={} nodes={} research={} windows={} selected_pair={} capacity_iron={} reduction={}",
+        "xp_iron_steel={} pair_points={} knowledge={} nodes={} research={} windows={} selected_pair={} capacity_iron={} reduction={} milestones={} unlocked_pairs={}",
         progress.pair_xp(Pair::IronSteel),
         progress.available(Pool::Pair(Pair::IronSteel), &CATALOG),
         progress.available(Pool::Knowledge, &CATALOG),
@@ -251,7 +251,27 @@ pub(crate) fn progress_fields(saved: &SavedPlayer) -> String {
         crate::controls::pair_name(saved.state().selected_pair),
         saved.rules().capacity(Metal::Iron).unwrap_or(0),
         saved.rules().reduction_milli,
+        progress.milestones(),
+        unlocked_pairs(saved),
     )
+}
+
+/// The pairs whose two metals are unlocked, comma-separated (`-` for none).
+fn unlocked_pairs(saved: &SavedPlayer) -> String {
+    let pairs: Vec<&str> = allomancy_core::PAIRS
+        .into_iter()
+        .filter(|pair| {
+            pair.metals()
+                .iter()
+                .all(|metal| saved.state().metals[metal.index()].unlocked)
+        })
+        .map(crate::controls::pair_name)
+        .collect();
+    if pairs.is_empty() {
+        "-".into()
+    } else {
+        pairs.join(",")
+    }
 }
 
 fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> String {
@@ -352,7 +372,7 @@ fn drink(
 
 enum Corruption {
     Crc,
-    Schema3,
+    FutureSchema,
 }
 
 fn crc32(bytes: &[u8]) -> u32 {
@@ -383,12 +403,13 @@ fn corrupt(
             *bytes.last_mut().expect("encoded saves are never empty") ^= 0xFF;
             Blocked::Decode(SaveError::ChecksumMismatch)
         }
-        Corruption::Schema3 => {
-            bytes[4..6].copy_from_slice(&3u16.to_le_bytes());
+        Corruption::FutureSchema => {
+            let future = allomancy_core::SAVE_SCHEMA + 1;
+            bytes[4..6].copy_from_slice(&future.to_le_bytes());
             let body = bytes.len() - 4;
             let crc = crc32(&bytes[..body]);
             bytes[body..].copy_from_slice(&crc.to_le_bytes());
-            Blocked::Decode(SaveError::UnsupportedVersion(3))
+            Blocked::Decode(SaveError::UnsupportedVersion(future))
         }
     };
     let hash = fnv64(&bytes);

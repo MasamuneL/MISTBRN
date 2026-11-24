@@ -3,6 +3,7 @@
 # Usage: tools/native-test.sh <scenario> [run-name]
 # V1 scenarios: u1 (primer), u2 (repeat), u3 (rollback), u4/u5 (hard cut), v1 (player path).
 # P5 scenarios: t1, x1, r1, b1-b3, pd1 (death and reconnect), m1, q1.
+# P6 scenarios: h1 (bastion), h2 (elder guardian), h3 (ancient city), h4 (dragon), h5 (cut), m3.
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
@@ -17,11 +18,13 @@ source "$(dirname "$0")/p7a-lib.sh"
 source "$(dirname "$0")/v1-lib.sh"
 # shellcheck source=tools/p5-lib.sh
 source "$(dirname "$0")/p5-lib.sh"
+# shellcheck source=tools/p6-lib.sh
+source "$(dirname "$0")/p6-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
 [[ "$scenario" == s11 ]] && require python3
-[[ "$scenario" == m1 ]] && require gzip od
+[[ "$scenario" == m1 || "$scenario" == m3 ]] && require gzip od
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
 [[ ! -e "$dir" ]] || die "run $run exists: $dir"
@@ -631,7 +634,7 @@ case "$scenario" in
     expect 2 report state=active reserve_iron=0 burn_iron=off remainder_iron=0 last_transaction=1 ;;
   s9|s10)  # an unreadable save blocks the player and is never overwritten
     plant=corrupt-crc; reason=crc
-    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:3; }
+    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:4; }
     launch MISTBRN_TEST_SCENARIO=$plant; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; ctl save >/dev/null; quit_game
     report; quit_game
@@ -657,6 +660,8 @@ case "$scenario" in
     v1_scenario ;;
   t1|x1|r1|b[1-3]|pd1|m1|q1)
     p5_scenario ;;
+  h[1-5]|m3)  # P6 milestones (tools/p6-lib.sh)
+    p6_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

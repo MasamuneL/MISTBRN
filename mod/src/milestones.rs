@@ -14,7 +14,7 @@ use allomancy_core::{
     BossLedger, MILESTONE_ANCIENT_CITY, MILESTONE_BASTION, MILESTONE_DRAGON,
     MILESTONE_ELDER_GUARDIAN,
 };
-use mod_api::{Host, HurtSource, LevelRef, ServerHost};
+use mod_api::{Host, HurtSource, LevelRef, ServerHost, StructureSearch};
 use std::collections::BTreeMap;
 
 const BASTION: &str = "minecraft:bastion_remnant";
@@ -42,6 +42,8 @@ pub(crate) struct Milestones {
     /// The milestone of each boss with recorded hits.
     bosses: BTreeMap<i32, u8>,
     queued: Vec<(Claimant, u8)>,
+    /// Test runs only (`/mistbrn-test bastion-find|probe`): answered in the player's level pass.
+    probes: Vec<(u128, bool)>,
 }
 
 fn boss_milestone(kind: &str) -> Option<u8> {
@@ -107,6 +109,65 @@ impl Milestones {
         }
     }
 
+    /// Queues a test probe for `uuid`: the nearest bastion start (`find`), or a block in a
+    /// bastion piece near the player.
+    pub(crate) fn test_probe(&mut self, uuid: u128, find: bool) {
+        self.probes.push((uuid, find));
+    }
+
+    /// Answers the queued probes of players in `level` (reads need the level in place).
+    fn answer_probes(&mut self, host: &mut dyn ServerHost, level: LevelRef) {
+        let read: &dyn Host = host;
+        let probes = std::mem::take(&mut self.probes);
+        for (uuid, find) in probes {
+            let Some(player) = host.player(uuid) else {
+                continue;
+            };
+            let at = player.entity().block_position(read);
+            if player.level(read) != Some(level) || at.is_none() {
+                self.probes.push((uuid, find));
+                continue;
+            }
+            let [x, y, z] = at.unwrap_or_default();
+            let line = if find {
+                match level.find_nearest_structure(
+                    read,
+                    BASTION,
+                    StructureSearch::new([x, y, z], 100),
+                ) {
+                    Some(found) => {
+                        let [fx, _, fz] = found.position;
+                        format!("found=true x={fx} z={fz}")
+                    }
+                    None => "found=false".into(),
+                }
+            } else {
+                // Columns every 4 blocks around the player, each scanned bottom to top.
+                let inside = (-6..=6)
+                    .flat_map(|dx| (-6..=6).map(move |dz| (x + 4 * dx, z + 4 * dz)))
+                    .find_map(|(cx, cz)| {
+                        (5..=120).find_map(|cy| {
+                            level
+                                .structures_at(read, [cx, cy, cz])?
+                                .iter()
+                                .any(|s| s.structure == BASTION && s.in_piece)
+                                .then_some([cx, cy, cz])
+                        })
+                    });
+                match inside {
+                    Some([px, py, pz]) => format!("found=true x={px} y={py} z={pz}"),
+                    None => "found=false".into(),
+                }
+            };
+            let name = if find {
+                "bastion-find"
+            } else {
+                "bastion-probe"
+            };
+            eprintln!("MISTBRN_TEST scenario={name} {line}");
+        }
+    }
+
     /// Per level, while it is in place (`level_tick_post`): dragons hit to death and players
     /// standing in a bastion.
     pub(crate) fn tick_level(
@@ -119,6 +180,10 @@ impl Milestones {
         if !level.in_place(read) {
             return;
         }
+        if !self.probes.is_empty() {
+            self.answer_probes(host, level);
+        }
+        let read: &dyn Host = host;
         let dragons: Vec<i32> = self
             .bosses
             .iter()

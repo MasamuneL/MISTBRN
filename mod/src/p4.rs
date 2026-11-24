@@ -1069,7 +1069,7 @@ fn parse_metal(name: &str) -> Option<Metal> {
 }
 
 /// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
-pub(crate) const TEST_COMMANDS: [&str; 8] = [
+pub(crate) const TEST_COMMANDS: [&str; 10] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
     "mistbrn-test off",
@@ -1082,6 +1082,9 @@ pub(crate) const TEST_COMMANDS: [&str; 8] = [
     // piece of the anchor research's evidence (bit 1, 2 or 4), as the server would observe.
     "mistbrn-test xp <amount:integer>",
     "mistbrn-test evidence <bit:integer>",
+    // P6: the nearest bastion's start, then a block inside one of its pieces near the player.
+    "mistbrn-test bastion-find",
+    "mistbrn-test bastion-probe",
 ];
 
 pub(crate) struct TestCommand<'a> {

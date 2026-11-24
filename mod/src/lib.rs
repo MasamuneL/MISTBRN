@@ -303,6 +303,11 @@ impl Hooks for Allomancy {
                     .test_xp(host, *player, integer("amount").unwrap_or(0));
                 return Flow::Cancel;
             }
+            Some(probe @ ("bastion-find" | "bastion-probe")) => {
+                self.milestones()
+                    .test_probe(player.uuid(), probe == "bastion-find");
+                return Flow::Cancel;
+            }
             Some("evidence") => {
                 let bit = integer("bit")
                     .and_then(|b| u8::try_from(b).ok())
