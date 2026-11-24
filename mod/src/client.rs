@@ -6,9 +6,9 @@
 //! `mistbrn:control` request per press, and only while playing with nothing over the world
 //! and the window focused: the chat, the inventory and every other screen block it. Holding a
 //! key does not repeat it. The server decides; the HUD only draws what the server last sent.
+use crate::book::{self, Book, Key};
 use crate::controls::{CONTROL_CHANNEL, pair_name};
 use crate::hud;
-use crate::notebook::{self, Tab};
 use crate::{bridge::metal_name, scenario};
 use allomancy_core::{
     BurnState, ControlRequest, HudSnapshot, Metal, Pair, Progress, Side, decode_hud,
@@ -70,15 +70,55 @@ struct Wheel {
     size: Option<[f32; 2]>,
 }
 
-/// The open notebook screen: the tab shown, the GUI size of the last frame, and a request or a
-/// close chosen in a screen hook (which cannot send), applied on the next tick.
+/// The open book (P7b): what it shows, and a request or a close chosen in a screen hook
+/// (which cannot send), applied on the next tick.
 struct Notebook {
-    tab: Tab,
-    /// The revealed hint shown in the diary (`None`: the newest).
-    hint_page: Option<u8>,
-    size: Option<[f32; 2]>,
+    book: Book,
     request: Option<ControlRequest>,
     close: bool,
+}
+
+/// The book's and the HUD's scale settings (Options > Mods): 75 %, 100 % or 125 %.
+const SCALES: [f32; 3] = [0.75, 1.0, 1.25];
+pub(crate) const SETTING_REDUCE_FLASHES: &str = "reduce_flashes";
+pub(crate) const SETTING_BOOK_SCALE: &str = "book_scale";
+pub(crate) const SETTING_HUD_SCALE: &str = "hud_scale";
+
+/// The registered settings: their keys, label keys and defaults.
+pub(crate) fn register_settings(registrar: &mut dyn Registrar) {
+    let scale = |key: &str| {
+        mod_api::SettingSpec::choice(
+            key,
+            format!("setting.mistbrn.{key}"),
+            ["75", "100", "125"].map(|v| format!("setting.mistbrn.scale.{v}")),
+            1,
+        )
+        .tooltip(format!("setting.mistbrn.{key}.tooltip"))
+    };
+    let specs = [
+        mod_api::SettingSpec::toggle(
+            SETTING_REDUCE_FLASHES,
+            format!("setting.mistbrn.{SETTING_REDUCE_FLASHES}"),
+            false,
+        )
+        .tooltip(format!("setting.mistbrn.{SETTING_REDUCE_FLASHES}.tooltip")),
+        scale(SETTING_BOOK_SCALE),
+        scale(SETTING_HUD_SCALE),
+    ];
+    for spec in specs {
+        if let Err(error) = registrar.register_setting(spec) {
+            eprintln!("MISTBRN event=setting result=refused:{error:?}");
+        }
+    }
+}
+
+fn scale_setting(host: &dyn ClientHost, key: &str) -> f32 {
+    let index = host.setting_choice(key).unwrap_or(1) as usize;
+    SCALES.get(index).copied().unwrap_or(1.0)
+}
+
+fn steady(host: &dyn ClientHost) -> bool {
+    host.setting_bool(SETTING_REDUCE_FLASHES).unwrap_or(false)
 }
 
 struct ClientState {
@@ -210,9 +250,7 @@ pub(crate) fn open_notebook(host: &mut dyn ClientHost) {
     if host.mod_screen_open(MOD_ID) {
         eprintln!("MISTBRN event=notebook result=open");
         state.notebook = Some(Notebook {
-            tab: Tab::Tree,
-            hint_page: None,
-            size: None,
+            book: Book::new(),
             request: None,
             close: false,
         });
@@ -321,7 +359,7 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
 /// Sends the notebook's chosen request, closes it when asked, and forgets a notebook that
 /// something else closed (Esc, another screen).
 fn notebook_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut Vec<Vec<u8>>) {
-    let Some(book) = state.notebook.as_mut() else {
+    let Some(open) = state.notebook.as_mut() else {
         return;
     };
     if host.mod_screen() != Some(MOD_ID) {
@@ -329,13 +367,13 @@ fn notebook_tick(host: &mut dyn ClientHost, state: &mut ClientState, sends: &mut
         eprintln!("MISTBRN event=notebook result=closed");
         return;
     }
-    if let Some(request) = book.request.take()
+    if let Some(request) = open.request.take()
         && host.window_focused()
     {
         eprintln!("MISTBRN event=notebook result=request:{request:?}");
         sends.push(encode_control(request).to_vec());
     }
-    if book.close {
+    if open.close {
         state.notebook = None;
         host.mod_screen_close(MOD_ID);
         eprintln!("MISTBRN event=notebook result=closed");
@@ -452,14 +490,19 @@ pub(crate) fn logged_out() {
 }
 
 /// The reserve layer: the selected pair beside the hotbar (`hud::draw_reserves`).
-pub(crate) fn draw(_: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
+pub(crate) fn draw(host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
     if layer != HUD_LAYER {
         return;
     }
     let state = state();
     // The wheel shows the reserves itself; the bars would sit under its hint.
     if let (Some(hud), None) = (state.hud, state.wheel.as_ref()) {
-        hud::draw_reserves(draw, &hud);
+        let look = hud::Look {
+            scale: scale_setting(host, SETTING_HUD_SCALE),
+            steady: steady(host),
+            ticks: state.ticks,
+        };
+        hud::draw_reserves(draw, &hud, look);
     }
 }
 
@@ -473,36 +516,38 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
         return;
     }
     {
-        let mut state = state();
-        if let Some(book) = state.notebook.as_mut() {
-            let size = draw.size();
-            if book.size.is_none() {
-                // Node centres in GUI pixels, for scenarios that click them.
-                let nodes: Vec<String> = allomancy_core::CATALOG
-                    .nodes
-                    .iter()
-                    .filter_map(|def| {
-                        notebook::node_centre(size, def.code)
-                            .map(|[x, y]| format!("{}@{x},{y}", def.code))
-                    })
-                    .collect();
-                eprintln!(
-                    "MISTBRN event=notebook_open gui={}x{} nodes={} hint_button={}",
-                    size[0],
-                    size[1],
-                    nodes.join(";"),
-                    notebook::hint_button_centre(size)
-                        .map_or_else(String::new, |[x, y]| format!("{x},{y}")),
-                );
-                let [dx, dy] = notebook::tab_centre(size, Tab::Diary);
-                eprintln!("MISTBRN event=notebook_tabs diary={dx},{dy}");
-            }
-            book.size = Some(size);
-            let (tab, page) = (book.tab, book.hint_page);
+        let state = state();
+        let ticks = state.ticks;
+        if let Some(open) = state.notebook.as_ref() {
+            let look = book::Look {
+                scale: scale_setting(host, SETTING_BOOK_SCALE),
+                steady: steady(host),
+                ticks,
+            };
+            let mut shown = open.book.clone();
             let progress = state.progress.clone();
-            let unlocked = unlocked_in(state.hud);
+            let hud = state.hud;
+            let unlocked = unlocked_in(hud);
             drop(state);
-            notebook::draw(host, draw, tab, progress.as_ref(), &unlocked, pointer, page);
+            book::draw(
+                host,
+                draw,
+                &mut shown,
+                progress.as_ref(),
+                hud.as_ref(),
+                &unlocked,
+                pointer,
+                look,
+            );
+            if let Some(progress) = progress.as_ref() {
+                log_targets(&mut shown, progress, draw.size());
+            }
+            // Only what drawing learned goes back: the frame and what was logged.
+            let mut state = self::state();
+            if let Some(open) = state.notebook.as_mut() {
+                open.book.frame = shown.frame;
+                open.book.logged = shown.logged;
+            }
             return;
         }
     }
@@ -557,36 +602,21 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
     let mut state = state();
     let unlocked = unlocked_in(state.hud);
     let progress = state.progress.clone();
-    if let Some(book) = state.notebook.as_mut() {
-        let Some(size) = book.size else {
-            return true;
-        };
-        let revealed = progress.as_ref().map_or(0, |p| {
-            allomancy_core::CATALOG
-                .research
-                .first()
-                .map_or(0, |def| p.research(def.code).hints)
+    if let Some(open) = state.notebook.as_mut() {
+        let target = progress.as_ref().and_then(|progress| {
+            let at = open.book.local(pointer)?;
+            book::target_at(&open.book, progress, at)
         });
-        match notebook::target(size, pointer, book.tab, revealed) {
-            Some(notebook::Target::Tab(tab)) => book.tab = tab,
-            Some(notebook::Target::HintPage(index)) => book.hint_page = Some(index),
-            Some(target) => {
-                if target == notebook::Target::RevealHint {
-                    // Show the hint about to be revealed.
-                    book.hint_page = None;
-                }
-                if let Some(request) = progress
-                    .as_ref()
-                    .and_then(|p| notebook::request(target, p, &unlocked))
-                {
-                    book.request.get_or_insert(request);
-                }
-            }
-            None => {}
+        if let (Some(target), Some(progress)) = (target, progress.as_ref())
+            && let Some(request) = book::activate(&mut open.book, target, progress, &unlocked)
+        {
+            open.request.get_or_insert(request);
         }
         eprintln!(
-            "MISTBRN event=notebook_click at={},{}",
-            pointer[0], pointer[1]
+            "MISTBRN event=notebook_click at={},{} target={}",
+            pointer[0],
+            pointer[1],
+            target.map_or_else(|| "-".into(), |t| t.name())
         );
         return true;
     }
@@ -613,9 +643,36 @@ pub(crate) fn notebook_key_pressed(
         return false;
     }
     let mut state = state();
-    let Some(book) = state.notebook.as_mut() else {
+    let unlocked = unlocked_in(state.hud);
+    let progress = state.progress.clone();
+    let Some(open) = state.notebook.as_mut() else {
         return false;
     };
+    // The book's own keys (P7b): focus, activate, scroll. Shift is bit 1.
+    if let (Some(key), Some(progress)) = (book::key(key, modifiers & 1 != 0), progress.as_ref()) {
+        match key {
+            Key::Next | Key::Previous => {
+                book::move_focus(&mut open.book, progress, key == Key::Next);
+            }
+            Key::Activate => {
+                if let Some(target) = open.book.focus
+                    && let Some(request) =
+                        book::activate(&mut open.book, target, progress, &unlocked)
+                {
+                    open.request.get_or_insert(request);
+                }
+            }
+            Key::PageUp | Key::PageDown => {
+                let lines = if key == Key::PageUp { 3.0 } else { -3.0 };
+                book::scroll(&mut open.book, None, lines);
+            }
+        }
+        eprintln!(
+            "MISTBRN event=book_key key={key:?} focus={}",
+            open.book.focus.map_or_else(|| "-".into(), |t| t.name())
+        );
+        return true;
+    }
     let Some((bound, bound_modifiers)) = host.mod_key(MOD_ID, NOTEBOOK_KEY.0) else {
         return false;
     };
@@ -623,7 +680,64 @@ pub(crate) fn notebook_key_pressed(
         return false;
     }
     if !repeat {
-        book.close = true;
+        open.close = true;
     }
     true
+}
+
+/// The wheel over the open book scrolls the tree canvas or the diary list under the pointer.
+/// True when the book is open (nothing behind it scrolls).
+pub(crate) fn mouse_scrolled(host: &dyn ClientHost, pointer: [f32; 2], lines: f64) -> bool {
+    if !wheel_open(host) {
+        return false;
+    }
+    let mut state = state();
+    let Some(open) = state.notebook.as_mut() else {
+        return false;
+    };
+    let at = open.book.local(pointer);
+    if at.is_some() && book::scroll(&mut open.book, at, lines as f32) {
+        eprintln!(
+            "MISTBRN event=book_scroll lines={lines} scroll={},{}",
+            open.book.scroll, open.book.list_scroll
+        );
+    }
+    true
+}
+
+/// Logs the targets of the book's view when it changes (tab, tree, scroll, hints, scale), in
+/// screen GUI pixels, for scenarios that click them by name.
+fn log_targets(shown: &mut Book, progress: &allomancy_core::Progress, size: [f32; 2]) {
+    let Some(([ox, oy], scale)) = shown.frame else {
+        return;
+    };
+    let hints = progress.research(shown.research).hints;
+    let key = (
+        shown.tab,
+        shown.view,
+        (shown.scroll + shown.list_scroll) as i32,
+        hints,
+        (scale * 100.0) as i32,
+    );
+    if shown.logged == Some(key) {
+        return;
+    }
+    shown.logged = Some(key);
+    let list: Vec<String> = book::targets(shown, progress)
+        .into_iter()
+        .filter(|(_, _, visible)| *visible)
+        .map(|(target, [x, y, w, h], _)| {
+            let cx = ox + (x + w / 2.0) * scale;
+            let cy = oy + (y + h / 2.0) * scale;
+            format!("{}@{},{}", target.name(), cx.round(), cy.round())
+        })
+        .collect();
+    eprintln!(
+        "MISTBRN event=book_view gui={}x{} tab={} view={} scale={scale} origin={ox},{oy} targets={}",
+        size[0],
+        size[1],
+        book::tab_key(shown.tab),
+        shown.view,
+        list.join(";")
+    );
 }

@@ -4,10 +4,12 @@
 //! sheet is missing (a resource pack that removes it) both fall back to flat rectangles.
 use crate::bridge::metal_name;
 use crate::controls::pair_name;
+use crate::paint::Painter;
 use allomancy_core::{BurnState, HudSnapshot, Metal, PAIRS, Pair, pair_metals};
 use mod_api::{ClientHost, DrawContext, Text};
 
 const SHEET: &str = "mistbrn:gui/hud";
+const SHEET_SIZE: [f32; 2] = [160.0, 64.0];
 /// 64x8 bar frame whose 60x4 track starts at (2, 2).
 const FRAME: [f32; 4] = [16.0, 0.0, 64.0, 8.0];
 /// The same frame with warm copper rivets, while the metal burns.
@@ -84,57 +86,95 @@ fn sprite(draw: &mut dyn DrawContext, src: [f32; 4], at: [f32; 2], tint: Option<
     draw.sprite(SHEET, src, [at[0], at[1], src[2], src[3]], tint)
 }
 
+/// How the reserve bars look this frame (P7b settings): their scale and whether the low
+/// reserve warning may pulse.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Look {
+    pub(crate) scale: f32,
+    /// `reduce_flashes`: the warning stays lit instead of pulsing.
+    pub(crate) steady: bool,
+    pub(crate) ticks: u64,
+}
+
+/// A burning metal under this share of its capacity is low (the warning).
+const LOW_SHARE: f32 = 0.1;
+const LOW_WARNING: u32 = 0x00E0_5030;
+
+fn psprite(p: &mut Painter, src: [f32; 4], at: [f32; 2], tint: Option<u32>) -> bool {
+    p.sprite(SHEET, SHEET_SIZE, src, [at[0], at[1], src[2], src[3]], tint)
+}
+
 /// The selected pair's two reserves beside the hotbar, as the vanilla bars are: a metal gem,
 /// a framed bar filled by reserve and coloured by state, and a flame while it burns. A locked
-/// metal shows an empty frame with a lock. Nothing while no metal is unlocked.
-pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot) {
+/// metal shows an empty frame with a lock. Nothing while no metal is unlocked. The box keeps
+/// its bottom right corner at any scale, so it grows away from the hotbar and the food row.
+pub(crate) fn draw_reserves(draw: &mut dyn DrawContext, hud: &HudSnapshot, look: Look) {
     if !hud.metals.iter().any(|metal| metal.unlocked) {
         return;
     }
     let [width, height] = draw.size();
     let x = (width / 2.0).floor() + HOTBAR_HALF - ROW_W;
+    let top = height - LOWER_ROW_UP - ROW_STEP;
+    let box_h = ROW_STEP + FRAME[3];
+    let s = look.scale;
+    let origin = [x + ROW_W * (1.0 - s), top + box_h * (1.0 - s)];
+    let mut p = Painter::new(draw, origin, s);
     for (row, metal) in pair_metals(hud.pair).into_iter().enumerate() {
-        let y = height - LOWER_ROW_UP - ROW_STEP * (1 - row) as f32;
+        let y = ROW_STEP * row as f32;
         let entry = hud.metals[metal.index()];
         let gem = [8.0 * metal.index() as f32, METAL_Y, 6.0, 6.0];
-        let textured = sprite(draw, gem, [x, y + 1.0], None);
-        let bar = x + 8.0;
+        let textured = psprite(&mut p, gem, [0.0, y + 1.0], None);
+        let bar = 8.0;
         let share = percent(entry.reserve_milli, entry.capacity_milli) as f32 / 100.0;
         if !textured {
-            draw.fill([bar, y + 2.0, TRACK_W, 4.0], FLAT_BACK);
+            p.fill([bar, y + 2.0, TRACK_W, 4.0], FLAT_BACK);
             if entry.unlocked {
                 let color = match entry.burn {
                     BurnState::Off => FLAT_OFF,
                     BurnState::Burning => FLAT_BURNING,
                     BurnState::Flared => FLAT_FLARED,
                 };
-                draw.fill([bar, y + 2.0, TRACK_W * share, 4.0], color);
+                p.fill([bar, y + 2.0, TRACK_W * share, 4.0], color);
             }
             continue;
         }
         if !entry.unlocked {
-            sprite(draw, FRAME, [bar, y], Some(LOCKED_TINT));
-            sprite(draw, LOCK, [bar + (FRAME[2] - LOCK[2]) / 2.0, y], None);
+            psprite(&mut p, FRAME, [bar, y], Some(LOCKED_TINT));
+            psprite(&mut p, LOCK, [bar + (FRAME[2] - LOCK[2]) / 2.0, y], None);
             continue;
         }
-        framed_bar(draw, [bar, y], share, entry.burn);
+        framed_bar(&mut p, [bar, y], share, entry.burn);
+        if entry.burn != BurnState::Off && share < LOW_SHARE {
+            // Low reserve: a warm wash over the track, pulsing once a second, or steady.
+            let strength = if look.steady {
+                0.6
+            } else {
+                let phase = (look.ticks % 20) as f32 / 20.0 * std::f32::consts::TAU;
+                (phase.sin() + 1.0) / 2.0
+            };
+            let alpha = (strength * 140.0) as u32;
+            p.fill(
+                [bar + 2.0, y + 2.0, TRACK_W, 4.0],
+                alpha << 24 | LOW_WARNING,
+            );
+        }
         let flame = match entry.burn {
             BurnState::Off => continue,
             BurnState::Burning => FLAME,
             BurnState::Flared => FLAME_FLARED,
         };
-        sprite(draw, flame, [bar + FRAME[2] + 2.0, y], None);
+        psprite(&mut p, flame, [bar + FRAME[2] + 2.0, y], None);
     }
 }
 
 /// A framed bar at `at` filled to `share`, with the gem on the fill's end.
-fn framed_bar(draw: &mut dyn DrawContext, [x, y]: [f32; 2], share: f32, burn: BurnState) {
+fn framed_bar(p: &mut Painter, [x, y]: [f32; 2], share: f32, burn: BurnState) {
     let frame = if burn == BurnState::Off {
         FRAME
     } else {
         FRAME_LIT
     };
-    sprite(draw, frame, [x, y], None);
+    psprite(p, frame, [x, y], None);
     let [sx, sy] = match burn {
         BurnState::Off => FILL_OFF,
         BurnState::Burning => FILL_BURNING,
@@ -143,14 +183,15 @@ fn framed_bar(draw: &mut dyn DrawContext, [x, y]: [f32; 2], share: f32, burn: Bu
     let filled = (TRACK_W * share).clamp(0.0, TRACK_W);
     if filled > 0.0 {
         // The fill's left part rather than the whole strip squeezed: no stretched sheen.
-        draw.sprite(
+        p.sprite(
             SHEET,
+            SHEET_SIZE,
             [sx, sy, filled, 4.0],
             [x + 2.0, y + 2.0, filled, 4.0],
             None,
         );
         let tip = (x + 2.0 + filled - GEM[2] / 2.0).clamp(x, x + FRAME[2] - GEM[2]);
-        sprite(draw, GEM, [tip, y + 1.0], None);
+        psprite(p, GEM, [tip, y + 1.0], None);
     }
 }
 
