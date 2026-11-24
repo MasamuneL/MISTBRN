@@ -3,7 +3,8 @@
 # Usage: tools/native-test.sh <scenario> [run-name]
 # V1 scenarios: u1 (primer), u2 (repeat), u3 (rollback), u4/u5 (hard cut), v1 (player path).
 # P5 scenarios: t1, x1, r1, b1-b3, pd1 (death and reconnect), m1, q1.
-# P6 scenarios: h1 (bastion), h2 (elder guardian), h3 (ancient city), h4 (dragon), h5 (cut), m3.
+# P6 scenarios: h1 (bastion), h2 (elder guardian), h3 (ancient city), h4 (dragon), h5 (cut), m3,
+# hv (capture of the Milestones tab).
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
@@ -660,7 +661,7 @@ case "$scenario" in
     v1_scenario ;;
   t1|x1|r1|b[1-3]|pd1|m1|q1)
     p5_scenario ;;
-  h[1-5]|m3)  # P6 milestones (tools/p6-lib.sh)
+  h[1-5]|hv|m3)  # P6 milestones (tools/p6-lib.sh)
     p6_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac

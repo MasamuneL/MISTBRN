@@ -180,6 +180,17 @@ p6_scenario() {
       expect 2 report state=active milestones=0 unlocked_pairs=- last_transaction=0
       expect_log 2 'MISTBRN event=milestone key=elder_guardian result=ok seq=1 unlocks=zinc_brass'
       expect 3 report state=active milestones=2 unlocked_pairs=zinc_brass last_transaction=1 ;;
+    hv)  # capture: the notebook's Milestones tab with two claimed (city, dragon) and two pending
+      p6_lane
+      p6_chest 514 100 512 minecraft:chests/ancient_city
+      p6_kill minecraft:ender_dragon p6a 80
+      p5_tree hv-tree
+      p5_click hv-tree 134 -6
+      p5_screenshot hv-milestones
+      k_key esc 10
+      quit_game
+      expect_log 1 'MISTBRN event=milestone key=ancient_city result=ok seq=1 unlocks=copper_bronze'
+      expect_log 1 'MISTBRN event=milestone key=dragon result=ok seq=2 unlocks=none' ;;
     m3)
       p6_migrate ;;
     *) return 1 ;;
