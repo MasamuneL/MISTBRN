@@ -2,7 +2,7 @@
 
 Actualizado el 2026-11-23.
 
-## Integrado en main (V1, al integrar la PR #13)
+## Integrado en main (V1, al integrar la PR #13); P5 en la rama `feat/p5-progress`
 
 | Fase | Resultado |
 |---|---|
@@ -18,19 +18,19 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## Reanudación
 
-- Rama activa: ninguna tras integrar `feat/v1-unlock` (PR #13, merge `6c1f4ba`); `main` incluye P0b, P2, P3a, P3b, P4, P7a y V1.
-- Fase y paso: V1 integrada con la aprobación del usuario (2026-11-23). Sus notas de evaluación (claridad del control, respuesta del movimiento, utilidad del HUD) no se registraron por escrito; se pueden añadir a `evidence/v1.md` cuando las dé.
+- Rama activa: `feat/p5-progress` (desde `main` `e592a48`). P5: práctica, investigación «principio del ancla», árbol de hierro/acero + general reducido, cuaderno (ítem y tecla J), tutorial del vial (sustituye a la cartilla), esquema 2 con migración 1→2. [Evidencia](evidence/p5.md) · [Guía](p5-guide.md)
+- Fase y paso: P5 implementada; batería final `p5-4` (`ef28f35`, árbol limpio) 19/19 PASS; diseño revisado por Gemini; assets aprobados por Claude y Codex en juego. Falta la revisión final (Codex + Gemini) de la PR, tu evaluación con la guía y tu aprobación del merge.
 - Operación en curso: ninguna. No hay juego ni build activo.
-- Último resultado: batería final de V1 con `v1-12`, 18/18 PASS; Codex y Gemini APROBADO en las tres rondas de revisión; assets aprobados por Claude y Codex.
+- V1: sus notas de evaluación no se registraron por escrito; se pueden añadir a `evidence/v1.md`.
 
 ## Siguiente acción exacta
 
-1. P5 habilidades e investigación (`feat/p5-progress`): árboles, experiencia por práctica, investigación con pistas, **esquema de guardado 2 + migración 1→2** con el fixture v1, y la forma definitiva de desbloquear parejas, que sustituye a la cartilla provisional.
+1. P5: revisión final Codex + Gemini de la PR, arreglos, evaluación del usuario con `docs/p5-guide.md` y merge con su aprobación.
 2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; límites del HUD y la rueda en `compatibility.md` (chat encima, mando, nombre de tecla en los avisos).
 
 ## Próximos hitos
 
-1. **P5**, la primera entrega vertical: una investigación y un árbol sobre la demo V1.
+1. **P6** hitos (fragmentos y reclamo único) y **P7b** UI completa (libro, árboles, pistas), sobre el esquema 2.
 2. Las fases posteriores amplían el recorrido con práctica, investigación, árboles de técnicas, hitos y las otras tres parejas. El cooperativo y la publicación tienen sus propias pruebas.
 
 [Diseño](design.md) · [Plan de ejecución](plan.md) · [Historial anterior al re-pin](history.md)
