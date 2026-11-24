@@ -159,7 +159,7 @@ p3c_scenario() {
       ctl wait 5 >/dev/null
       ctl collect 6 >/dev/null
       ctl inventory > "$dir/broken.json"
-      p3c_check "dropped when broken" "$(jq -c '.counts' "$dir/broken.json")" \
+      p3c_check "dropped when broken" "$(jq -cS '.counts' "$dir/broken.json")" \
         '{"mistbrn:alembic":1,"mistbrn:tin_flakes":1,"mistbrn:vial_iron":2,"mistbrn:vial_water":1}'
       ctl save >/dev/null; quit_game
       # The first batch finished in launch 2, ~300 ticks after relaunch (not 600 from zero).
