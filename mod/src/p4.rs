@@ -93,11 +93,13 @@ struct Flight {
 /// practice action and one piece of each evidence, so a long pull is one action, not many.
 struct Run {
     key: String,
-    /// The feet at the last tick the force was applied, if the tick before this one was one:
-    /// a step is credited only between two applied ticks.
-    last: Option<[f64; 3]>,
+    /// The last applied tick: its number, the feet then and the unit line towards the anchor.
+    /// A step is credited only from the tick right before, along that tick's line.
+    last: Option<(u64, [f64; 3], Vec3)>,
+    /// Feet height when the run started (a lift is a net rise above it).
+    start_y: f64,
     /// Distance the force carried the player along its line (closer for a pull, farther for a
-    /// push), beyond what running covers; and the rise of a push off an anchor below.
+    /// push) beyond what walking covers; and the highest net rise of a push off an anchor below.
     moved: f64,
     risen: f64,
     /// A push off an anchor under the feet (as `physics::step` judges it at the start).
@@ -112,22 +114,14 @@ struct Run {
 
 /// Displacement of a run that counts as moving (anchor practice, the self-pull evidence).
 const RUN_MOVE: f64 = 2.0;
-/// Rise of a push off an anchor below that counts as a lift (coin jump, the lift evidence).
-const RUN_LIFT: f64 = 1.5;
+/// Net rise of a push off an anchor below that counts as a lift (coin jump, the lift
+/// evidence). A jump alone reaches about 1.25; N3's hover over a coin peaks near 1.48.
+const RUN_LIFT: f64 = 1.3;
 /// A move between two ticks longer than this is not the force's (a teleport): the run is spent.
 const RUN_STEP: f64 = 2.0;
-/// Per tick, a step along the force's line counts only beyond this (sprinting covers about
-/// 0.28 blocks a tick): walking or running towards an anchor earns nothing.
-const RUN_FREE_STEP: f64 = 0.3;
-/// Blocks a player climbs by itself: a run standing in one is spent (a climb is not a lift).
-const CLIMBABLE: [&str; 6] = [
-    "ladder",
-    "vine",
-    "scaffolding",
-    "twisting_vines",
-    "weeping_vines",
-    "cave_vines",
-];
+/// Per tick, a step along the force's line counts only beyond this (walking covers 0.216
+/// blocks a tick): walking towards an anchor earns nothing.
+const RUN_FREE_STEP: f64 = 0.2;
 /// A pulled item picked up within this many ticks of its last pull is the pull's evidence.
 const PULL_EVIDENCE_TICKS: u64 = 40;
 
@@ -501,20 +495,11 @@ impl Powers {
             let Ok(outcome) = physics::step(&prep.rules, &input) else {
                 continue;
             };
-            let climbing = player
-                .level(read)
-                .and_then(|level| {
-                    let at = [
-                        feet[0].floor() as i32,
-                        feet[1].floor() as i32,
-                        feet[2].floor() as i32,
-                    ];
-                    level.block(read, at)
-                })
-                .is_some_and(|block| {
-                    let id = block.id(read);
-                    CLIMBABLE.iter().any(|name| id.ends_with(name))
-                });
+            // Ladders, vines, scaffolding, open trapdoors over a ladder: the game's own test.
+            let climbing = read
+                .living(body)
+                .and_then(|living| living.is_climbing(read))
+                .unwrap_or(false);
             let applied = outcome
                 .player_velocity
                 .is_some_and(|next| player.set_velocity(host, [next.x, next.y, next.z]));
@@ -531,11 +516,12 @@ impl Powers {
                 fmt3(outcome.player_delta),
                 outcome.anchored
             );
-            self.track_run(uuid, &prep, feet, applied, climbing);
+            self.track_run(uuid, &prep, feet, applied, climbing, tick);
         }
     }
 
     /// Follows the player's anchored run and records its practice and evidence once each.
+    #[allow(clippy::too_many_arguments)]
     fn track_run(
         &mut self,
         uuid: u128,
@@ -543,6 +529,7 @@ impl Powers {
         feet: [f64; 3],
         applied: bool,
         climbing: bool,
+        tick: u64,
     ) {
         let key = run_key(&prep.target);
         let middle = feet[1] + BODY_MIDDLE;
@@ -552,6 +539,11 @@ impl Powers {
             prep.point.z - feet[2],
         ]);
         let distance_now = physics::norm(offset).max(1e-6);
+        let toward = v3([
+            offset.x / distance_now,
+            offset.y / distance_now,
+            offset.z / distance_now,
+        ]);
         if self.runs.get(&uuid).is_none_or(|run| run.key != key) {
             let push = prep.direction == Direction::Push;
             self.runs.insert(
@@ -559,9 +551,10 @@ impl Powers {
                 Run {
                     key,
                     last: None,
+                    start_y: feet[1],
                     moved: 0.0,
                     risen: 0.0,
-                    below: push && offset.y / distance_now < -prep.rules.anchor_down,
+                    below: push && toward.y < -prep.rules.anchor_down,
                     coin: matches!(&prep.target, Target::Item { id, .. } if is_coin(id)),
                     block: matches!(prep.target, Target::Block { .. }),
                     pull: !push,
@@ -574,26 +567,32 @@ impl Powers {
         let Some(run) = self.runs.get_mut(&uuid) else {
             return;
         };
-        if let Some(last) = run.last {
-            let step = [feet[0] - last[0], feet[1] - last[1], feet[2] - last[2]];
-            if climbing || physics::norm(v3(step)) > RUN_STEP {
-                // A climb or a teleport: nothing more from this run.
-                run.practiced = true;
-                run.self_pull = true;
-                run.lift = true;
-            } else {
-                // The step along the force's line, falls left out (gravity is not the force).
-                let sign = if run.pull { 1.0 } else { -1.0 };
-                let along = (step[0] * offset.x + step[1].max(0.0) * offset.y + step[2] * offset.z)
-                    / distance_now
-                    * sign;
-                run.moved += (along - RUN_FREE_STEP).max(0.0);
-                if run.below {
-                    run.risen += step[1].max(0.0);
-                }
+        let jumped = run
+            .last
+            .is_some_and(|(_, last, _)| distance(feet, v3(last)) > RUN_STEP);
+        if climbing || jumped {
+            // A climb or a teleport: nothing more from this run.
+            run.practiced = true;
+            run.self_pull = true;
+            run.lift = true;
+        } else if let Some((at, last, line)) = run.last
+            && at + 1 == tick
+        {
+            // The step since the last applied tick, along that tick's line; falls left out
+            // (gravity is not the force).
+            let step = [
+                feet[0] - last[0],
+                (feet[1] - last[1]).max(0.0),
+                feet[2] - last[2],
+            ];
+            let sign = if run.pull { 1.0 } else { -1.0 };
+            let along = (step[0] * line.x + step[1] * line.y + step[2] * line.z) * sign;
+            run.moved += (along - RUN_FREE_STEP).max(0.0);
+            if run.below {
+                run.risen = run.risen.max(feet[1] - run.start_y);
             }
         }
-        run.last = applied.then_some(feet);
+        run.last = applied.then_some((tick, feet, toward));
         let moved = run.moved;
         let rise = run.risen;
         let mut found = Vec::new();
@@ -628,21 +627,17 @@ impl Powers {
     }
 
     /// An item entity went into a player's inventory whole (`item_picked_up_post`): if that
-    /// player pulled it moments before, it is the anchor principle's first evidence.
-    pub(crate) fn picked_up(&mut self, uuid: u128, item: EntityRef) {
+    /// player pulled it moments before, it is the anchor principle's first evidence, returned
+    /// for the caller to record at once (the player may die before the tick ends).
+    pub(crate) fn picked_up(&mut self, uuid: u128, item: EntityRef) -> Option<EventKind> {
         let now = self.server_tick.map_or(0, |t| t + 1);
-        if let Some((puller, at)) = self.pulled.remove(&item)
-            && puller == uuid
-            && now.saturating_sub(at) <= PULL_EVIDENCE_TICKS
-        {
-            self.observations.push((
-                uuid,
-                EventKind::ResearchEvidence {
-                    research: RESEARCH_ANCHOR,
-                    evidence: EVIDENCE_ITEM_PULLED,
-                },
-            ));
-        }
+        let (puller, at) = self.pulled.remove(&item)?;
+        (puller == uuid && now.saturating_sub(at) <= PULL_EVIDENCE_TICKS).then_some(
+            EventKind::ResearchEvidence {
+                research: RESEARCH_ANCHOR,
+                evidence: EVIDENCE_ITEM_PULLED,
+            },
+        )
     }
 
     /// The progress events observed since the last call.

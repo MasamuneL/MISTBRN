@@ -133,8 +133,10 @@ pub(crate) fn target(size: [f32; 2], pointer: [f32; 2], tab: Tab, revealed: u8) 
             inside(pointer, [o[0] + x, o[1] + y, 22.0, 22.0]).then_some(Target::Node(code))
         }),
         Tab::Diary => {
+            // The reveal button exists only while a hint is left to reveal.
+            let max = CATALOG.research.first().map_or(0, |def| def.hints);
             let [x, y, w, h] = HINT_BUTTON;
-            if inside(pointer, [o[0] + x, o[1] + y, w, h]) {
+            if revealed < max && inside(pointer, [o[0] + x, o[1] + y, w, h]) {
                 return Some(Target::RevealHint);
             }
             (1..=revealed.min(3))

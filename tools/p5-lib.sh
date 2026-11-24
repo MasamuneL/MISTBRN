@@ -228,8 +228,12 @@ p5_scenario() {
       jq -e '.counts["minecraft:iron_ingot"] == 1' "$dir/pulled-ingot.json" >/dev/null ||
         k_fail "expected to pick up the pulled ingot"
       expect_log 2 'MISTBRN event=hint_revealed research=anchor_principle index=1 result=ok seq=2'
-      expect_log 2 'MISTBRN event=conclude research=anchor_principle result=ok seq=3'
-      expect_log 2 'MISTBRN event=conclude research=anchor_principle result=AlreadyConcluded'
+      # In this order: the first use concludes (+200), the second is refused (+0).
+      if grep -a 'MISTBRN event=conclude research=anchor_principle' "$(log 2)" | awk '
+        NR == 1 && / result=ok seq=3/ { first = 1 }
+        NR == 2 && / result=AlreadyConcluded/ { second = 1 }
+        END { exit !(NR == 2 && first && second) }'; then k_ok "first use concluded, second refused"
+      else k_fail "expected the first use to conclude and the second to be refused, in that order"; fi
       # Exactly once: the block pull's 10 plus the conclusion's 200 (never twice).
       expect 3 report state=active research=1:e3h1c1 knowledge=3 last_transaction=3 xp_iron_steel=210 ;;
     b1)

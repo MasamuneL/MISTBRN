@@ -159,8 +159,15 @@ impl Hooks for Allomancy {
         }
     }
 
-    fn item_picked_up_post(&self, _: &mut dyn ServerHost, event: &mut ItemPickedUpPostEvent<'_>) {
-        self.powers().picked_up(event.player, event.item.entity());
+    fn item_picked_up_post(
+        &self,
+        host: &mut dyn ServerHost,
+        event: &mut ItemPickedUpPostEvent<'_>,
+    ) {
+        let evidence = self.powers().picked_up(event.player, event.item.entity());
+        if let (Some(kind), Some(player)) = (evidence, host.player(event.player)) {
+            self.session().observe_event(host, player, kind);
+        }
     }
 
     /// The notebook used on a crafting table concludes the research that is ready (P5).
