@@ -298,7 +298,7 @@ p5_scenario() {
       kill_game
       report; quit_game
       expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok seq=2'
-      expect 2 report state=active schema=2 unlocked_iron=true unlocked_steel=true xp_iron_steel=100
+      expect 2 report state=active schema=3 unlocked_iron=true unlocked_steel=true xp_iron_steel=100
       after="$(field 2 report nodes) $(field 2 report pair_points) $(field 2 report last_transaction)"
       case "$scenario:$after" in
         b2:"- 1 1"|b2:"1:1 0 2"|b3:"1:1 0 2") k_ok "after cut (nodes, points, transaction): $after" ;;

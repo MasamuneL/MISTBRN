@@ -20,13 +20,13 @@ use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
     ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
     Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelRandomHost,
-    LevelTickPostEvent, LivingDamagePreEvent, LivingDeathEvent, LivingEntityUseItemFinishEvent,
-    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
-    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
-    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext,
-    RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent,
-    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenRenderPostEvent, ServerHost,
-    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    LevelTickPostEvent, LivingDamagePostEvent, LivingDeathEvent, LivingDeathPostEvent,
+    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
+    PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
+    PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
+    RegistrationContext, RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent,
+    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -101,18 +101,26 @@ impl Hooks for Allomancy {
             .loot(event.context.table, event.context.opener);
     }
 
-    fn living_damage_pre(&self, _: &mut dyn LevelRandomHost, event: &mut LivingDamagePreEvent<'_>) {
-        let damage = event.container.new_damage();
+    /// Boss hits that took health count towards milestones (absorbed ones do not).
+    fn living_damage_post(
+        &self,
+        _: &mut dyn LevelRandomHost,
+        event: &mut LivingDamagePostEvent<'_>,
+    ) {
+        let damage = event.container.health_damage();
         self.milestones()
             .damaged(event.entity, event.kind, event.source, damage);
     }
 
     fn living_death(&self, _: &mut dyn ServerHost, event: &mut LivingDeathEvent<'_>) -> Flow {
         if !event.cancelled {
-            self.milestones()
-                .died(event.entity, event.kind, event.source);
+            self.milestones().dying(event.entity, event.kind);
         }
         Flow::Continue
+    }
+
+    fn living_death_post(&self, _: &mut dyn ServerHost, event: &mut LivingDeathPostEvent<'_>) {
+        self.milestones().died(event.entity);
     }
 
     fn server_stopped(&self, _: &mut dyn ServerHost, _: &mut ServerStoppedEvent) {
@@ -158,9 +166,11 @@ impl Hooks for Allomancy {
         // Milestones queued by this tick's hooks, each in its own transaction (P6).
         let claims = self.milestones().take(host, tick);
         for (uuid, bit) in claims {
-            if let Some(player) = host.player(uuid) {
-                let _ = session.claim(host, player, bit);
-            }
+            let result = match host.player(uuid) {
+                Some(player) => session.claim(host, player, bit).map(|seq| seq.0),
+                None => Err("offline".into()),
+            };
+            self.milestones().outcome(uuid, bit, &result);
         }
         controls.sync_hud(host, &session, tick);
         controls.sync_progress(host, &session, tick);
