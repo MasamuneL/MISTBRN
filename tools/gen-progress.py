@@ -170,8 +170,42 @@ ICONS = (
 )
 
 
+# P8: the general nodes past the first row, at y = 64 (one 16-pixel cell each, in catalog
+# order after capacity).
+ICONS_P8 = (
+    (  # Flare cost: a flame burning low, its tip clipped by a saving notch.
+        "............",
+        ".....c......",
+        ".....cc.....",
+        "....cpc..hhh",
+        "....cpcc.mmm",
+        "...cpbpc....",
+        "...cpbbpc...",
+        "..cpbbbbpc..",
+        "..cpbbbbpc..",
+        "..cqpbbpqc..",
+        "...cqqqqc...",
+        "....mmmm....",
+    ),
+    (  # Dosing: one full drop and a small plus beside it.
+        ".....h......",
+        ".....h......",
+        "....hmh.....",
+        "....hmh..b..",
+        "...hcpmh.b..",
+        "...hcppmbbbb",
+        "..hcpppqm.b.",
+        "..hcpppqm.b.",
+        "..hcppqqm...",
+        "..hmcqqmm...",
+        "...hmmmm....",
+        "....mmm.....",
+    ),
+)
+
+
 def draw_atlas():
-    pixels = canvas(128, 64)
+    pixels = canvas(128, 80)
 
     locked_rim = color("363B42")
     node(pixels, 0, STEEL_LOW, locked_rim, locked_rim)
@@ -192,6 +226,8 @@ def draw_atlas():
     }
     for index, rows in enumerate(ICONS):
         art(pixels, 16 * index + 2, 26, rows, icon_palette)
+    for index, rows in enumerate(ICONS_P8):
+        art(pixels, 16 * index + 2, 66, rows, icon_palette)
 
     rect(pixels, 112, 24, 4, 4, STEEL_LOW)
     rect(pixels, 113, 25, 2, 2, OUTLINE)

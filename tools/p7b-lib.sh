@@ -9,7 +9,8 @@ book_line() {
 }
 
 # book_at NAME: "X Y", the GUI pixel where the newest book_view line puts target NAME
-# (`tab.diary`, `view.4`, `node.1`, `conclude`); status 1 when it is not there.
+# (`tab.diary`, `node.1`, `innate.iron`, `locked.tin_pewter`, `conclude`); status 1 when it is
+# not there (a map node out of the window is not listed).
 book_at() {
   local at
   at="$(tr ';= ' '\n\n\n' <<< "$(book_line)" | sed -n "s/^$1@//p" | tail -1)"
@@ -33,8 +34,8 @@ book_click() {
   ctl wait 10 >/dev/null
 }
 
-# book_scroll NAME STEPS: turn the wheel over book target NAME (positive scrolls up); with
-# the canvas at its top, one notch up moves nothing and only points there (a tooltip).
+# book_scroll NAME STEPS: turn the wheel over book target NAME (positive scrolls up; over the
+# map, positive zooms in round the pointer, P8).
 book_scroll() {
   local xy
   if ! xy="$(book_xy "$1")"; then k_fail "book target $1 not in: $(book_line | head -c 300)"; return 0; fi
@@ -74,35 +75,39 @@ book_table() {
 # p7b_scenario: returns 1 for any other scenario name.
 p7b_scenario() {
   case "$scenario" in
-    l1)  # every view, the canvas scroll, a tooltip, the tabs (captures reviewed by hand)
+    l1)  # the map (P8): opens on the selected pair, a locked sector's tooltip, the wheel
+         # zooms round the pointer, the tabs (captures reviewed by hand)
       launch MISTBRN_TEST_SCENARIO=p4
       book_quiet
       p6_place
       book_pair
-      book_open l1-iron
-      book_click view.1; book_shot l1-tin
-      book_click view.4; book_shot l1-general
-      book_click view.0
-      book_scroll node.2 -5
-      book_shot l1-iron-scrolled
-      book_scroll node.3 10
-      # Reach's tooltip: a click would buy it, so the pointer goes there with the wheel.
-      book_scroll node.1 1
+      book_open l1-map
+      # A press that does not move is a click: on a locked place it shows its tooltip only.
+      # The wheel moves one notch per event (scroll-at 3 sends three).
+      book_click locked.tin_pewter; book_shot l1-locked
+      book_scroll node.2 -3
+      book_shot l1-zoomed-out
+      book_scroll node.2 3
+      # Reach's tooltip: a click would buy it, so the pointer goes there with the wheel (in
+      # and back out: the zoom ends where it was).
+      book_scroll node.1 1; book_scroll node.1 -1
       book_shot l1-tooltip
       book_click tab.diary; book_shot l1-diary
       book_click tab.milestones; book_shot l1-milestones
       book_click tab.reserves; book_shot l1-reserves
       k_key esc 10
       quit_game
-      for view in 0 1 4; do
-        expect_log 1 "MISTBRN event=book_view gui=[0-9.]*x[0-9.]* tab=tree view=$view "
-      done
-      expect_log 1 'MISTBRN event=book_scroll lines=-1 scroll=56,0'
-      expect_log 1 'MISTBRN event=book_scroll lines=1 scroll=0,0'
+      # Iron and steel is the selected pair: the map opens on its sector at 100 %.
+      expect_log 1 'MISTBRN event=book_view gui=[0-9.]*x[0-9.]* tab=tree pan=-92,-92 zoom=1.00 '
+      expect_log 1 'MISTBRN event=book_view .* tab=tree .*innate\.iron@.*innate\.steel@'
+      expect_log 1 'MISTBRN event=book_view .* tab=tree .*locked\.tin_pewter@'
+      expect_log 1 'MISTBRN event=notebook_click .* target=locked.tin_pewter dragged=false'
+      expect_log 1 'MISTBRN event=book_scroll lines=-1 pan=[-0-9]*,[-0-9]* zoom=0.51 '
+      expect_log 1 'MISTBRN event=book_scroll lines=1 pan=[-0-9]*,[-0-9]* zoom=1.00 '
       for tab in diary milestones reserves; do expect_log 1 "MISTBRN event=book_view .* tab=$tab "; done
       k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
     l2)  # keyboard only: Tab to reach, Enter buys one rank, a held Enter buys nothing more
-         # (Page Down has no horizon-ctl key name; its mapping is a unit test)
+         # (Page Down, Home and +/- have no horizon-ctl key name; their mapping is a unit test)
       launch MISTBRN_TEST_SCENARIO=p4
       book_quiet
       p6_place
@@ -110,19 +115,24 @@ p7b_scenario() {
       # 450 XP: three points, enough for reach 1 (cost 1) and reach 2 (cost 2).
       ctl command "mistbrn-test xp 350" >/dev/null; ctl wait 10 >/dev/null
       book_open l2-open
-      # Focus order: 4 tabs, 5 trees, then reach (the innate power is not focusable).
-      for _ in 1 2 3 4 5 6 7 8 9 10; do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
+      # Focus order: 4 tabs, the 4 general nodes, then reach (the metals' own powers are not
+      # focusable).
+      for _ in 1 2 3 4 5 6 7 8 9; do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
       book_shot l2-focus
       ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
       ctl key enter repeat >/dev/null; ctl wait 20 >/dev/null
       book_shot l2-held
       ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
       book_shot l2-second
+      # An arrow walks the map: from reach, the nearest node to the right.
+      ctl key right tap >/dev/null; ctl wait 5 >/dev/null
+      book_shot l2-arrow
       k_key esc 10
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=book_key key=Next repeat=false focus=node.1 '
       expect_log 1 'MISTBRN event=book_key key=Activate repeat=true focus=node.1 '
+      expect_log 1 'MISTBRN event=book_key key=Arrow(1) repeat=false focus=node.[0-9]* '
       expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok'
       expect_log 1 'MISTBRN event=purchase node=reach rank=2 result=ok'
       # Two taps, two requests, and none between the held Enter's repeats and the second tap.

@@ -17,7 +17,7 @@ use allomancy_core::{
 use mod_api::{ClientHost, DrawContext};
 
 const SHEET: &str = "mistbrn:gui/progress";
-const SHEET_SIZE: [f32; 2] = [128.0, 64.0];
+const SHEET_SIZE: [f32; 2] = [128.0, 80.0];
 const HUD_SHEET: &str = "mistbrn:gui/hud";
 const HUD_SIZE: [f32; 2] = [160.0, 64.0];
 const NODE_LOCKED: [f32; 4] = [0.0, 0.0, 22.0, 22.0];
@@ -25,6 +25,7 @@ const NODE_AVAILABLE: [f32; 4] = [22.0, 0.0, 22.0, 22.0];
 const NODE_OWNED: [f32; 4] = [44.0, 0.0, 22.0, 22.0];
 const NODE_HOVER: [f32; 4] = [66.0, 0.0, 22.0, 22.0];
 const ICON_Y: f32 = 24.0;
+const ICON_Y_P8: f32 = 64.0;
 const ICON_RESEARCH: [f32; 4] = [80.0, 24.0, 16.0, 16.0];
 const ICON_HINT: [f32; 4] = [96.0, 24.0, 16.0, 16.0];
 const PIP_EMPTY: [f32; 4] = [112.0, 24.0, 4.0, 4.0];
@@ -88,11 +89,16 @@ fn focus_ring(p: &mut Painter, [x, y, w, h]: [f32; 4]) {
     p.fill([x + w, y, 1.0, h], BRASS);
 }
 
-/// A node's icon in the sheet: a column per catalog node, in catalog order. The row holds
-/// five before the research and hint icons; nodes past them have none yet.
+/// A node's icon in the sheet: a cell per catalog node, in catalog order. The first row holds
+/// five before the research and hint icons; the next ones (P8) start a row at `ICON_Y_P8`.
 fn icon(code: u16) -> Option<[f32; 4]> {
-    let column = CATALOG.nodes.iter().position(|def| def.code == code)?;
-    (column < 5).then_some([16.0 * column as f32, ICON_Y, 16.0, 16.0])
+    let index = CATALOG.nodes.iter().position(|def| def.code == code)?;
+    let (column, y) = if index < 5 {
+        (index, ICON_Y)
+    } else {
+        (index - 5, ICON_Y_P8)
+    };
+    (column < 8).then_some([16.0 * column as f32, y, 16.0, 16.0])
 }
 
 /// The value an effect shows to a player: blocks or percent.

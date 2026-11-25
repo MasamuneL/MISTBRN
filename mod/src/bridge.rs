@@ -544,13 +544,15 @@ impl Session {
         match &result {
             Ok(seq) => {
                 eprintln!(
-                    "MISTBRN event=purchase node={node} rank={rank} result=ok seq={}",
+                    "MISTBRN event=purchase node={node} rank={rank} result=ok seq={} code={code}",
                     seq.0
                 );
                 tell(host, player, "message.mistbrn.notebook.bought");
             }
             Err(error) => {
-                eprintln!("MISTBRN event=purchase node={node} rank={rank} result={error}")
+                eprintln!(
+                    "MISTBRN event=purchase node={node} rank={rank} result={error} code={code}"
+                )
             }
         }
         result

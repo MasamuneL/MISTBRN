@@ -58,7 +58,7 @@ p6_value() { tr ' ' '\n' <<< "$1" | sed -n "s/^$2=//p"; }
 # p6_milestone_lines KEY: how often launch 1 logged a claim attempt for KEY.
 p6_milestone_lines() { grep -ac "MISTBRN event=milestone key=$1 " "$(log 1)" || true; }
 
-# p6_migrate: a real P5 world (schema 2 on disk) loads with no milestones and saves schema 3.
+# p6_migrate: a real P5 world (schema 2 on disk) loads with no milestones and saves schema 4 (P8).
 # Fixture: run t1 with a P5 build (main before P6) as $MISTBRN_P5_FIXTURE (default p5-fixture-t1).
 p6_migrate() {
   local name="${MISTBRN_P5_FIXTURE:-p5-fixture-t1}" src uuid player before after
@@ -79,11 +79,11 @@ p6_migrate() {
   expect_log 1 'MISTBRN event=save_loaded state=found'
   # t1 leaves iron and steel unlocked by the first vial, three credits (iron, iron, tin) and
   # no progress; P6 adds nothing but an empty milestone mask.
-  expect 1 report state=active "uuid=$uuid" schema=3 unlocked_iron=true unlocked_steel=true \
+  expect 1 report state=active "uuid=$uuid" schema=4 unlocked_iron=true unlocked_steel=true \
     last_transaction=3 milestones=0 unlocked_pairs=iron_steel xp_iron_steel=0 nodes=- research=-
   after="$(p5_disk_schema "$player")" || die "could not read the schema from $player"
-  if [[ "$after" == 3 ]]; then k_ok "on-disk schema after save: $after"
-  else k_fail "expected raw schema 3 after save, got $after"; fi
+  if [[ "$after" == 4 ]]; then k_ok "on-disk schema after save: $after"
+  else k_fail "expected raw schema 4 after save, got $after"; fi
 }
 
 # p6_scenario: P6 milestones (h1-h5) and the P5 world migration (m3).
