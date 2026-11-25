@@ -751,7 +751,14 @@ fn draw_diary(
         let shown = lines.len().min(2);
         for (i, line) in lines.iter().take(shown).enumerate() {
             let y = CONCLUDE_BUTTON[1] - 11.0 - LINE * (shown - 1 - i) as f32;
-            p.text(&fit(p, line, DETAIL_W), [x, y], color, true);
+            // The last shown line says so when more text did not fit.
+            let more = i + 1 == shown && lines.len() > shown;
+            let line = if more {
+                format!("{line} …")
+            } else {
+                line.clone()
+            };
+            p.text(&fit(p, &line, DETAIL_W), [x, y], color, true);
         }
         button(p, CONCLUDE_BUTTON, hovered == Some(Target::Conclude));
         let label = tr(host, "notebook.mistbrn.conclude");
