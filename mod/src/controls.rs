@@ -380,7 +380,7 @@ impl Controls {
                 ) {
                     Err("GameMode".to_owned())
                 } else if !looks_at_research_table(read, player) {
-                    hint(host, player, "message.mistbrn.research.no_table", None);
+                    // No action bar: it would draw over the book, which says why itself.
                     Err("NoTable".to_owned())
                 } else {
                     session.conclude(host, player, u16::from(research))
