@@ -7,9 +7,9 @@ use allomancy_core::{
     Authority, BurnState, CATALOG, EMPTY_VIAL, EventId, EventKind, InputContext, Metal, Observed,
     PlayerId, PreparedCredit, ReserveRules, SaveError, SavedPlayer, Tick, TransactionSeq,
     VIAL_MILLI, Vec3, VerifiedEvent, WorldId, WorldSnapshot, advance_tick, commit_credit,
-    consume_reserves, milestone_def, node_def, observe, on_death, on_reconnect, prepare_claim,
-    prepare_conclude, prepare_hint, prepare_purchase, prepare_unlock, prepare_vial, research_def,
-    update_player,
+    consume_reserves, milestone_def, node_def, observe, on_death, on_reconnect, prepare_basic_vial,
+    prepare_claim, prepare_conclude, prepare_hint, prepare_purchase, prepare_unlock, prepare_vial,
+    research_def, update_player,
 };
 use mod_api::{
     GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
@@ -70,7 +70,7 @@ pub(crate) fn tell(host: &mut dyn ServerHost, player: PlayerRef, key: &str) {
     let _ = player.tell(host, Text::translate(key, Vec::new()));
 }
 
-fn slot_stack(host: &dyn Host, player: PlayerRef, slot: u32) -> Option<ItemStack> {
+pub(crate) fn slot_stack(host: &dyn Host, player: PlayerRef, slot: u32) -> Option<ItemStack> {
     player
         .inventory_slots(host)?
         .into_iter()
@@ -83,6 +83,8 @@ fn slot_stack(host: &dyn Host, player: PlayerRef, slot: u32) -> Option<ItemStack
 pub(crate) fn refusal_message(error: &str) -> Option<&'static str> {
     if error == "item_not_in_slot" {
         None
+    } else if error.contains("NothingToCredit") {
+        Some("message.mistbrn.vial.basic_full")
     } else if error.contains("CapacityExceeded") {
         Some("message.mistbrn.vial.reserve_full")
     } else {
@@ -287,7 +289,7 @@ impl Session {
                     continue;
                 }
             };
-            let metal = metal_name(drink.metal);
+            let metal = drink.metal.map_or("basic", metal_name);
             match self.credit_from_slot(host, drink, VIAL_MILLI, fail_inside) {
                 Ok((seq, unlocked)) => {
                     eprintln!(
@@ -436,8 +438,14 @@ impl Session {
         else {
             return Err("not_active".into());
         };
-        let (prepared, unlocked) =
-            prepare_vial(saved, metal, amount_milli).map_err(|e| format!("{e:?}"))?;
+        let (prepared, unlocked) = match metal {
+            Some(metal) => prepare_vial(saved, metal, amount_milli),
+            None => prepare_basic_vial(saved, amount_milli).map(|(prepared, credited)| {
+                eprintln!("MISTBRN event=basic_vial_credit credited={credited:?}");
+                (prepared, false)
+            }),
+        }
+        .map_err(|e| format!("{e:?}"))?;
         let empty = Identifier::parse(EMPTY_VIAL)
             .ok()
             .and_then(|id| host.item_key(&id))

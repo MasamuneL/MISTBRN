@@ -44,12 +44,12 @@ p5_tree() {
 p5_select_table() {
   ctl command "tp @s 512.5 100 512.5" >/dev/null
   ctl wait 5 >/dev/null
-  ctl setblock 514 100 512 crafting_table >/dev/null
+  ctl setblock 514 100 512 mistbrn:alembic >/dev/null
   ctl look-at block 514 100 512 west >/dev/null
   ctl wait 5 >/dev/null
 }
 
-# p5_conclude NAME: the book's Conclude button, looking at the table (P7b). For a repeat
+# p5_conclude NAME: the book's Conclude button, looking at the alembic (P7b, P3c). For a repeat
 # (NAME ending in -repeat) the diary must no longer offer it; L3 checks the server's refusal.
 p5_conclude() {
   book_open "$1-open"

@@ -5,6 +5,8 @@
 # P5 scenarios: t1, x1, r1, b1-b3, pd1 (death and reconnect), m1, q1.
 # P6 scenarios: h1 (bastion), h2 (elder guardian), h3 (ancient city), h4 (dragon), h5 (cut), m3,
 # hv (capture of the Milestones tab).
+# P3c scenarios: a1 (water vial), a2 (salt sources), a3 (alembic), a4 (basic-metals vial),
+# a5 (old vial recipe gone), a6 (salt rock on beaches), av (art capture).
 #
 # Each run gets its own game folder (the game's working directory): its saves, logs and caches
 # never touch the player's own Horizon instance. Each launch logs beside its own control socket;
@@ -23,6 +25,8 @@ source "$(dirname "$0")/p5-lib.sh"
 source "$(dirname "$0")/p6-lib.sh"
 # shellcheck source=tools/p7b-lib.sh
 source "$(dirname "$0")/p7b-lib.sh"
+# shellcheck source=tools/p3c-lib.sh
+source "$(dirname "$0")/p3c-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
@@ -414,7 +418,8 @@ case "$scenario" in
       "$dir/messages.json" >/dev/null || die "missing reserve-full translation key in chat"
     grep -q "that reserve is full" "$dir/messages.json" || die "reserve-full key did not resolve to its text"
     expect 2 report state=active reserve_iron=100000 last_transaction=4 vials=1 empty_vials=4 ;;
-  c1)  # vial chain in the 2x2 grid: glass -> empty vials, ingot + stone -> flakes, vial + flakes
+  c1)  # vial chain in the 2x2 grid: glass -> empty vials, ingot + stone -> flakes (P3c: the
+    # metal vial itself comes from the alembic; a5 checks the old vial + flakes recipe is gone)
     launch
     ctl command "gamemode survival" >/dev/null
     for i in glass glass iron_ingot cobblestone; do ctl give "$i" 1 >/dev/null; done
@@ -422,11 +427,10 @@ case "$scenario" in
     ctl open-inventory >/dev/null
     put minecraft:glass 100; put minecraft:glass 102; take
     put minecraft:iron_ingot 100; put minecraft:cobblestone 101; take
-    put mistbrn:vial_empty 100; put mistbrn:iron_flakes 101; take
     ctl close >/dev/null
     ctl inventory > "$dir/craft-inventory.json"
     quit_game
-    jq -e '.counts == {"mistbrn:iron_flakes": 1, "mistbrn:vial_empty": 1, "mistbrn:vial_iron": 1}' \
+    jq -e '.counts == {"mistbrn:iron_flakes": 2, "mistbrn:vial_empty": 2}' \
       "$dir/craft-inventory.json" >/dev/null || die "crafting ledger differs: $(jq -c .counts "$dir/craft-inventory.json")" ;;
   c2|c3|c4|c5)
     # Seed and save an inventory, then use the actual item in Survival.
@@ -667,6 +671,8 @@ case "$scenario" in
     p6_scenario ;;
   l[1-6])  # P7b book (tools/p7b-lib.sh)
     p7b_scenario ;;
+  a[1-6]|av)  # P3c alchemy (tools/p3c-lib.sh)
+    p3c_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

@@ -20,19 +20,19 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## Reanudación
 
-- Rama activa: `feat/p7b-ui` (P7b, UI completa: el libro). PR abierta, pendiente de la aprobación del usuario para integrar.
-- Revisión: Codex APROBADO (ronda 2), Gemini APROBADO (ronda 1); ronda visual Claude ⇄ Codex AGREE, sin PNG nuevos.
-- Batería: `p7b-final` 32/32 PASS (L1–L6 + regresión de 26, `2982d30`, Windows x64, instancia `mistbrn-p6`); repasos de L3/R1/B1 tras revisar capturas. [Evidencia](evidence/p7b.md) · [Guía](p7b-guide.md)
-- En paralelo: P3c (alquimia) en otra sesión; se integra después de P7b y deja Concluir solo en el alambique.
+- Rama activa: `feat/p3c-alchemy` (P3c, alquimia: alambique, sal y la nueva cadena de viales), rebasada sobre `main` con P7b (PR #20). PR abierta, pendiente de la aprobación del usuario para integrar.
+- Revisión: Codex APROBADO (ronda 2), Gemini APROBADO (ronda 2); guía APROBADO por Gemini (ronda 4); arte Claude ⇄ Codex AGREE en el juego.
+- Batería: `p3c-final` 39/39 PASS (A1–A6, AV, L1–L6 y la regresión de 26, `ae5b9d4`, Windows x64, instancia `mistbrn-p3c`). [Evidencia](evidence/p3c.md) · [Guía](p3c-guide.md)
+- Concluir una investigación pide ahora mirar a un alambique (P7b aceptaba también la mesa de crafteo).
 
 ## Siguiente acción exacta
 
-1. P7b: revisión visual del usuario con `docs/p7b-guide.md` (criterio de cierre de la fase); merge con su aprobación y PR `docs/p7b-status`.
-2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
+1. P3c: revisión del usuario con `docs/p3c-guide.md`; merge con su aprobación y PR `docs/p3c-status`.
+2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; horno en un nivel aparcado y rotura del alambique a media tanda (P3c).
 
 ## Próximos hitos
 
-1. **P7b** UI completa (libro, árboles, pistas) o **P8** poderes de las tres parejas que los hitos ya desbloquean, sobre el esquema 3.
+1. **P8** poderes de las tres parejas que los hitos ya desbloquean, sobre el esquema 3.
 2. Las fases posteriores amplían el recorrido con práctica, investigación, árboles de técnicas, hitos y las otras tres parejas. El cooperativo y la publicación tienen sus propias pruebas.
 
 [Diseño](design.md) · [Plan de ejecución](plan.md) · [Historial anterior al re-pin](history.md)

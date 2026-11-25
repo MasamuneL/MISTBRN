@@ -9,7 +9,7 @@ El cuaderno pasa a ser **el libro**: se abre con **J** (reasignable en Controles
    - Estaño/peltre, zinc/latón y cobre/bronce dicen qué hito las desbloquea, o que sus poderes llegan en una versión posterior.
    - Al pasar el ratón sobre un nodo, un recuadro dice su efecto, su coste y qué le falta. Un clic compra el siguiente rango.
 2. **Diario.** A la izquierda, la lista de investigaciones; a la derecha, la elegida: evidencias, pistas y **Concluir**.
-3. **Concluir.** Con la investigación lista, mira a una mesa de crafteo (o a un alambique) a 5 bloques o menos, abre el libro y pulsa **Concluir**. Lejos de la mesa sale un aviso y no pasa nada. Solo se concluye una vez.
+3. **Concluir.** Con la investigación lista, mira a un alambique (desde P3c; antes también valía la mesa de crafteo) a 5 bloques o menos, abre el libro y pulsa **Concluir**. Lejos de él sale un aviso y no pasa nada. Solo se concluye una vez.
 4. **Hitos.** Igual que en P6.
 5. **Reservas.** Los ocho metales: si están desbloqueados, la reserva y la capacidad, y si arden o están avivados. Abajo, lo que da el árbol general.
 

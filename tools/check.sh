@@ -64,6 +64,30 @@ for equipment in "$assets"/equipment/*.json; do
   done <<< "$textures"
 done
 
+# Every block (P3c) has its blockstate, model, block item model, textures, loot and name.
+for definition in "$data"/horizon/block/*.json; do
+  [[ -f "$definition" ]] || continue
+  id="${definition##*/}"; id="${id%.json}"
+  jq -e --arg model "mistbrn:block/$id" '.variants[""].model == $model' \
+    "$assets/blockstates/$id.json" >/dev/null || die "missing blockstate for block $id"
+  jq -e --arg model "mistbrn:block/$id" '.model.model == $model' "$assets/items/$id.json" >/dev/null ||
+    die "missing block item model for $id"
+  textures="$(jq -er '.textures | if type == "object" and length > 0 then .[] else error("no textures") end' \
+    "$assets/models/block/$id.json")" || die "missing block model textures for $id"
+  while IFS= read -r texture; do
+    png="$assets/textures/${texture#mistbrn:}.png"
+    [[ "$texture" == mistbrn:block/* && -s "$png" ]] || die "missing texture $texture for block $id"
+    header="$(od -An -tx1 -N24 "$png" | tr -d '[:space:]')"
+    [[ "$header" == 89504e470d0a1a0a0000000d494844520000001000000010 ]] ||
+      die "texture for block $id must be a 16x16 PNG"
+  done <<< "$textures"
+  [[ -f "$data/loot_table/blocks/$id.json" ]] || die "missing loot table for block $id"
+  for language in en_us es_es; do
+    jq -e --arg key "block.mistbrn.$id" '.[$key] | type == "string" and length > 0' \
+      "$assets/lang/$language.json" >/dev/null || die "missing $language translation for block $id"
+  done
+done
+
 for recipe in "$data"/recipe/*.json; do
   ids="$(jq -er '
     if (.result.id | type) != "string" then error("missing recipe result ID") else
@@ -72,8 +96,10 @@ for recipe in "$data"/recipe/*.json; do
   ' "$recipe")"
   while IFS= read -r id; do
     case "$id" in
-      mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" ]] || die "unknown item $id in $recipe" ;;
+      mistbrn:*) [[ -f "$data/horizon/item/${id#mistbrn:}.json" || -f "$data/horizon/block/${id#mistbrn:}.json" ]] ||
+        die "unknown item $id in $recipe" ;;
       minecraft:glass|minecraft:iron_ingot|minecraft:copper_ingot|minecraft:coal|minecraft:book) ;;
+      minecraft:cauldron|minecraft:blaze_powder) ;;
       minecraft:copper_nugget|minecraft:gold_nugget|minecraft:iron_nugget|minecraft:cobblestone|'#minecraft:stone_crafting_materials'|minecraft:stick|minecraft:string|minecraft:gray_wool|'#minecraft:logs') ;;
       *) die "unknown item $id in $recipe" ;;
     esac

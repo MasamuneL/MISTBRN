@@ -344,7 +344,7 @@ Aprobado por el usuario el 2026-11-24. Superficie del pin sin fork: `screen_mous
 **Decisiones del usuario**
 - El cuaderno pasa a ser **el libro**, con la tecla J y sin ítem. `mistbrn:notebook` sigue registrado y abre el libro, pero sale de las recetas.
 - Pestañas Árboles · Diario · Hitos · Reservas. Árboles: selector de las 4 parejas + General y un lienzo con scroll por pareja con la forma del diseño (2 ramas de 3 técnicas con 2 subnodos y la combinada abajo). Solo los nodos del catálogo son reales; el resto son siluetas «por descubrir». Hierro/acero: rama «Anclaje» con el poder propio (tirón y empujón), `reach` y `accel` como subnodos y `coin_jump` como segunda técnica. Las otras tres parejas se ven bloqueadas (hito que las abre) o «poderes en una fase posterior». Catálogo, esquema 3, fixtures y paquete `mistbrn:progress` sin cambios.
-- Diario: lista de investigaciones (scroll) + detalle con evidencias, pistas y **Concluir**. Op 8 «concluir» (arg = investigación): el servidor exige supervivencia o aventura, la investigación lista y mirar a ≤ 5 bloques una `minecraft:crafting_table` o un `mistbrn:alembic` (P3c). Provisional: tras integrar P3c, solo el alambique. La conclusión con el cuaderno en la mano sobre la mesa desaparece.
+- Diario: lista de investigaciones (scroll) + detalle con evidencias, pistas y **Concluir**. Op 8 «concluir» (arg = investigación): el servidor exige supervivencia o aventura, la investigación lista y mirar a ≤ 5 bloques un `mistbrn:alembic` (desde P3c; antes de integrarla también valía la `minecraft:crafting_table`). La conclusión con el cuaderno en la mano sobre la mesa desaparece.
 - Accesibilidad: navegación por teclado (Tab/flechas, Intro/Espacio, Re Pág/Av Pág; foco con borde de latón y tooltip), ajustes «Reducir destellos» (los pulsos del nodo comprable y de la reserva baja quedan fijos), «Tamaño del libro» y «Tamaño de las barras de reserva» (75/100/125 %; el libro se reduce si no cabe).
 
 **Escenarios** (`tools/p7b-lib.sh`): L1 vistas, scroll y tooltip; L2 compra solo con teclado; L3 Concluir lejos (6 bloques), sin mesa y una vez junto a ella; L4 escalas y «reducir destellos» (la intensidad del aviso que se pasa al relleno, por log de prueba: varias sin el ajuste, una fija con él; Windows no tiene python para comparar recortes); L5 pestaña Reservas; L6 receta retirada y cuaderno existente. T1, R1, Q1, B1 y HV pulsan por nombre (`book_click`, desde el log `event=book_view`). Regresión completa.
@@ -361,3 +361,20 @@ Aprobado por el usuario el 2026-11-24. Superficie del pin sin fork: `screen_mous
 3. P0b: G1–G8 con `tools/build-native.sh p0b-1` y `tools/native-test.sh {pd-roundtrip,tx-abort,raw-root}`.
 4. P2: `cargo test -p allomancy-core --test reserves`, `--test persistence`; `tools/native-test.sh s1 … s10` (S3/S4 ×3).
 5. Tras cada merge: `docs/STATUS.md` actualizado, rama de fase borrada en remoto, `git count-objects -vH` registrado en la evidencia (control de peso).
+
+### P3c — Alquimia
+
+Aprobado por el usuario el 2026-11-24.
+
+**Decisiones del usuario**
+- Alambique: 3 huecos de vial (1 por hueco) y 1 de ingrediente, sin combustible, tandas de 600 ticks. Receta: vidrio, hueco, vidrio / lingote de cobre, caldero, lingote de cobre.
+- Dos etapas: viales de agua + sal → solución salina; solución salina + viruta → vial de ese metal. Una viruta da 3 viales.
+- Sal: piedra de sal en las playas (1–5, Toque de Seda da el bloque), arena de playa rota (1 de cada 20) y el horno (vial de agua → sal; **el vial vacío se devuelve**).
+- Vial de agua: clic derecho con un vial vacío mirando agua.
+- Vial de metales básicos: los 8 viales + polvo de blaze; +25 000 a cada metal desbloqueado hasta su capacidad, sin desbloquear nada.
+- Se quita la receta vial vacío + viruta; los viales que ya existen se siguen bebiendo.
+- Concluir una investigación (P7b) pasa a pedir solo el alambique.
+
+**Implementación**: `prepare_basic_vial` en el núcleo (exactly-once con `commit_credit`); el progreso de la tanda en el nbt del block entity y la barra en un data slot; la tanda se identifica por ingrediente y huecos. Formatos de datos 26.3 (botín con `condition`/`modifier`, `simple_block` con `to_place`). Pruebas en Windows x64, instancia `mistbrn-p3c`.
+
+**Escenarios** (`tools/p3c-lib.sh`): A1 vial de agua; A2 sal (piedra, Toque de Seda, arena de playa y llanura, horno); A3 alambique (dos etapas, 600 ticks, guardado a mitad, etapa equivocada, vial tardío, rotura); A4 vial de básicos (rechazo, crédito, fallo forzado); A5 receta vieja; A6 worldgen; AV capturas. [Evidencia](evidence/p3c.md) · [Guía](p3c-guide.md)

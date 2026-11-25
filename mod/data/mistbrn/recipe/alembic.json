@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["G G", "CKC"],
+  "key": {
+    "G": "minecraft:glass",
+    "C": "minecraft:copper_ingot",
+    "K": "minecraft:cauldron"
+  },
+  "result": { "id": "mistbrn:alembic", "count": 1 }
+}

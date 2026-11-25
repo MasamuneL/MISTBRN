@@ -23,6 +23,57 @@ pub fn metal_from_vial(id: &str) -> Option<Metal> {
         .find_map(|&(vial, metal)| (vial == id).then_some(metal))
 }
 
+// ---- P3c alchemy ----
+
+pub const SALT: &str = "mistbrn:salt";
+pub const WATER_VIAL: &str = "mistbrn:vial_water";
+pub const BRINE_VIAL: &str = "mistbrn:vial_brine";
+/// Drinking it credits `VIAL_MILLI` to every unlocked metal, up to its capacity.
+pub const BASIC_VIAL: &str = "mistbrn:vial_basic_metals";
+/// One alembic batch: no fuel, one ingredient, up to `ALEMBIC_VIALS` vials.
+pub const BREW_TICKS: u32 = 600;
+pub const ALEMBIC_VIALS: usize = 3;
+/// The alembic's ingredient slot comes after its vial slots.
+pub const ALEMBIC_INGREDIENT_SLOT: usize = ALEMBIC_VIALS;
+const FLAKES: [(&str, &str); 8] = [
+    ("mistbrn:iron_flakes", "mistbrn:vial_iron"),
+    ("mistbrn:steel_flakes", "mistbrn:vial_steel"),
+    ("mistbrn:tin_flakes", "mistbrn:vial_tin"),
+    ("mistbrn:pewter_flakes", "mistbrn:vial_pewter"),
+    ("mistbrn:zinc_flakes", "mistbrn:vial_zinc"),
+    ("mistbrn:brass_flakes", "mistbrn:vial_brass"),
+    ("mistbrn:copper_flakes", "mistbrn:vial_copper"),
+    ("mistbrn:bronze_flakes", "mistbrn:vial_bronze"),
+];
+
+/// What one vial becomes in the alembic with `ingredient`: salt turns water into brine, and
+/// metal flakes turn brine into that metal's vial. Anything else brews nothing.
+pub fn brew_result(ingredient: &str, vial: &str) -> Option<&'static str> {
+    if ingredient == SALT {
+        return (vial == WATER_VIAL).then_some(BRINE_VIAL);
+    }
+    let (_, result) = FLAKES.iter().find(|(flakes, _)| *flakes == ingredient)?;
+    (vial == BRINE_VIAL).then_some(*result)
+}
+
+/// Whether the alembic takes `id` in its ingredient slot (salt or flakes).
+pub fn is_alembic_ingredient(id: &str) -> bool {
+    id == SALT || FLAKES.iter().any(|(flakes, _)| *flakes == id)
+}
+
+/// Whether the alembic takes `id` in a vial slot: what it brews from and what it brews to.
+pub fn is_alembic_vial(id: &str) -> bool {
+    id == WATER_VIAL || id == BRINE_VIAL || metal_from_vial(id).is_some()
+}
+
+/// Breaking sand in a beach biome gives one salt 1 time in 20. The draw mixes in the game
+/// time, so sand put back in the same place is not a sure source.
+pub fn beach_salt(dimension: &str, pos: [i32; 3], game_time: u64) -> bool {
+    let mixed = (location_hash(dimension, pos) ^ game_time.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+        .wrapping_mul(0xff51_afd7_ed55_8ccd);
+    (mixed >> 32).is_multiple_of(20)
+}
+
 /// Stable across sessions and platforms, including negative coordinates.
 fn location_hash(dimension: &str, pos: [i32; 3]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;

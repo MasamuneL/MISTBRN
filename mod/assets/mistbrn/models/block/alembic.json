@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "mistbrn:block/alembic_top",
+    "side": "mistbrn:block/alembic_side"
+  }
+}

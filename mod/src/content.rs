@@ -1,6 +1,6 @@
 //! Connect item use and loot hooks to the P3 content rules.
 use allomancy_core::{
-    FILLED_VIALS, Metal, Pair, UNLOCK_ITEMS, chest_sample, ore_sample, sample_count,
+    BASIC_VIAL, FILLED_VIALS, Metal, Pair, UNLOCK_ITEMS, chest_sample, ore_sample, sample_count,
 };
 use mod_api::{
     BlockDropsEvent, ClientHost, ContainerLootFilledEvent, GameMode, Hand, Host, ItemKey, ItemPart,
@@ -10,7 +10,7 @@ use mod_api::{
 use std::collections::BTreeMap;
 
 const OFFHAND_SLOT: u32 = 40;
-/// The notebook (P5): opens the notebook screen; used on a crafting table it concludes research.
+/// The notebook (P5): opens the book; research is concluded from the book, facing an alembic.
 pub(crate) const NOTEBOOK: &str = "mistbrn:notebook";
 
 /// Whether `stack` is the notebook.
@@ -27,7 +27,8 @@ pub(crate) struct Drink {
     pub player: PlayerRef,
     pub slot: u32,
     pub stack: ItemStack,
-    pub metal: Metal,
+    /// The vial's metal; `None` is the basic-metals vial (P3c), which credits every unlocked one.
+    pub metal: Option<Metal>,
 }
 
 /// One unlock item whose use finished, waiting for its transaction.
@@ -93,6 +94,9 @@ impl Content {
             r.item_part(key, Vial);
             self.keys.insert(id, key);
         }
+        let key = r.item_key(BASIC_VIAL);
+        r.item_part(key, Vial);
+        self.keys.insert(BASIC_VIAL, key);
         for (id, _) in UNLOCK_ITEMS {
             let key = r.item_key(id);
             r.item_part(key, Primer);
@@ -121,7 +125,8 @@ impl Content {
         let is = |id: &str| self.keys.get(id) == Some(&key);
         let item = FILLED_VIALS
             .iter()
-            .find_map(|&(id, metal)| is(id).then_some(Ok(metal)))
+            .find_map(|&(id, metal)| is(id).then_some(Ok(Some(metal))))
+            .or_else(|| is(BASIC_VIAL).then_some(Ok(None)))
             .or_else(|| {
                 UNLOCK_ITEMS
                     .iter()

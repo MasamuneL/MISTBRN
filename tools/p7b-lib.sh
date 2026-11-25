@@ -63,10 +63,10 @@ book_pair() {
   ctl wait 20 >/dev/null
 }
 
-# book_table: a crafting table two blocks east of the player at 512.5 100 512.5, looked at.
+# book_table: an alembic (P3c: the only research table) two blocks east of the player at 512.5 100 512.5, looked at.
 book_table() {
   p6_place
-  ctl setblock 514 100 512 crafting_table >/dev/null
+  ctl setblock 514 100 512 mistbrn:alembic >/dev/null
   ctl look-at block 514 100 512 west >/dev/null
   ctl wait 5 >/dev/null
 }
