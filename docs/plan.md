@@ -173,7 +173,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | V1 demo | `feat/v1-unlock` | P3a, P4, P7a | preparar metal, beber, usar hierro y acero, consultar la reserva y continuar tras guardar | Lista V1 de legacy PLAN-ADJUSTMENTS y evaluación humana del usuario |
 | P5 habilidades/investigación | `feat/p5-progress` | V1 | árboles, experiencia por práctica, investigación con pistas; **esquema de guardado 2 + migración 1→2** | Tests core + fixture v1 migrado; escenario en juego |
 | P6 hitos | `feat/p6-milestones` | P5 | fragmentos ligados a bastión, guardián, ciudad antigua, dragona; reclamo único por jugador | Duplicados rechazados en core y en juego |
-| P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario |
+| P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario. Integrado en `917b40d` (PR #20) con 32/32 en `p7b-final` y dos revisiones. [Evidencia](evidence/p7b.md) |
 | P8 tres parejas restantes | `feat/p8-<pareja>` | P7b | estaño/peltre, zinc/latón, cobre/bronce | Pruebas por pareja |
 | P9 cooperativo | `feat/p9-coop` | P8 | autoridad servidor con 2 clientes, server export dedicado | Dos clientes reales; si no se logra, se entrega individual y se documenta |
 | P10 publicación | `feat/p10-release` | P8 (P9 opcional) | `.hmod`, verificación **Windows x64 y Linux x64** con el mismo pin (incluye `tools/*.sh` en Git Bash: `cygpath`, `tasklist`/`taskkill`, `jq` instalado), código de escenarios inactivo sin variable y sin sondas `mistbrn_probe*` en un mundo jugado sin ella, licencias de assets | Build y S1/S4/S5 en Windows x64 y Linux x64 PASS; paquete sin recursos de terceros |
