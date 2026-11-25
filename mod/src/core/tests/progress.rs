@@ -140,8 +140,11 @@ fn broken_catalogs_are_rejected() {
         check(&RANK),
         Err(CatalogError::RequirementRankOutOfRange(1))
     );
-    static WIDE: [NodeDef; 1] = [NodeDef { code: 64, ..NODE_A }];
-    assert_eq!(check(&WIDE), Err(CatalogError::CodeOutOfRange(64)));
+    static WIDE: [NodeDef; 1] = [NodeDef {
+        code: 128,
+        ..NODE_A
+    }];
+    assert_eq!(check(&WIDE), Err(CatalogError::CodeOutOfRange(128)));
     static OVER: [NodeDef; 1] = [NodeDef {
         effect: NodeEffect::ReductionMilli,
         ranks: &[Rank {
@@ -577,7 +580,7 @@ fn learned() -> SavedPlayer {
 fn the_current_schema_round_trips_every_progress_field() {
     let saved = learned();
     let bytes = encode_save(&saved).unwrap();
-    assert_eq!(save_schema(&bytes), Some(3));
+    assert_eq!(save_schema(&bytes), Some(4));
     assert_eq!(decode(&bytes).unwrap(), saved);
 }
 
@@ -697,7 +700,7 @@ fn rules_that_do_not_match_the_nodes_are_rejected_on_decode() {
 
 // Catches a schema 3 reader that loses or invents anything of a P5 save (P6 migration).
 #[test]
-fn schema_2_fixture_migrates_to_schema_3_keeping_every_field() {
+fn schema_2_fixture_migrates_to_schema_4_keeping_every_field() {
     let bytes = include_bytes!("fixtures/saved-player-v2.bin");
     assert_eq!(save_schema(bytes), Some(2));
     let migrated = decode(bytes).unwrap();
@@ -711,8 +714,9 @@ fn schema_2_fixture_migrates_to_schema_3_keeping_every_field() {
     assert_eq!(migrated.last_transaction(), expected.last_transaction());
     assert_eq!(migrated, expected);
     let rewritten = encode_save(&migrated).unwrap();
-    assert_eq!(save_schema(&rewritten), Some(3));
-    assert_eq!(rewritten.len(), bytes.len() + 1);
+    assert_eq!(save_schema(&rewritten), Some(4));
+    // The milestones byte (schema 3), n_extra and eight newer windows (schema 4).
+    assert_eq!(rewritten.len(), bytes.len() + 1 + 1 + 8 * 9);
     assert_eq!(decode(&rewritten).unwrap(), migrated);
 }
 

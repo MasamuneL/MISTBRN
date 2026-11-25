@@ -285,8 +285,16 @@ pub(crate) fn open_notebook(host: &mut dyn ClientHost) {
     // The state is not held across the host call: its screen hooks take it too.
     if host.mod_screen_open(MOD_ID) {
         eprintln!("MISTBRN event=notebook result=open");
-        state().notebook.get_or_insert(Notebook {
-            book: Book::new(),
+        let mut state = state();
+        // The map opens on the selected pair's sector.
+        let selected = state
+            .hud
+            .map_or(allomancy_core::Pair::IronSteel, |hud| hud.pair);
+        let unlocked = unlocked_in(state.hud);
+        let mut book = Book::new(selected);
+        book.unlocked = allomancy_core::PAIRS.map(unlocked);
+        state.notebook.get_or_insert(Notebook {
+            book,
             request: None,
             close: false,
             conclude_sent: None,
@@ -638,6 +646,7 @@ pub(crate) fn screen_draw(host: &dyn ClientHost, pointer: [f32; 2], draw: &mut d
                 open.book.logged = shown.logged;
                 open.book.keyboard = shown.keyboard;
                 open.book.last_pointer = shown.last_pointer;
+                open.book.unlocked = shown.unlocked;
             }
             return;
         }
@@ -694,6 +703,12 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
     let unlocked = unlocked_in(state.hud);
     let progress = state.progress.clone();
     if let Some(open) = state.notebook.as_mut() {
+        // Over the map a press waits for its release: it may be a drag (P8).
+        if let (Some(at), Some(progress)) = (open.book.local(pointer), progress.as_ref())
+            && book::press(&mut open.book, progress, at)
+        {
+            return true;
+        }
         let target = progress.as_ref().and_then(|progress| {
             let at = open.book.local(pointer)?;
             book::target_at(&open.book, progress, at)
@@ -718,6 +733,56 @@ pub(crate) fn mouse_pressed(host: &dyn ClientHost, pointer: [f32; 2], button: i3
         wheel.action.get_or_insert(WheelAction::Select(pair));
     }
     true
+}
+
+/// The left button let go over the open book: a press over the map that did not drag clicks
+/// what it went down on. True when the press was ours.
+pub(crate) fn mouse_released(host: &dyn ClientHost, pointer: [f32; 2], button: i32) -> bool {
+    if !wheel_open(host) || button != 0 {
+        return false;
+    }
+    let mut state = state();
+    let unlocked = unlocked_in(state.hud);
+    let progress = state.progress.clone();
+    let (Some(open), Some(progress)) = (state.notebook.as_mut(), progress.as_ref()) else {
+        return false;
+    };
+    let press = open.book.press;
+    let (ours, request) = book::release(&mut open.book, progress, &unlocked);
+    if let Some(request) = request {
+        open.request.get_or_insert(request);
+    }
+    if let Some(press) = press {
+        eprintln!(
+            "MISTBRN event=notebook_click at={},{} target={} dragged={}",
+            pointer[0],
+            pointer[1],
+            press.target.map_or_else(|| "-".into(), |t| t.name()),
+            press.dragged
+        );
+    }
+    ours
+}
+
+/// The held left button moved over the open book by `delta` screen GUI pixels: the map
+/// follows it. True when it was ours.
+pub(crate) fn mouse_dragged(
+    host: &dyn ClientHost,
+    pointer: [f32; 2],
+    button: i32,
+    delta: [f32; 2],
+) -> bool {
+    if !wheel_open(host) || button != 0 {
+        return false;
+    }
+    let mut state = state();
+    let Some(open) = state.notebook.as_mut() else {
+        return false;
+    };
+    let (Some(at), Some((_, scale))) = (open.book.local(pointer), open.book.frame) else {
+        return false;
+    };
+    book::drag(&mut open.book, at, [delta[0] / scale, delta[1] / scale])
 }
 
 /// A fresh press of the notebook key over the open notebook closes it (not its release: the
@@ -774,15 +839,23 @@ pub(crate) fn notebook_key_pressed(
                 open.request.get_or_insert(request);
             }
         }
-        Key::PageUp | Key::PageDown => {
-            let lines = if key == Key::PageUp { 3.0 } else { -3.0 };
+        Key::PageUp | Key::PageDown => book::page(&mut open.book, key == Key::PageDown),
+        Key::Arrow(direction) => book::arrow(&mut open.book, progress, direction),
+        Key::ZoomIn | Key::ZoomOut if open.book.tab == book::Tab::Tree => {
+            let lines = if key == Key::ZoomIn { 1.0 } else { -1.0 };
             book::scroll(&mut open.book, None, lines);
         }
+        Key::Home if open.book.tab == book::Tab::Tree => open.book.view.centre([0.0, 0.0]),
+        Key::ZoomIn | Key::ZoomOut | Key::Home => return false,
     }
+    let view = open.book.view;
     eprintln!(
-        "MISTBRN event=book_key key={key:?} repeat={repeat} focus={} scroll={}",
+        "MISTBRN event=book_key key={key:?} repeat={repeat} focus={} pan={:.0},{:.0} zoom={:.2} list={}",
         open.book.focus.map_or_else(|| "-".into(), |t| t.name()),
-        open.book.scroll
+        view.pan[0],
+        view.pan[1],
+        view.zoom,
+        open.book.list_scroll
     );
     true
 }
@@ -799,9 +872,10 @@ pub(crate) fn mouse_scrolled(host: &dyn ClientHost, pointer: [f32; 2], lines: f6
     };
     let at = open.book.local(pointer);
     if at.is_some() && book::scroll(&mut open.book, at, lines as f32) {
+        let view = open.book.view;
         eprintln!(
-            "MISTBRN event=book_scroll lines={lines} scroll={},{}",
-            open.book.scroll, open.book.list_scroll
+            "MISTBRN event=book_scroll lines={lines} pan={:.0},{:.0} zoom={:.2} list={}",
+            view.pan[0], view.pan[1], view.zoom, open.book.list_scroll
         );
     }
     true
@@ -823,11 +897,13 @@ fn log_targets(shown: &mut Book, progress: &allomancy_core::Progress, size: [f32
         })
         .collect();
     let line = format!(
-        "MISTBRN event=book_view gui={}x{} tab={} view={} scale={scale} origin={ox},{oy} targets={}",
+        "MISTBRN event=book_view gui={}x{} tab={} pan={:.0},{:.0} zoom={:.2} scale={scale} origin={ox},{oy} targets={}",
         size[0],
         size[1],
         book::tab_key(shown.tab),
-        shown.view,
+        shown.view.pan[0],
+        shown.view.pan[1],
+        shown.view.zoom,
         list.join(";")
     );
     // Logged whenever anything a click needs changed: place, scale or the targets offered.

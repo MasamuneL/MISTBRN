@@ -12,10 +12,18 @@ use crate::physics::ForceRules;
 use crate::{Pair, PlayerState, ReserveRules};
 use std::collections::BTreeMap;
 
-/// Practice categories saved per player (one window each).
-pub const PRACTICE_CATEGORIES: usize = 3;
-/// The largest code a node or research may use: requests carry `code << 2 | index` in a byte.
-pub const MAX_CODE: u16 = 63;
+/// Practice categories saved per player (one window each): 0–2 since schema 2, 3–10 since
+/// schema 4 (P8), reserved for the pairs whose powers arrive in P8.
+pub const PRACTICE_CATEGORIES: usize = 11;
+/// The practice windows schema 2 and 3 store; schema 4 stores the rest after them.
+pub const LEGACY_WINDOWS: usize = 3;
+/// The largest code a node may use: a purchase carries `(code mod 64) << 2 | rank` in a byte,
+/// under op 6 (codes 0–63) or op 9 (64–127).
+pub const MAX_CODE: u16 = 127;
+/// The largest research code: a hint request carries `code << 2 | index` in a byte.
+pub const MAX_RESEARCH_CODE: u16 = 63;
+/// The flare multiplier, in thousandths, before `NodeEffect::FlareCostMilli` (×3).
+pub const BASE_FLARE_MILLI: u64 = 3_000;
 
 /// Where a node's cost is paid from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -24,6 +32,27 @@ pub enum Pool {
     Pair(Pair),
     /// General knowledge, granted only by concluded research.
     Knowledge,
+    /// A bridge between two neighbouring sectors of the map (P8): its cost is paid in full from
+    /// each of the two pairs.
+    Bridge(Pair, Pair),
+}
+
+impl Pool {
+    /// Whether this pool takes points from `pair`.
+    pub fn charges(self, pair: Pair) -> bool {
+        match self {
+            Pool::Pair(p) => p == pair,
+            Pool::Bridge(a, b) => a == pair || b == pair,
+            Pool::Knowledge => false,
+        }
+    }
+}
+
+/// Two pairs whose sectors touch on the map: the allomantic table's neighbours (not the
+/// diagonal ones, iron/steel–copper/bronze and tin/pewter–zinc/brass).
+pub fn neighbours(a: Pair, b: Pair) -> bool {
+    let (x, y) = (pair_index(a), pair_index(b));
+    x != y && x + y != 3
 }
 
 /// What a node's current rank does. `Rank::value` is absolute for that rank, not a step.
@@ -39,6 +68,10 @@ pub enum NodeEffect {
     ReductionMilli,
     /// `ReserveRules::capacity_bonus_milli`.
     CapacityBonusMilli,
+    /// Thousandths taken off the flare multiplier (×3 = 3000; P8). Derived when used, not saved.
+    FlareCostMilli,
+    /// Extra share of each vial's credit, in thousandths, up to the capacity (P8).
+    DosingMilli,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +157,8 @@ pub const NODE_ACCEL: u16 = 2;
 pub const NODE_COIN_JUMP: u16 = 3;
 pub const NODE_ECONOMY: u16 = 16;
 pub const NODE_CAPACITY: u16 = 17;
+pub const NODE_FLARE_COST: u16 = 18;
+pub const NODE_DOSING: u16 = 20;
 pub const RESEARCH_ANCHOR: u16 = 1;
 /// Evidence of the anchor principle: a loose metal item pulled into the hand.
 pub const EVIDENCE_ITEM_PULLED: u8 = 1;
@@ -194,6 +229,29 @@ pub const CATALOG: Catalog = Catalog {
             effect: NodeEffect::CapacityBonusMilli,
             ranks: &[rank(1, 100), rank(2, 250)],
             requires: &[],
+        },
+        // P8: ×3 → ×2.7 → ×2.4.
+        NodeDef {
+            code: NODE_FLARE_COST,
+            key: "flare_cost",
+            pool: Pool::Knowledge,
+            effect: NodeEffect::FlareCostMilli,
+            ranks: &[rank(1, 300), rank(2, 600)],
+            requires: &[Requirement::Node {
+                code: NODE_ECONOMY,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_DOSING,
+            key: "dosing",
+            pool: Pool::Knowledge,
+            effect: NodeEffect::DosingMilli,
+            ranks: &[rank(1, 100), rank(2, 200)],
+            requires: &[Requirement::Node {
+                code: NODE_CAPACITY,
+                rank: 1,
+            }],
         },
     ],
     research: &[ResearchDef {
@@ -274,6 +332,8 @@ pub enum CatalogError {
     BadPractice(u8),
     BadMilestone(u8),
     BadThresholds,
+    /// A bridge between pairs whose sectors do not touch (P8).
+    BadBridge(u16),
 }
 
 /// One research's progress for a player.
@@ -363,6 +423,9 @@ impl Progress {
     }
     pub fn earned(&self, pool: Pool, catalog: &Catalog) -> u32 {
         match pool {
+            Pool::Bridge(a, b) => self
+                .earned(Pool::Pair(a), catalog)
+                .min(self.earned(Pool::Pair(b), catalog)),
             Pool::Pair(pair) => points_for_xp(self.pair_xp(pair), catalog),
             Pool::Knowledge => {
                 let research: u32 = catalog
@@ -381,11 +444,16 @@ impl Progress {
             }
         }
     }
+    /// Points spent from `pool`. A pair's include its share of every bridge it pays for; a
+    /// bridge itself is not a pool of points (see `available`).
     pub fn spent(&self, pool: Pool, catalog: &Catalog) -> u32 {
         catalog
             .nodes
             .iter()
-            .filter(|def| def.pool == pool)
+            .filter(|def| match pool {
+                Pool::Pair(pair) => def.pool.charges(pair),
+                _ => def.pool == pool,
+            })
             .map(|def| {
                 let owned = usize::from(self.rank(def.code)).min(def.ranks.len());
                 def.ranks[..owned]
@@ -395,10 +463,20 @@ impl Progress {
             })
             .sum()
     }
-    /// Points that can still be spent from `pool` (never negative in a valid save).
+    /// Points that can still be spent from `pool` (never negative in a valid save). A bridge
+    /// can spend what both of its pairs still have.
     pub fn available(&self, pool: Pool, catalog: &Catalog) -> u32 {
+        if let Pool::Bridge(a, b) = pool {
+            return self
+                .available(Pool::Pair(a), catalog)
+                .min(self.available(Pool::Pair(b), catalog));
+        }
         self.earned(pool, catalog)
             .saturating_sub(self.spent(pool, catalog))
+    }
+    /// The flare multiplier in thousandths, with the nodes owned.
+    pub fn flare_milli(&self, catalog: &Catalog) -> u64 {
+        BASE_FLARE_MILLI - u64::from(self.effect(NodeEffect::FlareCostMilli, catalog))
     }
     /// The current value of an effect (0 when no node with it is owned).
     pub fn effect(&self, effect: NodeEffect, catalog: &Catalog) -> u16 {
@@ -498,15 +576,28 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
             NodeEffect::AccelPercent | NodeEffect::PushBelowPercent => 100,
             NodeEffect::ReductionMilli => 200,
             NodeEffect::CapacityBonusMilli => 500,
+            NodeEffect::FlareCostMilli => 1_000,
+            NodeEffect::DosingMilli => 500,
         };
-        if max > limit || def.ranks.windows(2).any(|w| w[1].value < w[0].value) {
+        // Flare steps of 100 keep consumption exact for any reduction step of 10.
+        let coarse = def.effect == NodeEffect::FlareCostMilli
+            && def.ranks.iter().any(|r| r.value % 100 != 0);
+        if max > limit || coarse || def.ranks.windows(2).any(|w| w[1].value < w[0].value) {
             return Err(CatalogError::EffectOutOfLimits(def.code));
+        }
+        if let Pool::Bridge(a, b) = def.pool
+            && !neighbours(a, b)
+        {
+            return Err(CatalogError::BadBridge(def.code));
         }
     }
     // Effects that land in ReserveRules add up across nodes: their sum keeps the reserve limits.
     for (effect, limit) in [
         (NodeEffect::ReductionMilli, 200u32),
         (NodeEffect::CapacityBonusMilli, 500),
+        // The flare never costs less than burning: ×3 − 2 = ×1 at most.
+        (NodeEffect::FlareCostMilli, 2_000),
+        (NodeEffect::DosingMilli, 500),
     ] {
         let total: u32 = catalog
             .nodes
@@ -521,7 +612,7 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
     let mut research_codes = Vec::new();
     for def in catalog.research {
         let valid = def.code != 0
-            && def.code <= MAX_CODE
+            && def.code <= MAX_RESEARCH_CODE
             && !research_codes.contains(&def.code)
             && def.evidence != 0
             && def.needed >= 1
@@ -638,6 +729,15 @@ fn pair_unlocked(state: &PlayerState, pair: Pair) -> bool {
         .all(|metal| state.metals[metal.index()].unlocked)
 }
 
+/// Every pair a pool charges is unlocked (knowledge needs none).
+fn pool_unlocked(state: &PlayerState, pool: Pool) -> bool {
+    match pool {
+        Pool::Pair(pair) => pair_unlocked(state, pair),
+        Pool::Bridge(a, b) => pair_unlocked(state, a) && pair_unlocked(state, b),
+        Pool::Knowledge => true,
+    }
+}
+
 /// Checks a progress against the catalog, the player's unlocks and the rules it explains.
 pub fn validate_progress(
     progress: &Progress,
@@ -653,9 +753,7 @@ pub fn validate_progress(
         if !requirements_met(progress, def) {
             return Err(ProgressError::MissingRequirement);
         }
-        if let Pool::Pair(pair) = def.pool
-            && !pair_unlocked(state, pair)
-        {
+        if !pool_unlocked(state, def.pool) {
             return Err(ProgressError::PairLocked);
         }
     }
@@ -664,6 +762,17 @@ pub fn validate_progress(
     if progress.windows.iter().any(|window| {
         usize::from(window.count) > catalog.falloff_percent.len()
             || (window.count == 0 && window.start != 0)
+    }) {
+        return Err(ProgressError::WindowOutOfRange);
+    }
+    // Windows of categories the catalog does not define yet (reserved since schema 4) are
+    // never opened.
+    if progress.windows.iter().enumerate().any(|(i, window)| {
+        *window != PracticeWindow::default()
+            && !catalog
+                .practice
+                .iter()
+                .any(|def| usize::from(def.category) == i)
     }) {
         return Err(ProgressError::WindowOutOfRange);
     }
@@ -824,9 +933,7 @@ pub(crate) fn check_purchase(
     if owned + 1 != rank {
         return Err(ProgressError::RankSkipped);
     }
-    if let Pool::Pair(pair) = def.pool
-        && !pair_unlocked(state, pair)
-    {
+    if !pool_unlocked(state, def.pool) {
         return Err(ProgressError::PairLocked);
     }
     if !requirements_met(progress, def) {
@@ -923,6 +1030,7 @@ pub fn node_status(
     }
     let pair_ok = match def.pool {
         Pool::Pair(pair) => unlocked(pair),
+        Pool::Bridge(a, b) => unlocked(a) && unlocked(b),
         Pool::Knowledge => true,
     };
     if !pair_ok || !requirements_met(progress, def) {
@@ -939,4 +1047,131 @@ pub fn node_status(
 pub fn research_ready(progress: &Progress, def: &ResearchDef) -> bool {
     let entry = progress.research(def.code);
     !entry.concluded && entry.evidence.count_ones() >= u32::from(def.needed)
+}
+
+#[cfg(test)]
+mod bridge_tests {
+    use super::*;
+    use crate::{PlayerId, WorldId};
+
+    const BRIDGE: u16 = 24;
+    static NODES: [NodeDef; 2] = [
+        NodeDef {
+            code: 40,
+            key: "tp",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::ReachBlocks,
+            ranks: &[Rank { cost: 1, value: 1 }],
+            requires: &[],
+        },
+        NodeDef {
+            code: BRIDGE,
+            key: "bridge",
+            pool: Pool::Bridge(Pair::IronSteel, Pair::TinPewter),
+            effect: NodeEffect::AccelPercent,
+            ranks: &[Rank { cost: 2, value: 5 }],
+            requires: &[],
+        },
+    ];
+
+    fn catalog() -> Catalog {
+        Catalog {
+            nodes: &NODES,
+            ..CATALOG
+        }
+    }
+
+    fn state(unlock: &[Pair]) -> PlayerState {
+        let mut state = PlayerState::new(PlayerId::new("p"), WorldId::new("w"));
+        for pair in unlock {
+            for metal in pair.metals() {
+                state.metals[metal.index()].unlocked = true;
+            }
+        }
+        state
+    }
+
+    /// 2 points in iron/steel (250 XP) and 3 in tin/pewter (450).
+    fn progress() -> Progress {
+        Progress::from_parts([250, 450, 0, 0], vec![], vec![], 0)
+    }
+
+    // Catches a bridge charged to one pair only, or to none.
+    #[test]
+    fn a_bridge_costs_its_price_in_each_of_its_two_pairs() {
+        let catalog = catalog();
+        let state = state(&[Pair::IronSteel, Pair::TinPewter]);
+        let mut progress = progress();
+        let bridge = Pool::Bridge(Pair::IronSteel, Pair::TinPewter);
+        assert_eq!(progress.available(bridge, &catalog), 2);
+        check_purchase(&progress, &state, BRIDGE, 1, &catalog).unwrap();
+        progress.nodes.insert(BRIDGE, 1);
+        assert_eq!(progress.spent(Pool::Pair(Pair::IronSteel), &catalog), 2);
+        assert_eq!(progress.spent(Pool::Pair(Pair::TinPewter), &catalog), 2);
+        assert_eq!(progress.available(Pool::Pair(Pair::IronSteel), &catalog), 0);
+        assert_eq!(progress.available(Pool::Pair(Pair::TinPewter), &catalog), 1);
+        assert_eq!(progress.spent(Pool::Knowledge, &catalog), 0);
+    }
+
+    // Catches a bridge bought with one pair's points while the other has too few.
+    #[test]
+    fn a_bridge_needs_points_and_the_unlock_of_both_pairs() {
+        let catalog = catalog();
+        let both = state(&[Pair::IronSteel, Pair::TinPewter]);
+        let poor = Progress::from_parts([100, 450, 0, 0], vec![], vec![], 0);
+        assert_eq!(
+            check_purchase(&poor, &both, BRIDGE, 1, &catalog),
+            Err(ProgressError::NotEnoughPoints)
+        );
+        let one = state(&[Pair::IronSteel]);
+        assert_eq!(
+            check_purchase(&progress(), &one, BRIDGE, 1, &catalog),
+            Err(ProgressError::PairLocked)
+        );
+        let status = node_status(&progress(), &NODES[1], |p| p == Pair::IronSteel, &catalog);
+        assert_eq!(status, NodeStatus::Locked);
+    }
+
+    // Catches the pair spending of a bridge escaping the overspend check of a save.
+    #[test]
+    fn a_bridge_counts_against_each_pair_when_a_save_is_checked() {
+        let catalog = catalog();
+        let state = state(&[Pair::IronSteel, Pair::TinPewter]);
+        let rules = crate::ReserveRules {
+            consumption_milli_per_tick: [10; 8],
+            base_capacity_milli: [100_000; 8],
+            reduction_milli: 0,
+            capacity_bonus_milli: 0,
+        };
+        let owned = Progress::from_parts([100, 450, 0, 0], vec![(BRIDGE, 1)], vec![], 0);
+        assert_eq!(
+            validate_progress(&owned, &state, &rules, &catalog),
+            Err(ProgressError::Overspent)
+        );
+        let paid = Progress::from_parts([250, 450, 0, 0], vec![(BRIDGE, 1)], vec![], 0);
+        assert_eq!(validate_progress(&paid, &state, &rules, &catalog), Ok(()));
+    }
+
+    #[test]
+    fn bridges_join_neighbouring_sectors_only() {
+        assert!(neighbours(Pair::IronSteel, Pair::TinPewter));
+        assert!(neighbours(Pair::TinPewter, Pair::CopperBronze));
+        assert!(neighbours(Pair::CopperBronze, Pair::ZincBrass));
+        assert!(neighbours(Pair::ZincBrass, Pair::IronSteel));
+        assert!(!neighbours(Pair::IronSteel, Pair::CopperBronze));
+        assert!(!neighbours(Pair::TinPewter, Pair::ZincBrass));
+        assert!(!neighbours(Pair::IronSteel, Pair::IronSteel));
+        static DIAGONAL: [NodeDef; 1] = [NodeDef {
+            pool: Pool::Bridge(Pair::TinPewter, Pair::ZincBrass),
+            ..NODES[1]
+        }];
+        let catalog = Catalog {
+            nodes: &DIAGONAL,
+            ..CATALOG
+        };
+        assert_eq!(
+            validate_catalog(&catalog),
+            Err(CatalogError::BadBridge(BRIDGE))
+        );
+    }
 }

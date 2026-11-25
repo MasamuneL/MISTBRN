@@ -11,6 +11,7 @@
 //!   op 5 select pair (arg 0 iron/steel, 1 tin/pewter, 2 zinc/brass, 3 copper/bronze)
 //!   op 6 buy node (arg node code << 2 | rank 1..=3) · 7 reveal hint (arg research << 2 | 1..=3)
 //!   op 8 conclude research (arg research code, 1..=255; P7b)
+//!   op 9 buy node 64..=127 (arg (code − 64) << 2 | rank 1..=3; P8)
 //! hud     = version:u8 (1) | pair:u8 | 8 × (unlocked:u8 | burn:u8 | reserve:u32 LE
 //!           | capacity:u32 LE), in `Metal::ALL` order             exactly 82 bytes
 //! progress = version:u8 (2) | 4 × pair_xp:u32 LE | rank:u8 per catalog node
@@ -83,6 +84,8 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         ControlRequest::ToggleFlare => (3, 0),
         ControlRequest::Off => (4, 0),
         ControlRequest::SelectPair(pair) => (5, pair_code(pair)),
+        // Codes above 127 do not exist (`MAX_CODE`): the shift drops their top bit.
+        ControlRequest::Purchase { code, rank } if code >= 64 => (9, (code - 64) << 2 | (rank & 3)),
         ControlRequest::Purchase { code, rank } => (6, code << 2 | (rank & 3)),
         ControlRequest::RevealHint { research, index } => (7, research << 2 | (index & 3)),
         ControlRequest::Conclude { research } => (8, research),
@@ -114,7 +117,11 @@ pub fn decode_control(bytes: &[u8]) -> Result<ControlRequest, ControlError> {
             index: arg & 3,
         }),
         (8, 1..) => Ok(ControlRequest::Conclude { research: arg }),
-        (1..=8, _) => Err(ControlError::Arg { op, arg }),
+        (9, _) if arg & 3 != 0 => Ok(ControlRequest::Purchase {
+            code: 64 + (arg >> 2),
+            rank: arg & 3,
+        }),
+        (1..=9, _) => Err(ControlError::Arg { op, arg }),
         _ => Err(ControlError::Op(op)),
     }
 }

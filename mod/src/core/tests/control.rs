@@ -61,14 +61,16 @@ fn control_rejects_every_unknown_byte() {
                 // The notebook's ops (P5) take any non-zero code and index.
                 let notebook = ((6..=7).contains(&op) && arg >> 2 != 0 && arg & 3 != 0)
                     // The book's Conclude (P7b) takes any non-zero research code.
-                    || (op == 8 && arg != 0);
+                    || (op == 8 && arg != 0)
+                    // The map's high purchase (P8) takes any code 64..=127 and a non-zero rank.
+                    || (op == 9 && arg & 3 != 0);
                 if valid.contains(&bytes) || (version == CONTROL_VERSION && notebook) {
                     assert!(decoded.is_ok(), "{bytes:?}");
                     continue;
                 }
                 let expected = if version != CONTROL_VERSION {
                     ControlError::Version(version)
-                } else if (1..=8).contains(&op) {
+                } else if (1..=9).contains(&op) {
                     ControlError::Arg { op, arg }
                 } else {
                     ControlError::Op(op)
@@ -300,6 +302,8 @@ fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
         ControlRequest::Purchase { code: 1, rank: 1 },
         ControlRequest::Purchase { code: 17, rank: 2 },
         ControlRequest::Purchase { code: 63, rank: 3 },
+        ControlRequest::Purchase { code: 64, rank: 1 },
+        ControlRequest::Purchase { code: 127, rank: 3 },
         ControlRequest::RevealHint {
             research: 1,
             index: 3,
@@ -314,7 +318,20 @@ fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
             "op {op} arg {arg}"
         );
     }
-    assert_eq!(decode_control(&[1, 9, 0]), Err(ControlError::Op(9)));
+    // Op 9 (P8) carries codes 64..=127: under op 6 they would not fit the byte.
+    assert_eq!(
+        encode_control(ControlRequest::Purchase { code: 64, rank: 2 }),
+        [1, 9, 2]
+    );
+    assert_eq!(
+        encode_control(ControlRequest::Purchase { code: 100, rank: 1 }),
+        [1, 9, (36 << 2) | 1]
+    );
+    assert_eq!(
+        decode_control(&[1, 9, 0]),
+        Err(ControlError::Arg { op: 9, arg: 0 })
+    );
+    assert_eq!(decode_control(&[1, 10, 0]), Err(ControlError::Op(10)));
 }
 
 #[test]

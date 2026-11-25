@@ -1,7 +1,7 @@
 //! One player's canonical save: state, reserve accounting, the rules that explain it, and the
 //! transaction counters that make every credit apply exactly once.
 //!
-//! Binary format, schema 3 (all integers little-endian):
+//! Binary format, schema 4 (all integers little-endian):
 //!
 //! ```text
 //! "MBRN" | schema:u16 | payload_len:u32 | payload | crc32:u32 (IEEE, over everything before it)
@@ -21,25 +21,31 @@
 //!
 //! schema 3 appends the claimed milestones (P6) to the schema 2 payload:
 //!   | milestones:u8                                               one bit per milestone
+//!
+//! schema 4 (P8) stores the practice windows of the newer categories (3 and up) between the
+//! schema 2 windows and the milestones, so the milestones still end the payload:
+//!   | ... 3 × window | n_extra:u8 | n_extra × (window_start:u64 | window_count:u8) | milestones:u8
+//! n_extra is at most `PRACTICE_CATEGORIES − LEGACY_WINDOWS`; windows not stored are unopened.
 //! ```
 //!
-//! Schemas 1 and 2 still decode: they are migrated to an empty progress (1) or no milestones
-//! (2), everything else identical, and the next write stores schema 3. Any other schema is
-//! refused before its payload is read.
+//! Schemas 1, 2 and 3 still decode: they are migrated to an empty progress (1), no milestones
+//! (2) or no newer windows (3), everything else identical, and the next write stores schema 4.
+//! Any other schema is refused before its payload is read.
 //!
 //! `last_tick` is not saved: server ticks restart with every world open, so a loaded player
 //! starts with `None`. Decoding never repairs or defaults anything; any defect is an error and the
 //! caller must not overwrite the bytes it could not read.
 use crate::{
-    BurnState, CATALOG, EventKind, Metal, Observed, Pair, PlayerId, PlayerState, Progress,
-    ProgressError, ResearchState, ReserveAccounting, ReserveError, ReserveRules, VerifiedEvent,
-    WorldId, apply_claim, apply_conclusion, apply_evidence, apply_hint, apply_practice,
-    check_purchase, clear_reserves_on_death, credit_reserve, milestone_mask, practice_def,
-    research_def, validate_progress, validate_reserves,
+    BurnState, CATALOG, EventKind, LEGACY_WINDOWS, Metal, NodeEffect, Observed,
+    PRACTICE_CATEGORIES, Pair, PlayerId, PlayerState, Progress, ProgressError, ResearchState,
+    ReserveAccounting, ReserveError, ReserveRules, VerifiedEvent, WorldId, apply_claim,
+    apply_conclusion, apply_evidence, apply_hint, apply_practice, check_purchase,
+    clear_reserves_on_death, credit_reserve, milestone_mask, practice_def, research_def,
+    validate_progress, validate_reserves,
 };
 use std::collections::BTreeMap;
 
-pub const SAVE_SCHEMA: u16 = 3;
+pub const SAVE_SCHEMA: u16 = 4;
 /// The oldest schema still read (and migrated).
 pub const OLDEST_SCHEMA: u16 = 1;
 pub const MAX_SAVE_BYTES: usize = 64 * 1024;
@@ -300,6 +306,19 @@ pub fn prepare_vial(
             amount_milli,
         )
         .map_err(SaveError::InvalidReserves)?;
+        // Dosing (P8): a share more, only as far as the capacity has room after the vial.
+        let dosing = i64::from(next.progress.effect(NodeEffect::DosingMilli, &CATALOG));
+        let room = next
+            .rules
+            .capacity(metal)
+            .map_err(SaveError::InvalidReserves)?
+            .saturating_sub(next.state.metals[metal.index()].reserve_milli);
+        let bonus = (amount_milli.saturating_mul(dosing) / 1_000)
+            .min(i64::try_from(room).unwrap_or(i64::MAX));
+        if bonus > 0 {
+            credit_reserve(&mut next.state, &next.accounting, &next.rules, metal, bonus)
+                .map_err(SaveError::InvalidReserves)?;
+        }
         if unlocks {
             unlock_pair(&mut next.state, pair);
         }
@@ -516,7 +535,10 @@ fn encode_progress(out: &mut Vec<u8>, progress: &Progress) -> Result<(), SaveErr
         out.push(entry.hints);
         out.push(u8::from(entry.concluded));
     }
-    for window in &progress.windows {
+    for (i, window) in progress.windows.iter().enumerate() {
+        if i == LEGACY_WINDOWS {
+            out.push((PRACTICE_CATEGORIES - LEGACY_WINDOWS) as u8);
+        }
         out.extend_from_slice(&window.start.to_le_bytes());
         out.push(window.count);
     }
@@ -568,11 +590,24 @@ fn decode_progress(r: &mut Reader<'_>) -> Result<Progress, SaveError> {
     }
     progress.nodes = nodes;
     progress.research = research;
-    for window in &mut progress.windows {
+    for window in &mut progress.windows[..LEGACY_WINDOWS] {
         window.start = r.u64()?;
         window.count = r.u8()?;
     }
     Ok(progress)
+}
+
+/// Reads schema 4's newer practice windows (categories 3 and up) into `progress`.
+fn decode_extra_windows(r: &mut Reader<'_>, progress: &mut Progress) -> Result<(), SaveError> {
+    let extra = usize::from(r.u8()?);
+    if extra > PRACTICE_CATEGORIES - LEGACY_WINDOWS {
+        return Err(SaveError::InvalidEnum);
+    }
+    for window in &mut progress.windows[LEGACY_WINDOWS..LEGACY_WINDOWS + extra] {
+        window.start = r.u64()?;
+        window.count = r.u8()?;
+    }
+    Ok(())
 }
 
 fn crc32(bytes: &[u8]) -> u32 {
@@ -780,12 +815,16 @@ pub fn decode_save(
     rules.capacity_bonus_milli = r.u16()?;
     let revision = r.u64()?;
     let last_transaction = r.u64()?;
-    // Schema 1 → 3: nothing learned yet; every schema 1 field is kept as it was.
+    // Schema 1 → 4: nothing learned yet; every schema 1 field is kept as it was.
     let mut progress = if schema >= 2 {
         decode_progress(&mut r)?
     } else {
         Progress::default()
     };
+    // Schema 3 → 4: no window of the newer practice categories opened yet.
+    if schema >= 4 {
+        decode_extra_windows(&mut r, &mut progress)?;
+    }
     // Schema 2 → 3: no milestone claimed yet.
     if schema >= 3 {
         let milestones = r.u8()?;

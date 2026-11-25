@@ -114,14 +114,29 @@ pub fn credit_reserve(
     Ok(())
 }
 
-/// Consumes trusted elapsed ticks without changing `last_tick` or authenticating callers.
+/// Consumes trusted elapsed ticks without changing `last_tick` or authenticating callers, with
+/// the base flare multiplier (×3).
 pub fn consume_reserves(
     state: &mut PlayerState,
     accounting: &mut ReserveAccounting,
     rules: &ReserveRules,
     elapsed_ticks: u64,
 ) -> Result<Vec<Metal>, ReserveError> {
+    consume_reserves_with(state, accounting, rules, elapsed_ticks, 3_000)
+}
+
+/// `consume_reserves` with the flare multiplier in thousandths (`Progress::flare_milli`, P8),
+/// clamped to ×1..=×3. Exact (no lost thousandths) whenever consumption × (1000 − reduction)
+/// × flare is a multiple of 1000, which the catalog's steps keep.
+pub fn consume_reserves_with(
+    state: &mut PlayerState,
+    accounting: &mut ReserveAccounting,
+    rules: &ReserveRules,
+    elapsed_ticks: u64,
+    flare_milli: u64,
+) -> Result<Vec<Metal>, ReserveError> {
     validate_reserves(state, accounting, rules)?;
+    let flare = u128::from(flare_milli.clamp(1_000, 3_000));
     let mut next_metals = state.metals;
     let mut next_remainder = accounting.remainder;
     let mut exhausted = Vec::new();
@@ -129,13 +144,14 @@ pub fn consume_reserves(
         let i = metal.index();
         let multiplier = match state.metals[i].burn {
             BurnState::Off => continue,
-            BurnState::Burning => 1,
-            BurnState::Flared => 3,
+            BurnState::Burning => 1_000,
+            BurnState::Flared => flare,
         };
         let numerator = u128::from(rules.consumption_milli_per_tick[i])
             .checked_mul(1_000 - u128::from(rules.reduction_milli))
             .and_then(|n| n.checked_mul(multiplier))
             .and_then(|n| n.checked_mul(u128::from(elapsed_ticks)))
+            .map(|n| n / 1_000)
             .and_then(|n| n.checked_add(u128::from(accounting.remainder[i])))
             .ok_or(ReserveError::ArithmeticOverflow(metal))?;
         let consumed = u64::try_from(numerator / 1_000)

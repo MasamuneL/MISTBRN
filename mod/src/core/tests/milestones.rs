@@ -264,13 +264,13 @@ fn death_and_reconnect_keep_milestones_and_their_unlocks() {
     assert_eq!(saved.progress().earned(Pool::Knowledge, &CATALOG), 3);
 }
 
-// ---- schema 3 ----
+// ---- schema 3 (milestones), written as schema 4 since P8 ----
 
 #[test]
-fn schema_3_round_trips_the_milestones() {
+fn the_current_schema_round_trips_the_milestones() {
     let saved = claimed_all();
     let bytes = encode_save(&saved).unwrap();
-    assert_eq!(save_schema(&bytes), Some(3));
+    assert_eq!(save_schema(&bytes), Some(4));
     assert_eq!(bytes[milestones_at(&bytes)], 0b1111);
     assert_eq!(decode(&bytes).unwrap(), saved);
 }
@@ -338,23 +338,18 @@ fn knowledge_spent_from_the_dragon_needs_its_claim() {
     );
 }
 
-// Fixture for the schema after this one (it must load it).
+// The P6 fixture (frozen since schema 4) migrates 3 → 4: nothing lost, no newer window.
 #[test]
-fn schema_3_fixture_decodes() {
+fn schema_3_fixture_migrates_to_schema_4() {
     let bytes = include_bytes!("fixtures/saved-player-v3.bin");
     assert_eq!(save_schema(bytes), Some(3));
-    assert_eq!(decode(bytes).unwrap(), claimed_all());
-}
-
-#[test]
-#[ignore = "regenerates tests/fixtures/saved-player-v3.bin; run only while schema 3 is current"]
-fn write_schema_3_fixture() {
-    assert_eq!(SAVE_SCHEMA, 3);
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/saved-player-v3.bin"
-    );
-    std::fs::write(path, encode_save(&claimed_all()).unwrap()).unwrap();
+    let migrated = decode(bytes).unwrap();
+    assert_eq!(migrated, claimed_all());
+    let rewritten = encode_save(&migrated).unwrap();
+    assert_eq!(save_schema(&rewritten), Some(4));
+    // n_extra and its eight unopened windows.
+    assert_eq!(rewritten.len(), bytes.len() + 1 + 8 * 9);
+    assert_eq!(decode(&rewritten).unwrap(), migrated);
 }
 
 // ---- notebook snapshot ----
