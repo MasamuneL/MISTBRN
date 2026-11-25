@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-24. Pin de Horizon `0a875da91dbb0fdcb7ba8c42c11341aa229af51a`, juego 26.3, Rust 1.99.1, Horizon de Windows con Git Bash, instancia `mistbrn-p6`. Batería final `p7b-final`, compilada desde `2982d30` con el árbol limpio (`git_dirty=no`); `mistbrn.dll` SHA-256 `5c0db492636f9263c18063672517742b7dbebc4e45e8dafa86b63b9a6607de87`: **32/32 PASS**. Corridas en `%LOCALAPPDATA%\MISTBRN-p6-dev\runs\p7b-final-*`. Diseño y decisiones: [plan](../plan.md) (P7b) · [guía](../p7b-guide.md).
 
-REPASO
+**Repaso tras revisar las capturas.** En `l3-refused` una caja tapaba la nota de Concluir y el botón. Era el tooltip del propio botón (el puntero se queda encima tras el clic), no la barra de acción: `64a2d9c` (quitar la barra) se revirtió en `2986346`, y `02f69d0` quita ese tooltip. L3, R1 y B1 en `p7b-final3` (`2986346`, árbol limpio, SHA-256 `8472b127…dacc3`): PASS. La nota pasó a dos líneas y más corta (`3fda7b0`, `69387a5`); L3 en `p7b-final5` (`69387a5`, árbol limpio): PASS, captura sin solapes. Esos cambios solo tocan el dibujo del diario y los textos; el resto de la batería final no se repitió. `p7b-final2` (`b16c001`): L3, R1, B1 PASS con el tooltip aún presente.
 
 ## Qué entra
 
@@ -23,7 +23,7 @@ REPASO
 | L6 receta | `recipe give` responde «Unknown recipe: mistbrn:notebook»; un cuaderno existente abre el libro | PASS |
 | Regresión | h1–h5 hv m3 t1 x1 r1 b1 b2 b3 pd1 m1 q1 u1 v1 k1 k6 k9 s1 c2 c4 s10 n1 (T1: el cuaderno ya no se fabrica; R1/B1 concluyen con el botón; R1, Q1, B1 y HV pulsan por nombre) | PASS |
 
-Capturas revisadas a mano: `l1-*`, `l2-focus`, `l3-refused`, `l3-concluded`, `l4-book-75`, `l4-hud-125`, `hv-milestones`. `l3-refused` mostró la barra de acción de vanilla encima de la nota y del botón: se quitó ese aviso (`64a2d9c`, ver arriba).
+Capturas revisadas a mano: `l1-*`, `l2-focus`, `l3-refused`, `l3-concluded`, `l4-book-75`, `l4-hud-125`, `hv-milestones`. `l3-refused` mostró una caja encima de la nota y del botón: ver el repaso arriba.
 
 Baterías anteriores: `p7b-1` (humo L1: nombres cortados, panel ensanchado), `p7b-2` (L2–L4 cortados por el arnés: tecla `page_down` sin nombre en horizon-ctl, `look-at block` fuera de alcance, sin python en Windows) y `p7b-3` (L3 caía del suelo, L4 esperaba 1,25 en una GUI donde no cabe).
 
