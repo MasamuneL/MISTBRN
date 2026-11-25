@@ -1,8 +1,8 @@
 # Estado — Masamune's MISTBRN
 
-Actualizado el 2026-11-24.
+Actualizado el 2026-11-25.
 
-## Integrado en main (P7b, al integrar la PR #20)
+## Integrado en main (P3c, al integrar la PR #22)
 
 | Fase | Resultado |
 |---|---|
@@ -16,20 +16,19 @@ Actualizado el 2026-11-24.
 | P5 | Práctica con topes por ventana, investigación «El principio del ancla» (2 de 3 evidencias, pistas opcionales, se concluye en la mesa de crafteo), árbol de hierro/acero (alcance, aceleración, salto con moneda) + general reducido (economía, capacidad), cuaderno (ítem y tecla J), el primer vial desbloquea la pareja (sustituye a la cartilla), esquema de guardado 2 con migración 1→2. [PR #15](https://github.com/MasamuneL/MISTBRN/pull/15) · [Evidencia](evidence/p5.md) · [Guía](p5-guide.md) |
 | P6 | Cuatro hitos, cada uno una vez por jugador: bastión (estaño/peltre), guardián anciano (zinc/latón), ciudad antigua (cobre/bronce) y dragona (+3 de conocimiento); la pareja se desbloquea sin seleccionarla; jefes compartidos por quienes los dañaron en 30 s; pestaña Hitos del cuaderno; esquema de guardado 3 con migración 2→3. Verificada en Windows x64. [PR #18](https://github.com/MasamuneL/MISTBRN/pull/18) · [Evidencia](evidence/p6.md) · [Guía](p6-guide.md) |
 | P7b | El libro (tecla J; el ítem cuaderno sin receta): pestañas Árboles (plantilla de las 4 parejas + General con scroll; solo los nodos del catálogo son reales), Diario (lista y detalle; Concluir mirando a una mesa de crafteo o un alambique a ≤ 5 bloques, op 8), Hitos y Reservas; tooltips, foco por teclado y ajustes «Reducir destellos» y tamaño del libro y de las barras. Sin cambio de esquema. Verificada en Windows x64. [PR #20](https://github.com/MasamuneL/MISTBRN/pull/20) · [Evidencia](evidence/p7b.md) · [Guía](p7b-guide.md) |
+| P3c | Alquimia: alambique (3 viales + 1 ingrediente, tandas de 600 ticks, dos etapas: agua + sal → solución salina, solución + viruta → vial), sal de piedra de sal en playas, arena de playa y horno, vial de agua, vial de metales básicos; se quita la receta vial vacío + viruta y Concluir pide el alambique. Verificada en Windows x64. [PR #22](https://github.com/MasamuneL/MISTBRN/pull/22) · [Evidencia](evidence/p3c.md) · [Guía](p3c-guide.md) |
 
-El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. La última batería completa (P7b) fue `p7b-final` (commit `2982d30`, árbol limpio) en Windows x64, instancia `mistbrn-p6`: L1–L6 y la regresión de 26, 32/32 PASS; repasos de L3/R1/B1 tras revisar capturas. Recibos y corridas fuera del repo, en `%LOCALAPPDATA%\MISTBRN-p6-dev\` (Windows); los de fases anteriores, en `~/Library/Application Support/MISTBRN-dev/` (macOS). El gate completo de Windows x64 y Linux x64 sigue en P10. [Compatibilidad](compatibility.md)
+El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P3c) fue `p3c-final` (commit `ae5b9d4`, árbol limpio) en Windows x64, instancia `mistbrn-p3c`: A1–A6, AV, L1–L6 y la regresión de 26, 39/39 PASS. Recibos y corridas fuera del repo, en `%LOCALAPPDATA%\MISTBRN-p3c-dev\` (Windows); los de fases anteriores, en `~/Library/Application Support/MISTBRN-dev/` (macOS). El gate completo de Windows x64 y Linux x64 sigue en P10. [Compatibilidad](compatibility.md)
 
 ## Reanudación
 
-- Rama activa: ninguna de P7b. P7b integrada en `main` con la PR #20 (merge `917b40d`). Codex APROBADO (ronda 2), Gemini APROBADO (ronda 1); batería final 32/32 en Windows x64.
-- En paralelo: P3c (alquimia) en otra sesión; hace rebase sobre `main` y deja Concluir solo en el alambique.
-- Operación en curso: ninguna en P7b.
+- Sin rama activa: P3c integrada (PR #22). Próxima fase: P8, con el árbol de habilidades único (decisiones del usuario apuntadas para su plan).
 
 ## Siguiente acción exacta
 
-1. P7b: notas de la revisión visual del usuario con `docs/p7b-guide.md` (build `p7b-final` en la instancia `mistbrn-p6`), si las hay, a `evidence/p7b.md`.
-2. Siguiente fase: P8 (poderes de estaño/peltre, zinc/latón, cobre/bronce sobre el libro y el esquema 3), tras integrar P3c.
-3. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
+1. P7b: notas de la revisión visual del usuario con `docs/p7b-guide.md`, si las hay, a `evidence/p7b.md`.
+2. Planificar P8 (poderes de estaño/peltre, zinc/latón y cobre/bronce sobre un árbol radial único) y pedir la aprobación del usuario.
+3. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; horno en un nivel aparcado y rotura del alambique a media tanda (P3c).
 
 ## Próximos hitos
 
