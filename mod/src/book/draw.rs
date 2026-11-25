@@ -315,7 +315,8 @@ fn tooltip(
             tr(host, "notebook.mistbrn.hidden"),
             tr(host, "notebook.mistbrn.hidden.later"),
         ],
-        Target::Conclude => vec![tr(host, "notebook.mistbrn.conclude.where")],
+        // None for Conclude: the pointer stays on the button after a click and a tooltip there
+        // covered the note above it, which already says where to stand (p7b-final2 l3-refused).
         _ => Vec::new(),
     }
 }
