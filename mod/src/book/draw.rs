@@ -700,7 +700,7 @@ fn draw_diary(
     }
     let ready = !entry.concluded && research_ready(progress, def);
     let bottom = if ready {
-        CONCLUDE_BUTTON[1] - 14.0
+        CONCLUDE_BUTTON[1] - 24.0
     } else {
         PANEL_H - 12.0
     };
@@ -746,8 +746,13 @@ fn draw_diary(
         } else {
             ("notebook.mistbrn.research.how", READY)
         };
-        let how = fit(p, &tr(host, key), DETAIL_W);
-        p.text(&how, [x, CONCLUDE_BUTTON[1] - 11.0], color, true);
+        // Up to two lines above the button (the hints stop above them).
+        let lines = wrap(p, &tr(host, key), DETAIL_W);
+        let shown = lines.len().min(2);
+        for (i, line) in lines.iter().take(shown).enumerate() {
+            let y = CONCLUDE_BUTTON[1] - 11.0 - LINE * (shown - 1 - i) as f32;
+            p.text(&fit(p, line, DETAIL_W), [x, y], color, true);
+        }
         button(p, CONCLUDE_BUTTON, hovered == Some(Target::Conclude));
         let label = tr(host, "notebook.mistbrn.conclude");
         let lx = CONCLUDE_BUTTON[0] + (CONCLUDE_BUTTON[2] - p.text_width(&label)) / 2.0;
