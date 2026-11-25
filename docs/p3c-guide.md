@@ -20,9 +20,9 @@ Los viales de metal ya no se fabrican en la mesa: se destilan en el **alambique*
 Usa un mundo nuevo.
 
 1. **Agua.** Escribe `/give @s mistbrn:vial_empty 4` y `/give @s minecraft:water_bucket`. Coloca el agua, ponte en supervivencia (`/gamemode survival`, la guía sigue en este modo), mira la fuente y haz clic derecho con un vial vacío: tienes un vial de agua. Mirando piedra no pasa nada. Llena los 4.
-2. **Sal.** Escribe `/give @s iron_pickaxe`, `/give @s coal` y `/setblock ~2 ~ ~ mistbrn:salt_rock`. Rómpela con el pico: caen de 1 a 5 de sal. Pon otra, coge el pico y escribe `/enchant @s silk_touch`: al romperla cae el bloque. Coloca un horno (`/give @s furnace`) y pon un vial de agua y el carbón: sale sal, y el vial vacío cae encima del horno. Te quedan 3 viales de agua.
-3. **Alambique.** Fabrícalo o escribe `/give @s mistbrn:alembic`, colócalo y ábrelo con la mano vacía. Pon 3 viales de agua y 1 de sal. A los 30 s tienes 3 soluciones salinas. Pon una viruta de hierro (`/give @s mistbrn:iron_flakes`): a los 30 s tienes 3 viales de hierro.
-4. **Guardado.** Empieza una tanda, sal del mundo a mitad y vuelve a entrar: termina cuando le tocaba, no vuelve a empezar desde cero.
+2. **Sal.** Escribe `/give @s iron_pickaxe`, `/give @s coal` y `/setblock ~2 ~ ~ mistbrn:salt_rock`. Rómpela con el pico: caen de 1 a 5 de sal. Pon otra con el mismo `/setblock`, coge el pico y escribe `/enchant @s silk_touch`: al romperla cae el bloque. Coloca un horno (`/give @s furnace`) y pon un vial de agua y el carbón: sale sal, y el vial vacío cae encima del horno. Te quedan 3 viales de agua.
+3. **Alambique.** Fabrícalo o escribe `/give @s mistbrn:alembic`, colócalo y ábrelo con la mano vacía. Pon 3 viales de agua y 1 de sal. A los 30 s tienes 3 soluciones salinas. Pon una viruta de hierro (`/give @s mistbrn:iron_flakes`): a los 30 s tienes 3 viales de hierro; sácalos.
+4. **Guardado.** Durante una tanda del paso 3, sal del mundo a mitad y vuelve a entrar: termina cuando le tocaba, no empieza de cero.
 5. **Básicos.** Sin haber desbloqueado ningún metal, escribe `/give @s mistbrn:vial_basic_metals` y bébelo (mantén clic derecho): sale el aviso en el chat y no se gasta. Bebe uno de los viales de hierro del paso 3 y luego el de básicos: en el HUD suben el hierro y el acero, y nada más.
 6. **Playa.** Escribe `/locate biome minecraft:beach` y pulsa las coordenadas del chat para ir allí: en la arena hay piedras de sal sueltas, solo en terreno que no se había generado antes. Rompe arena de playa: más o menos 1 de cada 20 suelta sal.
 
