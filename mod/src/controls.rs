@@ -180,9 +180,8 @@ fn hint(host: &mut dyn ServerHost, player: PlayerRef, key: &str, metal: Option<M
     eprintln!("MISTBRN event=hint key={key} shown={shown}");
 }
 
-/// Blocks a research can be concluded at (P7b). Provisional: once P3c's alembic is in `main`,
-/// only `mistbrn:alembic` stays.
-const RESEARCH_TABLES: [&str; 2] = ["minecraft:crafting_table", "mistbrn:alembic"];
+/// Blocks a research can be concluded at: the alembic only (P3c; P7b also took the crafting table).
+const RESEARCH_TABLES: [&str; 1] = ["mistbrn:alembic"];
 /// How far the player may stand from the table, from the eyes, in blocks.
 const TABLE_REACH: f64 = 5.0;
 

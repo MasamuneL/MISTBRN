@@ -10,7 +10,7 @@ use mod_api::{
 use std::collections::BTreeMap;
 
 const OFFHAND_SLOT: u32 = 40;
-/// The notebook (P5): opens the notebook screen; used on a crafting table it concludes research.
+/// The notebook (P5): opens the book; research is concluded from the book, facing an alembic.
 pub(crate) const NOTEBOOK: &str = "mistbrn:notebook";
 
 /// Whether `stack` is the notebook.
