@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:alternatives",
+          "children": [
+            {
+              "type": "minecraft:item",
+              "condition": "minecraft:tool/can_silk_touch",
+              "name": "mistbrn:salt_rock"
+            },
+            {
+              "type": "minecraft:item",
+              "name": "mistbrn:salt",
+              "modifier": [
+                {
+                  "type": "minecraft:set_count",
+                  "count": { "type": "minecraft:uniform", "min": 1, "max": 5 }
+                },
+                { "type": "minecraft:explosion_decay" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

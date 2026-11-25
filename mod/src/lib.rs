@@ -4,6 +4,7 @@
 //! Nothing here is OS-specific: the same source builds for every host the pinned SDK supports.
 #![deny(unsafe_code)]
 
+mod alchemy;
 mod book;
 mod bridge;
 mod client;
@@ -19,15 +20,16 @@ mod scenario;
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
-    ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, GuiLayerDrawEvent,
-    Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost, LevelRandomHost,
-    LevelTickPostEvent, LivingDamagePostEvent, LivingDeathEvent, LivingDeathPostEvent,
-    LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
-    PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
-    PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
-    RegistrationContext, RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent,
-    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenMouseScrolledPreEvent,
-    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, FurnaceSmeltEvent,
+    GuiLayerDrawEvent, Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost,
+    LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent, LivingDeathEvent,
+    LivingDeathPostEvent, LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent,
+    PlayerCloneEvent, PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent,
+    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent,
+    Registrar, RegistrationContext, RightClickItemEvent, RunModCommandEvent,
+    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, ServerHost, ServerStoppedEvent,
+    ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -40,6 +42,7 @@ struct Allomancy {
     powers: Mutex<p4::Powers>,
     controls: Mutex<controls::Controls>,
     milestones: Mutex<milestones::Milestones>,
+    beach_salt: Mutex<alchemy::BeachSalt>,
 }
 
 impl Default for Allomancy {
@@ -52,6 +55,7 @@ impl Default for Allomancy {
             powers: Mutex::default(),
             controls: Mutex::default(),
             milestones: Mutex::default(),
+            beach_salt: Mutex::default(),
         }
     }
 }
@@ -63,6 +67,7 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .register(registrar);
+        alchemy::register(registrar);
         controls::register(registrar, client::hud_handler(), client::progress_handler());
         client::register_keys(registrar);
         client::register_settings(registrar);
@@ -91,7 +96,15 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .block_drops(level, event);
+        self.beach_salt
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .block_drops(level, event);
         Flow::Continue
+    }
+
+    fn furnace_smelt(&self, host: &mut dyn ServerHost, event: &mut FurnaceSmeltEvent<'_>) {
+        alchemy::furnace_smelt(host, event);
     }
 
     fn container_loot_filled(&self, _: &dyn LevelHost, event: &mut ContainerLootFilledEvent<'_>) {
@@ -129,6 +142,10 @@ impl Hooks for Allomancy {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
         *self.milestones() = milestones::Milestones::default();
+        *self
+            .beach_salt
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = alchemy::BeachSalt::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -199,6 +216,16 @@ impl Hooks for Allomancy {
         }
         let session = self.session();
         self.milestones().tick_level(host, &session, event.level);
+        drop(session);
+        let Some(dimension) = event.level.dimension().id(host) else {
+            return;
+        };
+        let due = self
+            .beach_salt
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take(&dimension);
+        alchemy::drop_beach_salt(host, event.level, &dimension, due);
     }
 
     fn item_picked_up_post(
@@ -215,8 +242,16 @@ impl Hooks for Allomancy {
     /// The notebook in the hand opens the book (client side; J does too). P7b: the item has
     /// no recipe any more; notebooks already made keep working.
     fn right_click_item(&self, side: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow {
-        let HostSide::Client(host) = side else {
-            return Flow::Continue;
+        let host = match side {
+            HostSide::Client(host) => host,
+            HostSide::Server(host) => {
+                // P3c: an empty vial used on water fills it.
+                if alchemy::fill_vial(host, event.click) {
+                    *event.cancellation_result = InteractionResult::SuccessServer;
+                    return Flow::Cancel;
+                }
+                return Flow::Continue;
+            }
         };
         if !content::is_notebook(host, event.click.stack) {
             return Flow::Continue;

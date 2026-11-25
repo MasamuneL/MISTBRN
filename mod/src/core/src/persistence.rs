@@ -68,6 +68,8 @@ pub enum SaveError {
     CounterOverflow,
     /// Every metal of the pair is already unlocked: nothing to unlock, nothing to consume.
     AlreadyUnlocked,
+    /// A basic-metals vial with no unlocked metal below its capacity: nothing to credit.
+    NothingToCredit,
     /// Invalid saved progress, or a progress request the rules refuse.
     Progress(ProgressError),
 }
@@ -304,6 +306,51 @@ pub fn prepare_vial(
         Ok(())
     })?;
     Ok((prepared, unlocks))
+}
+
+/// A basic-metals vial's credit (P3c): `amount_milli` to every unlocked metal, each up to its
+/// capacity, in one transaction; it unlocks nothing. Refused with `NothingToCredit` (the vial
+/// is kept) only when no metal would receive anything. Returns what each metal receives, in
+/// `Metal::ALL` order.
+pub fn prepare_basic_vial(
+    saved: &SavedPlayer,
+    amount_milli: i64,
+) -> Result<(PreparedCredit, [u64; 8]), SaveError> {
+    validate_save(saved)?;
+    let amount = u64::try_from(amount_milli)
+        .map_err(|_| SaveError::InvalidReserves(crate::ReserveError::NegativeCredit))?;
+    let mut credited = [0u64; 8];
+    for metal in Metal::ALL {
+        let value = &saved.state.metals[metal.index()];
+        if value.unlocked {
+            let capacity = saved
+                .rules
+                .capacity(metal)
+                .map_err(SaveError::InvalidReserves)?;
+            credited[metal.index()] = amount.min(capacity.saturating_sub(value.reserve_milli));
+        }
+    }
+    if credited.iter().all(|&c| c == 0) {
+        return Err(SaveError::NothingToCredit);
+    }
+    let prepared = prepare(saved, |next| {
+        for metal in Metal::ALL {
+            let credit = credited[metal.index()];
+            if credit > 0 {
+                // Fits in i64: it never exceeds `amount`, which came from one.
+                credit_reserve(
+                    &mut next.state,
+                    &next.accounting,
+                    &next.rules,
+                    metal,
+                    credit as i64,
+                )
+                .map_err(SaveError::InvalidReserves)?;
+            }
+        }
+        Ok(())
+    })?;
+    Ok((prepared, credited))
 }
 
 /// Prepares unlocking both metals of `pair` as transaction `last_transaction + 1`, for an

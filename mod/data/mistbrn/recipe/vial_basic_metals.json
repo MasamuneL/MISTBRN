@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "mistbrn:vial_iron",
+    "mistbrn:vial_steel",
+    "mistbrn:vial_tin",
+    "mistbrn:vial_pewter",
+    "mistbrn:vial_zinc",
+    "mistbrn:vial_brass",
+    "mistbrn:vial_copper",
+    "mistbrn:vial_bronze",
+    "minecraft:blaze_powder"
+  ],
+  "result": { "id": "mistbrn:vial_basic_metals", "count": 1 }
+}
