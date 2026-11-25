@@ -10,6 +10,7 @@
 //!   op 3 toggle flare (arg 0) · 4 all off (arg 0)
 //!   op 5 select pair (arg 0 iron/steel, 1 tin/pewter, 2 zinc/brass, 3 copper/bronze)
 //!   op 6 buy node (arg node code << 2 | rank 1..=3) · 7 reveal hint (arg research << 2 | 1..=3)
+//!   op 8 conclude research (arg research code, 1..=255; P7b)
 //! hud     = version:u8 (1) | pair:u8 | 8 × (unlocked:u8 | burn:u8 | reserve:u32 LE
 //!           | capacity:u32 LE), in `Metal::ALL` order             exactly 82 bytes
 //! progress = version:u8 (2) | 4 × pair_xp:u32 LE | rank:u8 per catalog node
@@ -49,6 +50,9 @@ pub enum ControlRequest {
     Purchase { code: u8, rank: u8 },
     /// The notebook: reveal hint `index` of research `research` (P5).
     RevealHint { research: u8, index: u8 },
+    /// The book's Conclude button: conclude research `research`, looking at a research table
+    /// (P7b). The server checks the table, the distance and readiness.
+    Conclude { research: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,6 +85,7 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         ControlRequest::SelectPair(pair) => (5, pair_code(pair)),
         ControlRequest::Purchase { code, rank } => (6, code << 2 | (rank & 3)),
         ControlRequest::RevealHint { research, index } => (7, research << 2 | (index & 3)),
+        ControlRequest::Conclude { research } => (8, research),
     };
     [CONTROL_VERSION, op, arg]
 }
@@ -108,7 +113,8 @@ pub fn decode_control(bytes: &[u8]) -> Result<ControlRequest, ControlError> {
             research: arg >> 2,
             index: arg & 3,
         }),
-        (1..=7, _) => Err(ControlError::Arg { op, arg }),
+        (8, 1..) => Ok(ControlRequest::Conclude { research: arg }),
+        (1..=8, _) => Err(ControlError::Arg { op, arg }),
         _ => Err(ControlError::Op(op)),
     }
 }
@@ -172,7 +178,9 @@ pub fn resolve_control(state: &PlayerState, request: ControlRequest) -> Option<C
         }),
         ControlRequest::Off => Some(Command::Extinguish { metal: None }),
         ControlRequest::SelectPair(pair) => Some(Command::SelectPair { pair }),
-        ControlRequest::Purchase { .. } | ControlRequest::RevealHint { .. } => None,
+        ControlRequest::Purchase { .. }
+        | ControlRequest::RevealHint { .. }
+        | ControlRequest::Conclude { .. } => None,
     }
 }
 

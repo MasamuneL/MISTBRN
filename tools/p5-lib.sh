@@ -40,32 +40,27 @@ p5_tree() {
   p5_screenshot "$1"
 }
 
-# p5_click FRAME DX DY: click relative to the notebook panel origin.
-p5_click() {
-  local gui x y
-  gui="$(k_gui_size "$dir/$1.png")"
-  [[ -n "$gui" ]] || die "no GUI size from $dir/$1.png"
-  read -r x y < <(LC_ALL=C awk -v size="$gui" -v dx="$2" -v dy="$3" 'BEGIN {
-    split(size, dim, " ")
-    printf "%d %d\n", int((dim[1] - 236) / 2) + dx, int((dim[2] - 172) / 2) - 2 + dy
-  }')
-  ctl click-at "$x" "$y" >/dev/null
-  ctl wait 10 >/dev/null
-}
-
+# P7b: the book's targets are clicked by name (`book_click`, tools/p7b-lib.sh).
 p5_select_table() {
   ctl command "tp @s 512.5 100 512.5" >/dev/null
   ctl wait 5 >/dev/null
   ctl setblock 514 100 512 crafting_table >/dev/null
-  ctl give mistbrn:notebook 1 >/dev/null
-  ctl wait 5 >/dev/null
-  ctl select mistbrn:notebook >/dev/null
   ctl look-at block 514 100 512 west >/dev/null
+  ctl wait 5 >/dev/null
 }
 
+# p5_conclude NAME: the book's Conclude button, looking at the table (P7b). For a repeat
+# (NAME ending in -repeat) the diary must no longer offer it; L3 checks the server's refusal.
 p5_conclude() {
-  ctl use-item > "$dir/$1-use.json"
-  ctl wait 10 >/dev/null
+  book_open "$1-open"
+  book_click tab.diary
+  if [[ "$1" == *-repeat ]]; then
+    if [[ "$(book_line)" == *"conclude@"* ]]; then k_fail "$1: Conclude still offered"
+    else k_ok "$1: no Conclude once concluded"; fi
+  else
+    book_click conclude
+  fi
+  k_key esc 10
   k_screen "$1" '^"playing"$'
 }
 
@@ -145,7 +140,9 @@ p5_scenario() {
       ctl screen > "$dir/primer-result.json"
       ctl close >/dev/null; ctl wait 5 >/dev/null
       ctl open-inventory >/dev/null
-      put minecraft:book 100; put minecraft:iron_nugget 101; take
+      put minecraft:book 100; put minecraft:iron_nugget 101
+      ctl wait 5 >/dev/null
+      ctl screen > "$dir/notebook-result.json"
       ctl close >/dev/null; ctl wait 5 >/dev/null
       ctl inventory > "$dir/notebook-inventory.json"
       quit_game
@@ -159,9 +156,12 @@ p5_scenario() {
       expect_log 2 'MISTBRN event=control op=toggle_first command=activate:tin allowed=true result=MetalLocked(Tin)'
       jq -e '(.slots | map(select(.slot == 200 and has("item") and .item == null))) | length == 1' \
         "$dir/primer-result.json" >/dev/null || k_fail "the old primer result slot was not empty"
-      jq -e '.counts["mistbrn:notebook"] == 1 and (.counts["mistbrn:primer_iron_steel"] // 0) == 0
-             and .counts["minecraft:book"] == 1 and (.counts["minecraft:iron_nugget"] // 0) == 0' \
-        "$dir/notebook-inventory.json" >/dev/null || k_fail "expected one crafted notebook and one book left" ;;
+      # P7b: the notebook has no recipe; the book and the nugget go back to the inventory.
+      jq -e '(.slots | map(select(.slot == 200 and has("item") and .item == null))) | length == 1' \
+        "$dir/notebook-result.json" >/dev/null || k_fail "the old notebook result slot was not empty"
+      jq -e '(.counts["mistbrn:notebook"] // 0) == 0 and (.counts["mistbrn:primer_iron_steel"] // 0) == 0
+             and .counts["minecraft:book"] == 2 and .counts["minecraft:iron_nugget"] == 1' \
+        "$dir/notebook-inventory.json" >/dev/null || k_fail "expected no notebook, two books and the nugget" ;;
     x1)
       local run_no
       p5_lane; p5_unlock
@@ -212,9 +212,9 @@ p5_scenario() {
       k_key z 65; k_key g 10
       ctl inventory > "$dir/pulled-ingot.json"
       p5_tree r1-tree
-      p5_click r1-tree 82 -5
+      book_click tab.diary
       p5_screenshot r1-diary
-      p5_click r1-diary 180 90
+      book_click reveal
       k_key esc 10
       p5_select_table
       p5_conclude conclude-first
@@ -228,12 +228,11 @@ p5_scenario() {
       jq -e '.counts["minecraft:iron_ingot"] == 1' "$dir/pulled-ingot.json" >/dev/null ||
         k_fail "expected to pick up the pulled ingot"
       expect_log 2 'MISTBRN event=hint_revealed research=anchor_principle index=1 result=ok seq=2'
-      # In this order: the first use concludes (+200), the second is refused (+0).
+      # One conclusion (+200); the book offers no second one (P7b).
       if grep -a 'MISTBRN event=conclude research=anchor_principle' "$(log 2)" | awk '
         NR == 1 && / result=ok seq=3/ { first = 1 }
-        NR == 2 && / result=AlreadyConcluded/ { second = 1 }
-        END { exit !(NR == 2 && first && second) }'; then k_ok "first use concluded, second refused"
-      else k_fail "expected the first use to conclude and the second to be refused, in that order"; fi
+        END { exit !(NR == 1 && first) }'; then k_ok "one conclusion"
+      else k_fail "expected exactly one conclusion, seq 3"; fi
       # Exactly once: the block pull's 10 plus the conclusion's 200 (never twice).
       expect 3 report state=active research=1:e3h1c1 knowledge=3 last_transaction=3 xp_iron_steel=210 ;;
     b1)
@@ -247,7 +246,7 @@ p5_scenario() {
       report; quit_game
       launch MISTBRN_TEST_SCENARIO=p4
       p5_tree b1-tree
-      p5_click b1-tree 35 45
+      book_click node.1
       k_key esc 10
       k_screen b1-closed '^"playing"$'
       p5_trial_reach
@@ -342,7 +341,7 @@ p5_scenario() {
     q1)
       launch MISTBRN_TEST_SCENARIO=
       p5_tree q1-tree
-      p5_click q1-tree 82 -5
+      book_click tab.diary
       p5_screenshot q1-diary
       k_key esc 10
       k_screen q1-closed '^"playing"$'

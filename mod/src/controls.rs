@@ -118,6 +118,8 @@ fn parse_notebook(op: &str) -> Option<(ControlRequest, u8)> {
             research: a,
             index: b,
         },
+        // `conclude.<research>.0` (P7b): the second number is unused and must be 0.
+        "conclude" if b == 0 => ControlRequest::Conclude { research: a },
         _ => return None,
     };
     Some((request, count))
@@ -178,6 +180,39 @@ fn hint(host: &mut dyn ServerHost, player: PlayerRef, key: &str, metal: Option<M
     eprintln!("MISTBRN event=hint key={key} shown={shown}");
 }
 
+/// Blocks a research can be concluded at (P7b). Provisional: once P3c's alembic is in `main`,
+/// only `mistbrn:alembic` stays.
+const RESEARCH_TABLES: [&str; 2] = ["minecraft:crafting_table", "mistbrn:alembic"];
+/// How far the player may stand from the table, from the eyes, in blocks.
+const TABLE_REACH: f64 = 5.0;
+
+/// Whether the first block along the player's view, within `TABLE_REACH`, is a research table.
+fn looks_at_research_table(host: &dyn Host, player: PlayerRef) -> bool {
+    let body = player.entity();
+    let (Some(level), Some(eye), Some(look)) = (
+        player.level(host),
+        body.eye_position(host),
+        body.view_vector(host),
+    ) else {
+        return false;
+    };
+    if !eye.iter().chain(look.iter()).all(|v| v.is_finite()) {
+        return false;
+    }
+    let end = [0, 1, 2].map(|i| eye[i] + look[i] * TABLE_REACH);
+    level
+        .clip(
+            host,
+            eye,
+            end,
+            mod_api::ClipBlock::Outline,
+            mod_api::ClipFluid::None,
+        )
+        .filter(|hit| !hit.miss && !hit.world_border)
+        .and_then(|hit| level.block(host, hit.block))
+        .is_some_and(|block| RESEARCH_TABLES.contains(&block.id(host).as_str()))
+}
+
 fn op_name(request: ControlRequest) -> &'static str {
     match request {
         ControlRequest::CyclePair => "cycle",
@@ -188,6 +223,7 @@ fn op_name(request: ControlRequest) -> &'static str {
         ControlRequest::SelectPair(_) => "select",
         ControlRequest::Purchase { .. } => "buy",
         ControlRequest::RevealHint { .. } => "hint",
+        ControlRequest::Conclude { .. } => "conclude",
     }
 }
 
@@ -332,6 +368,26 @@ impl Controls {
                 eprintln!(
                     "MISTBRN event=control op={op} result={}",
                     result.map_or_else(|error| error, |_| "ok".into())
+                );
+                return;
+            }
+            ControlRequest::Conclude { research } => {
+                let result = if !allowed {
+                    Err("InputCaptured".to_owned())
+                } else if !matches!(
+                    player.game_mode(read),
+                    Some(mod_api::GameMode::Survival | mod_api::GameMode::Adventure)
+                ) {
+                    Err("GameMode".to_owned())
+                } else if !looks_at_research_table(read, player) {
+                    hint(host, player, "message.mistbrn.research.no_table", None);
+                    Err("NoTable".to_owned())
+                } else {
+                    session.conclude(host, player, u16::from(research))
+                };
+                eprintln!(
+                    "MISTBRN event=control op={op} research={research} result={}",
+                    result.map_or_else(|error| error, |()| "ok".into())
                 );
                 return;
             }

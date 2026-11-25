@@ -185,7 +185,7 @@ p6_scenario() {
       p6_chest 514 100 512 minecraft:chests/ancient_city
       p6_kill minecraft:ender_dragon p6a 80
       p5_tree hv-tree
-      p5_click hv-tree 134 -6
+      book_click tab.milestones
       p5_screenshot hv-milestones
       k_key esc 10
       quit_game

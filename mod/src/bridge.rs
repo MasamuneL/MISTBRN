@@ -600,36 +600,35 @@ impl Session {
         result
     }
 
-    /// Concludes every research that is ready (the notebook used on a crafting table). Tells
-    /// the player the outcome; returns how many were concluded.
-    pub(crate) fn conclude(&mut self, host: &mut dyn ServerHost, player: PlayerRef) -> usize {
-        let mut concluded = 0;
-        let mut last_refusal = None;
-        for def in CATALOG.research {
-            match self.commit_save_only(host, player, |saved| prepare_conclude(saved, def.code)) {
-                Ok(seq) => {
-                    concluded += 1;
-                    eprintln!(
-                        "MISTBRN event=conclude research={} result=ok seq={}",
-                        def.key, seq.0
-                    );
-                    tell(host, player, "message.mistbrn.research.discovered");
-                }
-                Err(error) => {
-                    eprintln!("MISTBRN event=conclude research={} result={error}", def.key);
-                    last_refusal = Some(error);
-                }
+    /// Concludes research `code` (the book's Conclude, op 8; the caller checked the table).
+    /// Tells the player the outcome; the result is logged by the caller.
+    pub(crate) fn conclude(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        code: u16,
+    ) -> Result<(), String> {
+        let key = research_def(code, &CATALOG).map_or("unknown", |def| def.key);
+        match self.commit_save_only(host, player, |saved| prepare_conclude(saved, code)) {
+            Ok(seq) => {
+                eprintln!(
+                    "MISTBRN event=conclude research={key} result=ok seq={}",
+                    seq.0
+                );
+                tell(host, player, "message.mistbrn.research.discovered");
+                Ok(())
+            }
+            Err(error) => {
+                eprintln!("MISTBRN event=conclude research={key} result={error}");
+                let key = match error.as_str() {
+                    "AlreadyConcluded" => "message.mistbrn.research.known",
+                    "PairLocked" => "message.mistbrn.research.locked",
+                    _ => "message.mistbrn.research.not_ready",
+                };
+                tell(host, player, key);
+                Err(error)
             }
         }
-        if concluded == 0 {
-            let key = match last_refusal.as_deref() {
-                Some("AlreadyConcluded") => "message.mistbrn.research.known",
-                Some("PairLocked") => "message.mistbrn.research.locked",
-                _ => "message.mistbrn.research.not_ready",
-            };
-            tell(host, player, key);
-        }
-        concluded
     }
 
     /// Records one server-observed event (practice or evidence, P5) for `player` at the

@@ -20,15 +20,15 @@ El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c4
 
 ## Reanudación
 
-- Rama activa: ninguna. P6 integrada en `main` con la PR #18 (merge `8c97614`, head `e5ec9ad`). Codex APROBADO (ronda 2), Gemini APROBADO (ronda 1); batería final 26/26 en Windows x64.
-- Fase y paso: P6 cerrada. Siguiente fase por decidir (P7b o P8).
-- Operación en curso: ninguna. No hay juego ni build activo.
-- V1: sus notas de evaluación no se registraron por escrito; se pueden añadir a `evidence/v1.md`.
+- Rama activa: `feat/p7b-ui` (P7b, UI completa: el libro). PR abierta, pendiente de la aprobación del usuario para integrar.
+- Revisión: Codex APROBADO (ronda 2), Gemini APROBADO (ronda 1); ronda visual Claude ⇄ Codex AGREE, sin PNG nuevos.
+- Batería: `p7b-final` 32/32 PASS (L1–L6 + regresión de 26, `2982d30`, Windows x64, instancia `mistbrn-p6`); repasos de L3/R1/B1 tras revisar capturas. [Evidencia](evidence/p7b.md) · [Guía](p7b-guide.md)
+- En paralelo: P3c (alquimia) en otra sesión; se integra después de P7b y deja Concluir solo en el alambique.
 
 ## Siguiente acción exacta
 
-1. P6: notas de evaluación del usuario con `docs/p6-guide.md` (build `p6-final3` en la instancia `mistbrn-p6` de Windows), si las hay, a `evidence/p6.md`.
-2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; límites del HUD y la rueda en `compatibility.md` (chat encima, mando, nombre de tecla en los avisos).
+1. P7b: revisión visual del usuario con `docs/p7b-guide.md` (criterio de cierre de la fase); merge con su aprobación y PR `docs/p7b-status`.
+2. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3.
 
 ## Próximos hitos
 

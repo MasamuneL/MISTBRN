@@ -337,6 +337,18 @@ Aprobado por el usuario el 2026-11-24. Superficie del pin sin fork: `LevelRef::s
 
 **Escenarios** (`tools/p6-lib.sh`): H1 bastión real (comandos de prueba `bastion-find`/`bastion-probe`), entrar, salir y volver; H2 guardián, segundo guardián `AlreadyClaimed`, muerte sin jugador; H3 cofres de ciudad antigua y de otra tabla; H4 dos dragonas; H5 corte tras reclamar; M3 mundo P5 real (`t1` de un build de `main`). Regresión: t1 x1 r1 b1 b2 b3 pd1 m1 q1 u1 v1 k1 k6 k9 s1 c2 c4 s10 n1 (S10: ahora bloquea el esquema 4).
 
+### P7b — UI completa
+
+Aprobado por el usuario el 2026-11-24. Superficie del pin sin fork: `screen_mouse_scrolled_pre`, `DrawContext::{push_clip,pop_clip,gui_tooltip,gui_paint}` con `GuiDraw::Push(Translate, Scale)` para la escala, `screen_key_pressed_pre` (foco por teclado), `Registrar::register_setting` + `ConfigClientHost::{setting_bool,setting_choice}` (Opciones > Mods), `LevelRef::clip` en el servidor (la mesa que se mira). El mando no tiene API: sus clics no llegan a pantallas de mod.
+
+**Decisiones del usuario**
+- El cuaderno pasa a ser **el libro**, con la tecla J y sin ítem. `mistbrn:notebook` sigue registrado y abre el libro, pero sale de las recetas.
+- Pestañas Árboles · Diario · Hitos · Reservas. Árboles: selector de las 4 parejas + General y un lienzo con scroll por pareja con la forma del diseño (2 ramas de 3 técnicas con 2 subnodos y la combinada abajo). Solo los nodos del catálogo son reales; el resto son siluetas «por descubrir». Hierro/acero: rama «Anclaje» con el poder propio (tirón y empujón), `reach` y `accel` como subnodos y `coin_jump` como segunda técnica. Las otras tres parejas se ven bloqueadas (hito que las abre) o «poderes en una fase posterior». Catálogo, esquema 3, fixtures y paquete `mistbrn:progress` sin cambios.
+- Diario: lista de investigaciones (scroll) + detalle con evidencias, pistas y **Concluir**. Op 8 «concluir» (arg = investigación): el servidor exige supervivencia o aventura, la investigación lista y mirar a ≤ 5 bloques una `minecraft:crafting_table` o un `mistbrn:alembic` (P3c). Provisional: tras integrar P3c, solo el alambique. La conclusión con el cuaderno en la mano sobre la mesa desaparece.
+- Accesibilidad: navegación por teclado (Tab/flechas, Intro/Espacio, Re Pág/Av Pág; foco con borde de latón y tooltip), ajustes «Reducir destellos» (los pulsos del nodo comprable y de la reserva baja quedan fijos), «Tamaño del libro» y «Tamaño de las barras de reserva» (75/100/125 %; el libro se reduce si no cabe).
+
+**Escenarios** (`tools/p7b-lib.sh`): L1 vistas, scroll y tooltip; L2 compra solo con teclado; L3 Concluir lejos (6 bloques), sin mesa y una vez junto a ella; L4 escalas y «reducir destellos» (la intensidad del aviso que se pasa al relleno, por log de prueba: varias sin el ajuste, una fija con él; Windows no tiene python para comparar recortes); L5 pestaña Reservas; L6 receta retirada y cuaderno existente. T1, R1, Q1, B1 y HV pulsan por nombre (`book_click`, desde el log `event=book_view`). Regresión completa.
+
 ## Archivos críticos
 - Nuevos/movidos: `mod/horizon-mod.toml`, `mod/Cargo.toml`, `mod/src/{lib,bridge,save,scenario}.rs`, `mod/src/core/src/{reserves,persistence}.rs`, `mod/src/core/tests/{reserves,persistence}.rs`, `tools/{fetch-sdk,build-native,native-test,check}.sh`, `docs/{plan,design,compatibility,contracts,STATUS,history}.md`, `docs/evidence/{p0b,p2}.md`.
 - Reutilizados del núcleo actual: `types.rs`, `state.rs`, `commands.rs` (`apply_command`, `advance_tick`, `VerifiedEvent::from_server_observation`), `tests/contracts.rs`.

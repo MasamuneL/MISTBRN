@@ -59,14 +59,16 @@ fn control_rejects_every_unknown_byte() {
                 let bytes = [version, op, arg];
                 let decoded = decode_control(&bytes);
                 // The notebook's ops (P5) take any non-zero code and index.
-                let notebook = (6..=7).contains(&op) && arg >> 2 != 0 && arg & 3 != 0;
+                let notebook = ((6..=7).contains(&op) && arg >> 2 != 0 && arg & 3 != 0)
+                    // The book's Conclude (P7b) takes any non-zero research code.
+                    || (op == 8 && arg != 0);
                 if valid.contains(&bytes) || (version == CONTROL_VERSION && notebook) {
                     assert!(decoded.is_ok(), "{bytes:?}");
                     continue;
                 }
                 let expected = if version != CONTROL_VERSION {
                     ControlError::Version(version)
-                } else if (1..=7).contains(&op) {
+                } else if (1..=8).contains(&op) {
                     ControlError::Arg { op, arg }
                 } else {
                     ControlError::Op(op)
@@ -312,7 +314,26 @@ fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
             "op {op} arg {arg}"
         );
     }
-    assert_eq!(decode_control(&[1, 8, 0]), Err(ControlError::Op(8)));
+    assert_eq!(decode_control(&[1, 9, 0]), Err(ControlError::Op(9)));
+}
+
+#[test]
+fn the_conclude_request_round_trips_and_rejects_research_zero() {
+    for research in [1, 2, 255] {
+        let request = ControlRequest::Conclude { research };
+        assert_eq!(decode_control(&encode_control(request)), Ok(request));
+    }
+    assert_eq!(
+        decode_control(&[1, 8, 0]),
+        Err(ControlError::Arg { op: 8, arg: 0 })
+    );
+    assert_eq!(
+        resolve_control(
+            &PlayerState::new(PlayerId::new("p"), WorldId::new("local")),
+            ControlRequest::Conclude { research: 1 }
+        ),
+        None
+    );
 }
 
 #[test]

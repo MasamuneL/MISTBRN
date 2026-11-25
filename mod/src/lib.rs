@@ -4,14 +4,15 @@
 //! Nothing here is OS-specific: the same source builds for every host the pinned SDK supports.
 #![deny(unsafe_code)]
 
+mod book;
 mod bridge;
 mod client;
 mod content;
 mod controls;
 mod hud;
 mod milestones;
-mod notebook;
 mod p4;
+mod paint;
 mod save;
 mod scenario;
 
@@ -24,8 +25,8 @@ use mod_api::{
     LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
     PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
     PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
-    RegistrationContext, RightClickBlockEvent, RightClickItemEvent, RunModCommandEvent,
-    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
+    RegistrationContext, RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent,
+    ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent, ScreenMouseScrolledPreEvent,
     ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -64,6 +65,7 @@ impl Hooks for Allomancy {
             .register(registrar);
         controls::register(registrar, client::hud_handler(), client::progress_handler());
         client::register_keys(registrar);
+        client::register_settings(registrar);
     }
 
     fn living_entity_use_item_finish(
@@ -210,42 +212,8 @@ impl Hooks for Allomancy {
         }
     }
 
-    /// The notebook used on a crafting table concludes the research that is ready (P5).
-    fn right_click_block(&self, side: HostSide<'_>, event: &mut RightClickBlockEvent<'_>) -> Flow {
-        let HostSide::Server(host) = side else {
-            return Flow::Continue;
-        };
-        let click = event.click;
-        let read: &dyn mod_api::Host = host;
-        // The main hand only, as the plan says (an off-hand notebook leaves the table alone).
-        if click.hand != mod_api::Hand::Main
-            || !click
-                .stack
-                .is_some_and(|stack| content::is_notebook(read, stack))
-        {
-            return Flow::Continue;
-        }
-        let Some(player) = host.player(click.player) else {
-            return Flow::Continue;
-        };
-        let read: &dyn mod_api::Host = host;
-        let table = player
-            .level(read)
-            .and_then(|level| level.block(read, click.pos))
-            .is_some_and(|block| block.id(read) == "minecraft:crafting_table");
-        let playing = matches!(
-            player.game_mode(read),
-            Some(mod_api::GameMode::Survival | mod_api::GameMode::Adventure)
-        );
-        if !table || !playing {
-            return Flow::Continue;
-        }
-        self.session().conclude(host, player);
-        *event.cancellation_result = InteractionResult::Success;
-        Flow::Cancel
-    }
-
-    /// The notebook in the hand opens the notebook screen (client side; B does too).
+    /// The notebook in the hand opens the book (client side; J does too). P7b: the item has
+    /// no recipe any more; notebooks already made keep working.
     fn right_click_item(&self, side: HostSide<'_>, event: &mut RightClickItemEvent<'_>) -> Flow {
         let HostSide::Client(host) = side else {
             return Flow::Continue;
@@ -294,6 +262,17 @@ impl Hooks for Allomancy {
         if command.literals.get(1).map(String::as_str) == Some("flood") {
             if let Some(CommandArgumentValue::Integer(count)) = command.argument("count") {
                 controls::flood(player.uuid(), u32::try_from(*count).unwrap_or(0));
+            }
+            return Flow::Cancel;
+        }
+        if command.literals.get(1).map(String::as_str) == Some("setting") {
+            if let (
+                Some(CommandArgumentValue::String(key)),
+                Some(CommandArgumentValue::Integer(value)),
+            ) = (command.argument("key"), command.argument("value"))
+            {
+                let ok = client::test_setting(host, key, u32::try_from(*value).unwrap_or(u32::MAX));
+                eprintln!("MISTBRN event=test_setting key={key} value={value} result={ok}");
             }
             return Flow::Cancel;
         }
@@ -450,6 +429,18 @@ impl Hooks for Allomancy {
         event: &mut ScreenMouseButtonPressedPreEvent<'_>,
     ) -> Flow {
         if client::mouse_pressed(host, event.screen.mouse, event.button) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
+    }
+
+    fn screen_mouse_scrolled_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenMouseScrolledPreEvent<'_>,
+    ) -> Flow {
+        if client::mouse_scrolled(host, event.screen.mouse, event.scroll[1]) {
             Flow::Cancel
         } else {
             Flow::Continue
