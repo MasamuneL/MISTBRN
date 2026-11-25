@@ -171,8 +171,10 @@ impl BlockEntityPart for Alembic {
         if targets.is_empty() {
             return idle(event, saved);
         }
-        // A different ingredient starts a new batch.
-        let brewing = Tag::String(ingredient_id.as_str().into());
+        // A different ingredient, or a different set of vial slots, starts a new batch: a vial
+        // put in late cannot ride on ticks it did not brew.
+        let slots: String = targets.iter().map(|(slot, _)| slot.to_string()).collect();
+        let brewing = Tag::String(format!("{ingredient_id}@{slots}").as_str().into());
         let (mut progress, done) =
             advance(saved, entity.nbt.get(&BREWING.into()) == Some(&brewing));
         if done {
@@ -333,47 +335,75 @@ impl BeachSalt {
         }
     }
 
-    pub(crate) fn tick_level(&mut self, host: &mut dyn ServerHost, level: LevelRef) {
-        let Some(dimension) = level.dimension().id(host) else {
-            return;
-        };
+    /// Takes the sand broken in `dimension`; the caller resolves it with no lock held.
+    pub(crate) fn take(&mut self, dimension: &str) -> Vec<[i32; 3]> {
+        if self.pending.is_empty() {
+            return Vec::new();
+        }
         let (here, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
             .into_iter()
-            .partition(|(dim, _)| *dim == dimension);
+            .partition(|(dim, _)| dim == dimension);
         self.pending = rest;
-        for (_, pos) in here {
-            let read: &dyn Host = host;
-            let beach = level
-                .biome_at(read, pos)
-                .and_then(|biome| level.biome_in_tag(read, &biome, "minecraft:is_beach"));
-            let time = level.game_time(read).and_then(|t| u64::try_from(t).ok());
-            let (Some(true), Some(time)) = (beach, time) else {
-                continue;
-            };
-            if !beach_salt(&dimension, pos, time) {
-                continue;
-            }
-            if let Some(salt) = stack_of(read, SALT, 1) {
-                let dropped = level.pop_resource(host, pos, salt).is_ok();
-                eprintln!("MISTBRN event=beach_salt pos={pos:?} dropped={dropped}");
-            }
+        here.into_iter().map(|(_, pos)| pos).collect()
+    }
+}
+
+/// Drops salt for the beach sand taken from [`BeachSalt`]. Runs outside its mutex: dropping an
+/// item can run other mods' hooks, which may break blocks and re-enter `block_drops`.
+pub(crate) fn drop_beach_salt(
+    host: &mut dyn ServerHost,
+    level: LevelRef,
+    dimension: &str,
+    due: Vec<[i32; 3]>,
+) {
+    for pos in due {
+        let read: &dyn Host = host;
+        let beach = level
+            .biome_at(read, pos)
+            .and_then(|biome| level.biome_in_tag(read, &biome, "minecraft:is_beach"));
+        let time = level.game_time(read).and_then(|t| u64::try_from(t).ok());
+        let (Some(true), Some(time)) = (beach, time) else {
+            continue;
+        };
+        if !beach_salt(dimension, pos, time) {
+            continue;
+        }
+        if let Some(salt) = stack_of(read, SALT, 1) {
+            let dropped = matches!(level.pop_resource(host, pos, salt), Ok(Some(_)));
+            eprintln!("MISTBRN event=beach_salt pos={pos:?} dropped={dropped}");
         }
     }
 }
 
 /// A furnace that boiled a water vial into salt gives the empty vial back, above itself.
 pub(crate) fn furnace_smelt(host: &mut dyn ServerHost, event: &FurnaceSmeltEvent<'_>) {
-    if event.item != WATER_VIAL {
+    if event.item != WATER_VIAL || event.result != SALT {
         return;
     }
     let read: &dyn Host = host;
-    let level = host.level(host.dimension());
+    // The hook names no level: take the one that has the furnace at `pos`, the level in place first.
+    let level = [
+        host.dimension(),
+        "minecraft:overworld",
+        "minecraft:the_nether",
+        "minecraft:the_end",
+    ]
+    .into_iter()
+    .filter_map(|dimension| read.level(dimension))
+    .find(|level| {
+        level
+            .block(read, event.pos)
+            .is_some_and(|block| block.id(read) == "minecraft:furnace")
+    });
     let (Some(level), Some(vial)) = (level, stack_of(read, EMPTY_VIAL, 1)) else {
         eprintln!("MISTBRN event=furnace_vial_lost pos={:?}", event.pos);
         return;
     };
     let [x, y, z] = event.pos;
-    let dropped = level.pop_resource(host, [x, y + 1, z], vial).is_ok();
+    // spawn_item, not pop_resource: the vial is the furnace's input coming back, not a block
+    // drop, so it must not depend on the doTileDrops rule.
+    let (x, y, z) = (f64::from(x) + 0.5, f64::from(y) + 1.1, f64::from(z) + 0.5);
+    let dropped = matches!(level.spawn_item(host, x, y, z, vial, 10), Ok(Some(_)));
     eprintln!(
         "MISTBRN event=furnace_vial pos={:?} dropped={dropped}",
         event.pos

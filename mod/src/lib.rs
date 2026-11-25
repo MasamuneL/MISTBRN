@@ -142,6 +142,10 @@ impl Hooks for Allomancy {
         *self.session() = bridge::Session::default();
         *self.powers() = p4::Powers::default();
         *self.milestones() = milestones::Milestones::default();
+        *self
+            .beach_salt
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = alchemy::BeachSalt::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -213,10 +217,15 @@ impl Hooks for Allomancy {
         let session = self.session();
         self.milestones().tick_level(host, &session, event.level);
         drop(session);
-        self.beach_salt
+        let Some(dimension) = event.level.dimension().id(host) else {
+            return;
+        };
+        let due = self
+            .beach_salt
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .tick_level(host, event.level);
+            .take(&dimension);
+        alchemy::drop_beach_salt(host, event.level, &dimension, due);
     }
 
     fn item_picked_up_post(

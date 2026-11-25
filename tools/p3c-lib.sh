@@ -154,13 +154,23 @@ p3c_scenario() {
       p3c_contents 514 100 512 wrong-stage
       p3c_has wrong-stage mistbrn:vial_water 0
       p3c_has wrong-stage mistbrn:tin_flakes 3
+      # A vial put in halfway restarts the batch: 300 + 320 ticks convert nothing, 300 more do.
+      p3c_fill 514 100 512 0 mistbrn:vial_brine 1
+      ctl wait 300 >/dev/null
+      p3c_fill 514 100 512 1 mistbrn:vial_brine 1
+      ctl wait 320 >/dev/null
+      p3c_contents 514 100 512 late
+      p3c_has late mistbrn:vial_brine 0; p3c_has late mistbrn:vial_brine 1
+      ctl wait 300 >/dev/null
+      p3c_contents 514 100 512 late-done
+      p3c_has late-done mistbrn:vial_tin 0; p3c_has late-done mistbrn:vial_tin 1
       # Breaking the alembic drops it and everything inside (nothing lost, nothing doubled).
       ctl command "setblock 514 100 512 minecraft:air destroy" >/dev/null
       ctl wait 5 >/dev/null
       ctl collect 6 >/dev/null
       ctl inventory > "$dir/broken.json"
       p3c_check "dropped when broken" "$(jq -cS '.counts' "$dir/broken.json")" \
-        '{"mistbrn:alembic":1,"mistbrn:tin_flakes":1,"mistbrn:vial_iron":2,"mistbrn:vial_water":1}'
+        '{"mistbrn:alembic":1,"mistbrn:vial_iron":1,"mistbrn:vial_tin":2}'
       ctl save >/dev/null; quit_game
       # The first batch finished in launch 2, ~300 ticks after relaunch (not 600 from zero).
       expect_log 2 'MISTBRN event=alembic_batch pos=\[514, 100, 512\] ingredient=mistbrn:salt vials=3'
@@ -186,12 +196,19 @@ p3c_scenario() {
       ctl use-item --hold 1.8 > "$dir/basic.json"
       ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
+      # A failed transaction keeps the vial, the reserves and the sequence as they were.
+      launch MISTBRN_TEST_FAIL_VIAL=1
+      ctl select mistbrn:vial_basic_metals >/dev/null
+      ctl use-item --hold 1.8 > "$dir/basic-failed.json"
+      ctl wait 10 >/dev/null
+      ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 2 'MISTBRN event=vial_refused metal=basic reason=NothingToCredit'
       expect_log 2 'MISTBRN event=vial_credit metal=iron seq=1 unlocked=true'
       expect_log 2 'MISTBRN event=basic_vial_credit credited=\[25000, 25000, 0, 0, 0, 0, 0, 0\]'
       expect_log 2 'MISTBRN event=vial_credit metal=basic seq=2'
-      expect 3 report state=active reserve_iron=50000 reserve_steel=25000 reserve_tin=0 \
+      expect_log 3 'MISTBRN event=vial_refused metal=basic reason=injected_failure'
+      expect 4 report state=active reserve_iron=50000 reserve_steel=25000 reserve_tin=0 \
         last_transaction=2 basic_vials=1 empty_vials=2 ;;
     a5)  # the old flakes + empty vial recipe is gone; vials made before still drink
       launch
