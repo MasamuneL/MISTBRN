@@ -5,7 +5,8 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO_ROOT"
 
 MAX_FILE_BYTES=$((64 * 1024))
-MAX_TREE_BYTES=$((1024 * 1024))
+# 1.5 MiB since P8 (user, 2026-11-25): the three pairs do not fit in 1 MiB.
+MAX_TREE_BYTES=$((1536 * 1024))
 FORBIDDEN='\.(zip|jpg|jpeg|gif|log|dat|dat_old|mca|dylib|so|dll|exe|jar|tar|xz|gz)$'
 # Original mod textures are the only images allowed, each small.
 MAX_ASSET_PNG_BYTES=$((16 * 1024))

@@ -27,11 +27,13 @@ source "$(dirname "$0")/p6-lib.sh"
 source "$(dirname "$0")/p7b-lib.sh"
 # shellcheck source=tools/p3c-lib.sh
 source "$(dirname "$0")/p3c-lib.sh"
+# shellcheck source=tools/p8-lib.sh
+source "$(dirname "$0")/p8-lib.sh"
 require jq grep cksum
 
 scenario="${1:-}"; [[ -n "$scenario" ]] || die "usage: $0 <scenario> [run-name]"
 [[ "$scenario" == s11 ]] && require python3
-[[ "$scenario" == m1 || "$scenario" == m3 ]] && require gzip od
+[[ "$scenario" == m1 || "$scenario" == m3 || "$scenario" == m4 ]] && require gzip od
 run="${2:-$scenario-$(date +%Y%m%d%H%M%S)}"
 RT="$(runtime_root)"; dir="$RT/runs/$run"
 [[ ! -e "$dir" ]] || die "run $run exists: $dir"
@@ -641,7 +643,7 @@ case "$scenario" in
     expect 2 report state=active reserve_iron=0 burn_iron=off remainder_iron=0 last_transaction=1 ;;
   s9|s10)  # an unreadable save blocks the player and is never overwritten
     plant=corrupt-crc; reason=crc
-    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:4; }
+    [[ "$scenario" == s10 ]] && { plant=future-schema; reason=unsupported_version:5; }
     launch MISTBRN_TEST_SCENARIO=$plant; ctl wait 40 >/dev/null; ctl save >/dev/null; quit_game
     report; ctl save >/dev/null; quit_game
     report; quit_game
@@ -673,6 +675,8 @@ case "$scenario" in
     p7b_scenario ;;
   a[1-6]|av)  # P3c alchemy (tools/p3c-lib.sh)
     p3c_scenario ;;
+  g[1-4]|m4)  # P8 skill map and general nodes (tools/p8-lib.sh)
+    p8_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
 for n in $(seq 1 "$launch_no"); do check_load "$n"; done

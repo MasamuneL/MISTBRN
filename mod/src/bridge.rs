@@ -7,9 +7,9 @@ use allomancy_core::{
     Authority, BurnState, CATALOG, EMPTY_VIAL, EventId, EventKind, InputContext, Metal, Observed,
     PlayerId, PreparedCredit, ReserveRules, SaveError, SavedPlayer, Tick, TransactionSeq,
     VIAL_MILLI, Vec3, VerifiedEvent, WorldId, WorldSnapshot, advance_tick, commit_credit,
-    consume_reserves, milestone_def, node_def, observe, on_death, on_reconnect, prepare_basic_vial,
-    prepare_claim, prepare_conclude, prepare_hint, prepare_purchase, prepare_unlock, prepare_vial,
-    research_def, update_player,
+    consume_reserves_with, milestone_def, node_def, observe, on_death, on_reconnect,
+    prepare_basic_vial, prepare_claim, prepare_conclude, prepare_hint, prepare_purchase,
+    prepare_unlock, prepare_vial, research_def, update_player,
 };
 use mod_api::{
     GameMode, Host, HostTransaction, Identifier, ItemStack, PlayerRef, ServerHost, Text,
@@ -544,13 +544,15 @@ impl Session {
         match &result {
             Ok(seq) => {
                 eprintln!(
-                    "MISTBRN event=purchase node={node} rank={rank} result=ok seq={}",
+                    "MISTBRN event=purchase node={node} rank={rank} result=ok seq={} code={code}",
                     seq.0
                 );
                 tell(host, player, "message.mistbrn.notebook.bought");
             }
             Err(error) => {
-                eprintln!("MISTBRN event=purchase node={node} rank={rank} result={error}")
+                eprintln!(
+                    "MISTBRN event=purchase node={node} rank={rank} result={error} code={code}"
+                )
             }
         }
         result
@@ -845,11 +847,12 @@ impl Session {
                 .any(|metal| metal.burn != BurnState::Off);
             if burning {
                 let rules = saved.rules().clone();
+                let flare = saved.progress().flare_milli(&CATALOG);
                 let mut exhausted = Vec::new();
                 let result = self.change(uuid, false, |saved| {
                     update_player(saved, |state, accounting| {
                         advance_tick(state, &snapshot);
-                        exhausted = consume_reserves(state, accounting, &rules, 1)?;
+                        exhausted = consume_reserves_with(state, accounting, &rules, 1, flare)?;
                         Ok(())
                     })
                 });

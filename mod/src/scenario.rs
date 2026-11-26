@@ -227,9 +227,11 @@ pub(crate) fn progress_fields(saved: &SavedPlayer) -> String {
             )
         })
         .collect();
-    let windows: Vec<String> = progress
-        .windows()
+    // The windows of the catalog's categories only: the reserved ones (schema 4) stay unopened.
+    let windows: Vec<String> = CATALOG
+        .practice
         .iter()
+        .map(|def| progress.windows()[usize::from(def.category)])
         .map(|w| format!("{}/{}", w.start, w.count))
         .collect();
     format!(

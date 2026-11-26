@@ -90,7 +90,7 @@ p5_disk_schema() {
       tag = " 07 00 07 6d 69 73 74 62 72 6e( [0-9a-f][0-9a-f]){4} 4d 42 52 4e"
       if (!match(bytes, tag)) exit 1
       split(substr(bytes, RSTART + RLENGTH + 1, 5), schema, " ")
-      if (schema[2] != "00" || (schema[1] != "01" && schema[1] != "02" && schema[1] != "03")) exit 1
+      if (schema[2] != "00" || (schema[1] != "01" && schema[1] != "02" && schema[1] != "03" && schema[1] != "04")) exit 1
       print schema[1] + 0
     }'
 }
@@ -110,11 +110,11 @@ p5_migrate() {
   k_ok "on-disk schema before launch: $before (uuid $uuid)"
   report; ctl save >/dev/null; quit_game
   expect_log 1 'MISTBRN event=save_loaded state=found'
-  expect 1 report state=active "uuid=$uuid" schema=3 unlocked_iron=true unlocked_steel=true \
+  expect 1 report state=active "uuid=$uuid" schema=4 unlocked_iron=true unlocked_steel=true \
     last_transaction=1 xp_iron_steel=0 nodes=- research=- pair_points=0 knowledge=0
   after="$(p5_disk_schema "$player")" || die "could not read the schema from $player"
-  if [[ "$after" == 3 ]]; then k_ok "on-disk schema after save: $after"
-  else k_fail "expected raw schema 3 after save, got $after"; fi
+  if [[ "$after" == 4 ]]; then k_ok "on-disk schema after save: $after"
+  else k_fail "expected raw schema 4 after save, got $after"; fi
 }
 
 # p5_scenario: returns 1 for any other scenario name.
@@ -297,7 +297,7 @@ p5_scenario() {
       kill_game
       report; quit_game
       expect_log 1 'MISTBRN event=purchase node=reach rank=1 result=ok seq=2'
-      expect 2 report state=active schema=3 unlocked_iron=true unlocked_steel=true xp_iron_steel=100
+      expect 2 report state=active schema=4 unlocked_iron=true unlocked_steel=true xp_iron_steel=100
       after="$(field 2 report nodes) $(field 2 report pair_points) $(field 2 report last_transaction)"
       case "$scenario:$after" in
         b2:"- 1 1"|b2:"1:1 0 2"|b3:"1:1 0 2") k_ok "after cut (nodes, points, transaction): $after" ;;

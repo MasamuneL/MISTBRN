@@ -28,8 +28,8 @@ use mod_api::{
     PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent,
     Registrar, RegistrationContext, RightClickItemEvent, RunModCommandEvent,
     ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
-    ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, ServerHost, ServerStoppedEvent,
-    ServerTickEvent, ServerTickPhase,
+    ScreenMouseButtonReleasedPreEvent, ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent,
+    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -464,6 +464,30 @@ impl Hooks for Allomancy {
         event: &mut ScreenMouseButtonPressedPreEvent<'_>,
     ) -> Flow {
         if client::mouse_pressed(host, event.screen.mouse, event.button) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
+    }
+
+    fn screen_mouse_button_released_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenMouseButtonReleasedPreEvent<'_>,
+    ) -> Flow {
+        if client::mouse_released(host, event.screen.mouse, event.button) {
+            Flow::Cancel
+        } else {
+            Flow::Continue
+        }
+    }
+
+    fn screen_mouse_dragged_pre(
+        &self,
+        host: &dyn ClientHost,
+        event: &mut ScreenMouseDraggedPreEvent<'_>,
+    ) -> Flow {
+        if client::mouse_dragged(host, event.screen.mouse, event.button, event.delta) {
             Flow::Cancel
         } else {
             Flow::Continue

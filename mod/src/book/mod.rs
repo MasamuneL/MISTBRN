@@ -7,23 +7,26 @@
 //! `paint::Painter`. `targets` is the one list of what can be pointed at or focused: clicks,
 //! keyboard focus, tooltips and the scenarios' log all read it.
 //!
-//! The trees are a visual template (P7b): every pair has the design's shape (two branches of
-//! three techniques with two sub-nodes each, a combined technique below), but only the
-//! catalog's nodes are real. The other places are silhouettes, «still to discover».
+//! The trees tab is one radial map (P8, `map`): the general nodes in the centre, a sector per
+//! pair around them, dragged with the mouse, zoomed with the wheel and walked with the keys.
+//! Only the catalog's nodes are real; the other places are silhouettes, «still to discover»,
+//! and a locked pair's sector is a silhouette with the milestone that opens it.
 mod draw;
+mod map;
 
 pub(crate) use draw::{Look, draw};
+pub(crate) use map::View;
 
 use allomancy_core::{
-    CATALOG, ControlRequest, NODE_ACCEL, NODE_CAPACITY, NODE_COIN_JUMP, NODE_ECONOMY, NODE_REACH,
-    NodeStatus, PAIRS, Pair, Progress, node_def, node_status, research_def, research_ready,
+    CATALOG, ControlRequest, Metal, NodeStatus, Pair, Progress, node_def, node_status,
+    research_def, research_ready,
 };
+use map::{SECTOR_ORDER, map_layout, nearest_towards, sector_view};
 
 pub(crate) const PANEL_W: f32 = 344.0;
 pub(crate) const PANEL_H: f32 = 200.0;
 /// Room above the panel for the tabs, in local pixels.
 const TABS_H: f32 = 14.0;
-const NODE: f32 = 22.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tab {
@@ -37,20 +40,17 @@ pub(crate) enum Tab {
 
 pub(crate) const TABS: [Tab; 4] = [Tab::Tree, Tab::Diary, Tab::Milestones, Tab::Reserves];
 
-/// The tree shown: a pair's (index into `PAIRS`) or the general one (`GENERAL`).
-pub(crate) const GENERAL: u8 = 4;
-const VIEWS: u8 = 5;
-
 /// Something that can be pointed at, focused or clicked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Target {
     Tab(Tab),
-    View(u8),
     Node(u16),
-    /// The pair's own power, owned with the pair (not a catalog node).
-    Innate,
-    /// A silhouette: a place of the template with nothing in the catalog yet.
+    /// A metal's own power, owned with its pair (not a catalog node).
+    Innate(Metal),
+    /// A silhouette: a place of the map with nothing in the catalog yet.
     Hidden,
+    /// A place of a locked pair's sector: it tells which milestone opens the pair.
+    Locked(Pair),
     Research(u16),
     /// Show revealed hint number n (1-based).
     HintPage(u8),
@@ -61,17 +61,17 @@ pub(crate) enum Target {
 impl Target {
     /// Whether the keyboard focus stops on it (silhouettes and the innate power only explain).
     fn focusable(self) -> bool {
-        !matches!(self, Target::Innate | Target::Hidden)
+        !matches!(self, Target::Innate(_) | Target::Hidden | Target::Locked(_))
     }
 
-    /// The name scenarios click it by (`tab.diary`, `view.4`, `node.17`, ...).
+    /// The name scenarios click it by (`tab.diary`, `node.17`, `innate.tin`, ...).
     pub(crate) fn name(self) -> String {
         match self {
             Target::Tab(tab) => format!("tab.{}", tab_key(tab)),
-            Target::View(view) => format!("view.{view}"),
             Target::Node(code) => format!("node.{code}"),
-            Target::Innate => "innate".into(),
+            Target::Innate(metal) => format!("innate.{}", crate::bridge::metal_name(metal)),
             Target::Hidden => "hidden".into(),
+            Target::Locked(pair) => format!("locked.{}", crate::controls::pair_name(pair)),
             Target::Research(code) => format!("research.{code}"),
             Target::HintPage(index) => format!("page.{index}"),
             Target::RevealHint => "reveal".into(),
@@ -89,94 +89,14 @@ pub(crate) fn tab_key(tab: Tab) -> &'static str {
     }
 }
 
-/// A place of a tree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Slot {
-    Node(u16),
-    Innate,
-    Hidden,
-}
-
-impl Slot {
-    fn target(self) -> Target {
-        match self {
-            Slot::Node(code) => Target::Node(code),
-            Slot::Innate => Target::Innate,
-            Slot::Hidden => Target::Hidden,
-        }
-    }
-}
-
-/// A technique and its two sub-nodes.
-type Technique = (Slot, [Slot; 2]);
-const UNKNOWN: Technique = (Slot::Hidden, [Slot::Hidden, Slot::Hidden]);
-
-struct Template {
-    branches: [[Technique; 3]; 2],
-    combined: Slot,
-    /// Translation keys of the branch titles.
-    titles: [&'static str; 2],
-}
-
-const UNKNOWN_BRANCH: &str = "notebook.mistbrn.branch.unknown";
-
-/// Iron and steel: the «Anchor» branch holds the catalog's nodes (P5); the rest is to come.
-const IRON_STEEL: Template = Template {
-    branches: [
-        [
-            (
-                Slot::Innate,
-                [Slot::Node(NODE_REACH), Slot::Node(NODE_ACCEL)],
-            ),
-            (Slot::Node(NODE_COIN_JUMP), [Slot::Hidden, Slot::Hidden]),
-            UNKNOWN,
-        ],
-        [UNKNOWN, UNKNOWN, UNKNOWN],
-    ],
-    combined: Slot::Hidden,
-    titles: ["notebook.mistbrn.branch.anchor", UNKNOWN_BRANCH],
-};
-
-/// The three pairs whose powers come later: the shape only.
-const LATER: Template = Template {
-    branches: [[UNKNOWN, UNKNOWN, UNKNOWN], [UNKNOWN, UNKNOWN, UNKNOWN]],
-    combined: Slot::Hidden,
-    titles: [UNKNOWN_BRANCH, UNKNOWN_BRANCH],
-};
-
-/// The general tree: economy and capacity (P5), then four to come (flaring cost,
-/// simultaneous burning, transition, dosing).
-const GENERAL_SLOTS: [Slot; 6] = [
-    Slot::Node(NODE_ECONOMY),
-    Slot::Node(NODE_CAPACITY),
-    Slot::Hidden,
-    Slot::Hidden,
-    Slot::Hidden,
-    Slot::Hidden,
-];
-
-/// The branch titles of tree `view` (none for the general tree).
-pub(crate) fn branch_titles(view: u8) -> Option<[&'static str; 2]> {
-    match view {
-        0 => Some(IRON_STEEL.titles),
-        GENERAL => None,
-        _ => Some(LATER.titles),
-    }
-}
-
 /// The tab buttons (local).
 pub(crate) fn tab_rect(tab: Tab) -> [f32; 4] {
     let i = TABS.iter().position(|t| *t == tab).unwrap_or(0) as f32;
     [6.0 + 64.0 * i, -TABS_H + 1.0, 60.0, 14.0]
 }
 
-/// The tree selector's buttons.
-pub(crate) fn view_rect(view: u8) -> [f32; 4] {
-    [6.0, 8.0 + 20.0 * f32::from(view), 100.0, 18.0]
-}
-
-/// The tree canvas's window (local) and the diary list's.
-pub(crate) const CANVAS: [f32; 4] = [112.0, 30.0, 226.0, 164.0];
+/// The map's window (local, under its header) and the diary list's.
+pub(crate) const CANVAS: [f32; 4] = [6.0, 24.0, PANEL_W - 12.0, PANEL_H - 30.0];
 pub(crate) const LIST: [f32; 4] = [6.0, 8.0, 112.0, 186.0];
 /// A row of the diary list: the name in up to two lines.
 pub(crate) const LIST_ROW: f32 = 30.0;
@@ -187,101 +107,59 @@ pub(crate) const HINT_BUTTON: [f32; 4] = [DETAIL_X + DETAIL_W - 96.0, 84.0, 96.0
 const HINT_PAGE: [f32; 2] = [DETAIL_X + 54.0, 84.0];
 pub(crate) const CONCLUDE_BUTTON: [f32; 4] = [DETAIL_X, PANEL_H - 22.0, DETAIL_W, 14.0];
 
-/// Rows of the branch trees, in canvas pixels.
-pub(crate) const ROW_TOP: f32 = 16.0;
-const ROW_STEP: f32 = 56.0;
-const SUB_DX: f32 = 27.0;
-/// The branches' centres across the canvas.
-pub(crate) const BRANCH_X: [f32; 2] = [56.0, 170.0];
-
 pub(crate) fn hint_page_rect(index: u8) -> [f32; 4] {
     let x = HINT_PAGE[0] + 14.0 * f32::from(index.max(1) - 1);
     [x, HINT_PAGE[1], 12.0, 12.0]
 }
 
-/// One drawn place of a tree, in canvas pixels (before scrolling).
+/// How far the diary list can scroll.
+pub(crate) fn max_list_scroll() -> f32 {
+    (CATALOG.research.len() as f32 * LIST_ROW - LIST[3]).max(0.0)
+}
+
+/// A pressed left button over the map: where, and whether it moved far enough to be a drag.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Place {
-    pub(crate) target: Target,
+pub(crate) struct Press {
     pub(crate) at: [f32; 2],
+    pub(crate) target: Option<Target>,
+    pub(crate) dragged: bool,
 }
 
-/// A line between two places' centres, and the place it leads to (lit once that is owned).
-pub(crate) type Link = ([f32; 2], [f32; 2], Target);
+/// How far (GUI pixels, whatever the book's scale) a press may move and still be a click.
+const CLICK_SLOP: f32 = 3.0;
 
-fn centre(at: [f32; 2]) -> [f32; 2] {
-    [at[0] + NODE / 2.0, at[1] + NODE / 2.0]
+/// A distance in the book's local pixels as GUI pixels, at the last frame's scale.
+fn gui_distance(book: &Book, from: [f32; 2], to: [f32; 2]) -> f32 {
+    let scale = book.frame.map_or(1.0, |(_, scale)| scale);
+    ((to[0] - from[0]).powi(2) + (to[1] - from[1]).powi(2)).sqrt() * scale
 }
 
-/// The places and links of tree `view`, and the canvas height they take.
-pub(crate) fn tree_layout(view: u8) -> (Vec<Place>, Vec<Link>, f32) {
-    let mut places = Vec::new();
-    let mut links = Vec::new();
-    if view == GENERAL {
-        for (i, slot) in GENERAL_SLOTS.iter().enumerate() {
-            let at = [
-                38.0 + 75.0 * (i % 3) as f32 - NODE / 2.0,
-                ROW_TOP + 60.0 * (i / 3) as f32,
-            ];
-            places.push(Place {
-                target: slot.target(),
-                at,
-            });
-        }
-        return (places, links, ROW_TOP + 60.0 + NODE + 20.0);
-    }
-    let template = if view == 0 { &IRON_STEEL } else { &LATER };
-    let combined_at = [
-        (BRANCH_X[0] + BRANCH_X[1]) / 2.0 - NODE / 2.0,
-        ROW_TOP + ROW_STEP * 3.0,
-    ];
-    for (b, branch) in template.branches.iter().enumerate() {
-        let x = BRANCH_X[b] - NODE / 2.0;
-        for (row, (technique, subs)) in branch.iter().enumerate() {
-            let at = [x, ROW_TOP + ROW_STEP * row as f32];
-            places.push(Place {
-                target: technique.target(),
-                at,
-            });
-            for (side, sub) in subs.iter().enumerate() {
-                let dx = if side == 0 { -SUB_DX } else { SUB_DX };
-                let sub_at = [at[0] + dx, at[1] + 6.0];
-                places.push(Place {
-                    target: sub.target(),
-                    at: sub_at,
-                });
-                links.push((centre(at), centre(sub_at), sub.target()));
-            }
-            let (next, into) = match branch.get(row + 1) {
-                Some((next, _)) => ([x, ROW_TOP + ROW_STEP * (row + 1) as f32], next.target()),
-                None => (combined_at, template.combined.target()),
+/// Every place of the map as the player sees it: a locked pair's places are its silhouette.
+fn shown_places(unlocked: &dyn Fn(Pair) -> bool) -> Vec<(Target, [f32; 2])> {
+    map_layout()
+        .0
+        .into_iter()
+        .map(|place| {
+            let target = match place.sector {
+                Some(pair) if !unlocked(pair) => Target::Locked(pair),
+                _ => place.target,
             };
-            links.push((centre(at), centre(next), into));
-        }
-    }
-    places.push(Place {
-        target: template.combined.target(),
-        at: combined_at,
-    });
-    (places, links, combined_at[1] + NODE + 14.0)
-}
-
-/// How far the tree canvas or the diary list can scroll.
-pub(crate) fn max_scroll(tab: Tab, view: u8) -> f32 {
-    match tab {
-        Tab::Tree => (tree_layout(view).2 - CANVAS[3]).max(0.0),
-        Tab::Diary => (CATALOG.research.len() as f32 * LIST_ROW - LIST[3]).max(0.0),
-        _ => 0.0,
-    }
+            (target, place.at)
+        })
+        .collect()
 }
 
 /// The open book's state.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Book {
     pub(crate) tab: Tab,
-    pub(crate) view: u8,
-    /// Tree canvas and diary list scroll, in local pixels.
-    pub(crate) scroll: f32,
+    /// The map's view (P8).
+    pub(crate) view: View,
+    /// The left button held over the map, until it is let go.
+    pub(crate) press: Option<Press>,
+    /// Which pairs are unlocked, as the last frame drew them (the HUD's answer).
+    pub(crate) unlocked: [bool; 4],
+    /// The diary list's scroll, in local pixels.
     pub(crate) list_scroll: f32,
     pub(crate) research: u16,
     /// The revealed hint shown in the diary (`None`: the newest).
@@ -300,11 +178,13 @@ pub(crate) struct Book {
 }
 
 impl Book {
-    pub(crate) fn new() -> Self {
+    /// A book opened on the map, around `selected`'s sector.
+    pub(crate) fn new(selected: Pair) -> Self {
         Self {
             tab: Tab::Tree,
-            view: 0,
-            scroll: 0.0,
+            view: View::on(selected),
+            press: None,
+            unlocked: [true, false, false, false],
             list_scroll: 0.0,
             research: CATALOG.research.first().map_or(0, |def| def.code),
             hint_page: None,
@@ -320,6 +200,20 @@ impl Book {
     pub(crate) fn local(&self, pointer: [f32; 2]) -> Option<[f32; 2]> {
         let ([x, y], scale) = self.frame?;
         Some([(pointer[0] - x) / scale, (pointer[1] - y) / scale])
+    }
+
+    /// Whether `pair` is unlocked, as last drawn.
+    pub(crate) fn pair_open(&self, pair: Pair) -> bool {
+        self.unlocked[pair_slot(pair)]
+    }
+}
+
+fn pair_slot(pair: Pair) -> usize {
+    match pair {
+        Pair::IronSteel => 0,
+        Pair::TinPewter => 1,
+        Pair::ZincBrass => 2,
+        Pair::CopperBronze => 3,
     }
 }
 
@@ -344,12 +238,15 @@ pub(crate) fn inside(point: [f32; 2], rect: [f32; 4]) -> bool {
 /// Whether `rect` shows whole inside the window `clip`: a part cut by the clip is neither
 /// clicked, focused nor given a tooltip (Codex review, round 1).
 fn shows(rect: [f32; 4], clip: [f32; 4]) -> bool {
-    rect[1] >= clip[1] && rect[1] + rect[3] <= clip[1] + clip[3]
+    rect[0] >= clip[0]
+        && rect[1] >= clip[1]
+        && rect[0] + rect[2] <= clip[0] + clip[2]
+        && rect[1] + rect[3] <= clip[1] + clip[3]
 }
 
 /// Every target of the book as it stands, in focus order, with its local rectangle and
-/// whether it shows (a canvas node scrolled out of the window does not, but keeps its place
-/// in the focus order).
+/// whether it shows (a map node out of the window does not, but keeps its place in the focus
+/// order).
 pub(crate) fn targets(book: &Book, progress: &Progress) -> Vec<(Target, [f32; 4], bool)> {
     let mut out: Vec<(Target, [f32; 4], bool)> = TABS
         .iter()
@@ -357,15 +254,9 @@ pub(crate) fn targets(book: &Book, progress: &Progress) -> Vec<(Target, [f32; 4]
         .collect();
     match book.tab {
         Tab::Tree => {
-            out.extend((0..VIEWS).map(|v| (Target::View(v), view_rect(v), true)));
-            for place in tree_layout(book.view).0 {
-                let rect = [
-                    CANVAS[0] + place.at[0],
-                    CANVAS[1] + place.at[1] - book.scroll,
-                    NODE,
-                    NODE,
-                ];
-                out.push((place.target, rect, shows(rect, CANVAS)));
+            for (target, at) in shown_places(&|pair| book.pair_open(pair)) {
+                let rect = book.view.node_rect(at);
+                out.push((target, rect, shows(rect, CANVAS)));
             }
         }
         Tab::Diary => {
@@ -418,13 +309,8 @@ pub(crate) fn activate(
     match target {
         Target::Tab(tab) => {
             book.tab = tab;
-            None
-        }
-        Target::View(view) => {
-            if book.view != view {
-                book.view = view;
-                book.scroll = 0.0;
-            }
+            // A press held over the map does not survive leaving it.
+            book.press = None;
             None
         }
         Target::Research(code) => {
@@ -438,10 +324,11 @@ pub(crate) fn activate(
             book.hint_page = Some(index);
             None
         }
-        Target::Innate | Target::Hidden => None,
+        Target::Innate(_) | Target::Hidden | Target::Locked(_) => None,
         Target::Node(code) => {
             let def = node_def(code, &CATALOG)?;
             (node_status(progress, def, unlocked, &CATALOG) == NodeStatus::Available).then(|| {
+                // Codes stop at 127 (`MAX_CODE`); op 9 carries the ones above 63.
                 ControlRequest::Purchase {
                     code: u8::try_from(code).unwrap_or(0),
                     rank: progress.rank(code) + 1,
@@ -468,21 +355,90 @@ pub(crate) fn activate(
     }
 }
 
-/// Scrolls the window under the local point `at` (`None`: the tab's own window) by `lines`
-/// notches of the wheel (positive: up, as the game counts). True when the window is there.
+/// The wheel by `lines` notches (positive: up, as the game counts) over the local point `at`
+/// (`None`: the tab's own window): over the map it zooms round the pointer (up: in), over the
+/// diary list it scrolls. True when the window is there.
 pub(crate) fn scroll(book: &mut Book, at: Option<[f32; 2]>, lines: f32) -> bool {
     const NOTCH: f32 = 16.0;
-    let max = max_scroll(book.tab, book.view);
-    let (value, window) = match book.tab {
-        Tab::Tree => (&mut book.scroll, CANVAS),
-        Tab::Diary => (&mut book.list_scroll, LIST),
+    const ZOOM_STEP: f32 = 1.25;
+    let window = match book.tab {
+        Tab::Tree => CANVAS,
+        Tab::Diary => LIST,
         _ => return false,
     };
     if at.is_some_and(|at| !inside(at, window)) {
         return false;
     }
-    *value = (*value - lines * NOTCH).clamp(0.0, max);
+    if book.tab == Tab::Tree {
+        book.view
+            .zoom_at(ZOOM_STEP.powf(lines.clamp(-4.0, 4.0)), at);
+    } else {
+        book.list_scroll = (book.list_scroll - lines * NOTCH).clamp(0.0, max_list_scroll());
+    }
     true
+}
+
+/// The left button went down at the local point `at` over the map: remembered until it is let
+/// go (a click) or moves (a drag). False when `at` is not over the map.
+pub(crate) fn press(book: &mut Book, progress: &Progress, at: [f32; 2]) -> bool {
+    if book.tab != Tab::Tree || !inside(at, CANVAS) {
+        return false;
+    }
+    book.press = Some(Press {
+        at,
+        target: target_at(book, progress, at),
+        dragged: false,
+    });
+    true
+}
+
+/// The held button moved by `delta` local pixels: past the slop, the map follows it.
+pub(crate) fn drag(book: &mut Book, at: [f32; 2], delta: [f32; 2]) -> bool {
+    let Some(start) = book.press.map(|p| p.at) else {
+        return false;
+    };
+    let moved = gui_distance(book, start, at);
+    let Some(press) = book.press.as_mut() else {
+        return false;
+    };
+    if !press.dragged {
+        if moved < CLICK_SLOP {
+            return true;
+        }
+        press.dragged = true;
+        // The first step of a drag also takes what moved below the slop.
+        let start = [
+            at[0] - press.at[0] - delta[0],
+            at[1] - press.at[1] - delta[1],
+        ];
+        book.view.drag(start);
+    }
+    book.view.drag(delta);
+    true
+}
+
+/// The button let go at the local point `at`: a press that did not drag is a click on what it
+/// went down on, if the map still shows and that is still under the pointer (a tab changed by
+/// keyboard meanwhile, or a pointer that left, clicks nothing: Codex review, round 1).
+pub(crate) fn release(
+    book: &mut Book,
+    progress: &Progress,
+    at: [f32; 2],
+    unlocked: impl Fn(Pair) -> bool,
+) -> (bool, Option<ControlRequest>) {
+    let Some(press) = book.press.take() else {
+        return (false, None);
+    };
+    let moved = gui_distance(book, press.at, at);
+    // A release past the slop is a drag even if no drag event said so (Codex review, round 2).
+    let still = book.tab == Tab::Tree
+        && moved < CLICK_SLOP
+        && target_at(book, progress, at) == press.target;
+    let request = match press.target {
+        Some(target) if !press.dragged && still => activate(book, target, progress, unlocked),
+        _ => None,
+    };
+    (true, request)
 }
 
 /// A key the book reads while open.
@@ -493,23 +449,36 @@ pub(crate) enum Key {
     Activate,
     PageUp,
     PageDown,
+    /// An arrow: 0 up, 1 right, 2 down, 3 left. On the map it walks to the nearest node that
+    /// way; elsewhere up/left go back and down/right forward.
+    Arrow(u8),
+    ZoomIn,
+    ZoomOut,
+    /// Home: the map's centre.
+    Home,
 }
 
 /// Vanilla's key names (`screen_key_pressed_pre`) to the book's keys. Shift+Tab goes back.
 pub(crate) fn key(name: &str, shift: bool) -> Option<Key> {
     Some(match name {
         "key.keyboard.tab" if shift => Key::Previous,
-        "key.keyboard.tab" | "key.keyboard.down" | "key.keyboard.right" => Key::Next,
-        "key.keyboard.up" | "key.keyboard.left" => Key::Previous,
+        "key.keyboard.tab" => Key::Next,
+        "key.keyboard.up" => Key::Arrow(0),
+        "key.keyboard.right" => Key::Arrow(1),
+        "key.keyboard.down" => Key::Arrow(2),
+        "key.keyboard.left" => Key::Arrow(3),
         "key.keyboard.enter" | "key.keyboard.keypad.enter" | "key.keyboard.space" => Key::Activate,
         "key.keyboard.page.up" => Key::PageUp,
         "key.keyboard.page.down" => Key::PageDown,
+        "key.keyboard.equal" | "key.keyboard.keypad.add" => Key::ZoomIn,
+        "key.keyboard.minus" | "key.keyboard.keypad.subtract" => Key::ZoomOut,
+        "key.keyboard.home" => Key::Home,
         _ => return None,
     })
 }
 
-/// Moves the focus to the next or previous focusable target (wrapping round) and scrolls the
-/// canvas or list so it shows.
+/// Moves the focus to the next or previous focusable target (wrapping round) and moves the
+/// map or scrolls the list so it shows.
 pub(crate) fn move_focus(book: &mut Book, progress: &Progress, forward: bool) {
     let order: Vec<(Target, [f32; 4])> = targets(book, progress)
         .into_iter()
@@ -529,23 +498,87 @@ pub(crate) fn move_focus(book: &mut Book, progress: &Progress, forward: bool) {
         (Some(i), false) => (i + order.len() - 1) % order.len(),
     };
     let (target, rect) = order[next];
+    focus_on(book, target, rect);
+}
+
+/// Gives `target` (at local `rect`) the focus and brings it into view.
+fn focus_on(book: &mut Book, target: Target, rect: [f32; 4]) {
     book.focus = Some(target);
     book.keyboard = true;
-    let max = max_scroll(book.tab, book.view);
-    let (value, window) = match target {
-        Target::Node(_) => (&mut book.scroll, CANVAS),
-        Target::Research(_) => (&mut book.list_scroll, LIST),
-        _ => return,
-    };
-    // `rect` is already scrolled: move by how far it sticks out.
-    let top = window[1] + 2.0;
-    let bottom = window[1] + window[3] - 2.0;
-    if rect[1] < top {
-        *value -= top - rect[1];
-    } else if rect[1] + rect[3] > bottom {
-        *value += rect[1] + rect[3] - bottom;
+    match target {
+        Target::Node(_) if !shows(rect, CANVAS) => {
+            let centre = [rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0];
+            let at = book.view.to_map(centre);
+            book.view.centre(at);
+        }
+        Target::Research(_) => {
+            // `rect` is already scrolled: move by how far it sticks out.
+            let top = LIST[1] + 2.0;
+            let bottom = LIST[1] + LIST[3] - 2.0;
+            let value = &mut book.list_scroll;
+            if rect[1] < top {
+                *value -= top - rect[1];
+            } else if rect[1] + rect[3] > bottom {
+                *value += rect[1] + rect[3] - bottom;
+            }
+            *value = value.clamp(0.0, max_list_scroll());
+        }
+        _ => {}
     }
-    *value = value.clamp(0.0, max);
+}
+
+/// An arrow on the map: the focus walks to the nearest focusable node that way (from the
+/// focused node, or from the view's centre). Elsewhere, up/left go back and down/right on.
+pub(crate) fn arrow(book: &mut Book, progress: &Progress, direction: u8) {
+    if book.tab != Tab::Tree {
+        move_focus(book, progress, matches!(direction, 1 | 2));
+        return;
+    }
+    let dir = match direction {
+        0 => [0.0, -1.0],
+        1 => [1.0, 0.0],
+        2 => [0.0, 1.0],
+        _ => [-1.0, 0.0],
+    };
+    let nodes: Vec<(Target, [f32; 2])> = shown_places(&|pair| book.pair_open(pair))
+        .into_iter()
+        .filter(|(target, _)| matches!(target, Target::Node(_)))
+        .collect();
+    let from = book
+        .focus
+        .and_then(|f| nodes.iter().find(|(t, _)| *t == f).map(|(_, at)| *at))
+        .unwrap_or(book.view.pan);
+    if let Some(target) = nearest_towards(from, dir, nodes.iter().copied()) {
+        let at = nodes
+            .iter()
+            .find(|(t, _)| *t == target)
+            .map_or(from, |n| n.1);
+        let rect = book.view.node_rect(at);
+        focus_on(book, target, rect);
+    }
+}
+
+/// Page Down / Page Up on the map: the view goes to the next / previous sector (the centre
+/// counts as one, before iron and steel); in the diary, the list scrolls.
+pub(crate) fn page(book: &mut Book, forward: bool) {
+    if book.tab != Tab::Tree {
+        scroll(book, None, if forward { -3.0 } else { 3.0 });
+        return;
+    }
+    let stops: Vec<[f32; 2]> = std::iter::once([0.0, 0.0])
+        .chain(SECTOR_ORDER.iter().map(|&pair| sector_view(pair)))
+        .collect();
+    let distance =
+        |p: [f32; 2]| (p[0] - book.view.pan[0]).powi(2) + (p[1] - book.view.pan[1]).powi(2);
+    let now = (0..stops.len())
+        .min_by(|&a, &b| distance(stops[a]).total_cmp(&distance(stops[b])))
+        .unwrap_or(0);
+    let next = if forward {
+        (now + 1) % stops.len()
+    } else {
+        (now + stops.len() - 1) % stops.len()
+    };
+    book.view.centre(stops[next]);
 }
 
 /// The milestone that unlocks `pair`, if one does.
@@ -553,80 +586,198 @@ pub(crate) fn unlocking_milestone(pair: Pair) -> Option<&'static allomancy_core:
     CATALOG.milestones.iter().find(|m| m.unlocks == Some(pair))
 }
 
-/// The pair of tree `view` (`None` for the general tree).
-pub(crate) fn view_pair(view: u8) -> Option<Pair> {
-    PAIRS.get(usize::from(view)).copied()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn every_catalog_node_has_one_place_and_places_stay_on_the_canvas() {
-        let mut seen = Vec::new();
-        for view in 0..VIEWS {
-            let (places, _, height) = tree_layout(view);
-            for place in &places {
-                assert!(
-                    place.at[0] >= 0.0 && place.at[0] + NODE <= CANVAS[2],
-                    "{place:?}"
-                );
-                assert!(
-                    place.at[1] >= 0.0 && place.at[1] + NODE <= height,
-                    "{place:?}"
-                );
-                if let Target::Node(code) = place.target {
-                    seen.push(code);
-                }
-            }
-            let expected = if view == GENERAL { 6 } else { 19 };
-            assert_eq!(places.len(), expected, "view {view}");
-        }
-        seen.sort_unstable();
-        let mut catalog: Vec<u16> = CATALOG.nodes.iter().map(|d| d.code).collect();
-        catalog.sort_unstable();
-        assert_eq!(seen, catalog);
-    }
+    use allomancy_core::{NODE_ACCEL, NODE_COIN_JUMP, NODE_ECONOMY, NODE_REACH};
 
+    // Catches the Tab order skipping a node, or a focused node left out of view.
     #[test]
-    fn focus_wraps_and_scrolls_the_canvas_to_the_focused_node() {
+    fn focus_wraps_and_brings_the_focused_node_into_view() {
         let progress = Progress::default();
-        let mut book = Book::new();
+        let mut book = Book::new(Pair::IronSteel);
         let focusable = targets(&book, &progress)
             .iter()
             .filter(|(t, ..)| t.focusable())
             .count();
-        // 4 tabs, 5 trees, reach, accel and coin jump.
-        assert_eq!(focusable, 12);
+        // 4 tabs, the 4 general nodes, reach, accel and coin jump.
+        assert_eq!(focusable, 11);
         for _ in 0..focusable {
             move_focus(&mut book, &progress, true);
+            let (_, rect, shown) = targets(&book, &progress)
+                .into_iter()
+                .find(|(t, ..)| Some(*t) == book.focus)
+                .unwrap();
+            assert!(shown, "{:?} at {rect:?}", book.focus);
         }
         assert_eq!(book.focus, Some(Target::Node(NODE_COIN_JUMP)));
         move_focus(&mut book, &progress, true);
         assert_eq!(book.focus, Some(Target::Tab(Tab::Tree)));
         move_focus(&mut book, &progress, false);
         assert_eq!(book.focus, Some(Target::Node(NODE_COIN_JUMP)));
-        assert!(book.scroll >= 0.0 && book.scroll <= max_scroll(Tab::Tree, 0));
+    }
+
+    // Catches a locked sector's places being bought, focused or named as nodes.
+    #[test]
+    fn a_locked_sector_is_a_silhouette_naming_its_pair() {
+        let book = Book::new(Pair::IronSteel);
+        let all = targets(&book, &Progress::default());
+        let locked = |pair| {
+            all.iter()
+                .filter(|(t, ..)| *t == Target::Locked(pair))
+                .count()
+        };
+        assert_eq!(locked(Pair::TinPewter), 19);
+        assert_eq!(locked(Pair::ZincBrass), 19);
+        assert_eq!(locked(Pair::CopperBronze), 19);
+        assert_eq!(locked(Pair::IronSteel), 0);
+        assert!(!Target::Locked(Pair::TinPewter).focusable());
+        assert_eq!(Target::Locked(Pair::TinPewter).name(), "locked.tin_pewter");
+        assert_eq!(Target::Innate(Metal::Pewter).name(), "innate.pewter");
+    }
+
+    // Catches a drag that also clicks, or a click lost to a tiny jitter.
+    #[test]
+    fn a_press_is_a_click_unless_it_drags() {
+        let progress = Progress::default();
+        let mut book = Book::new(Pair::IronSteel);
+        let (_, rect, _) = targets(&book, &progress)
+            .into_iter()
+            .find(|(t, ..)| *t == Target::Node(NODE_REACH))
+            .unwrap();
+        let at = [rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0];
+        // 100 iron and steel XP (one point), as the server's snapshot would carry it.
+        let mut bytes = allomancy_core::encode_progress_snapshot(&progress);
+        bytes[1..5].copy_from_slice(&100u32.to_le_bytes());
+        let progress_with_points = allomancy_core::decode_progress_snapshot(&bytes)
+            .unwrap()
+            .progress;
+        // A jitter below the slop is still a click.
+        assert!(press(&mut book, &progress_with_points, at));
+        assert!(drag(&mut book, [at[0] + 1.0, at[1]], [1.0, 0.0]));
+        let (ours, request) = release(
+            &mut book,
+            &progress_with_points,
+            [at[0] + 1.0, at[1]],
+            |p| p == Pair::IronSteel,
+        );
+        assert!(ours);
+        assert_eq!(
+            request,
+            Some(ControlRequest::Purchase {
+                code: NODE_REACH as u8,
+                rank: 1
+            })
+        );
+        // A drag moves the map and buys nothing.
+        let pan = book.view.pan;
+        assert!(press(&mut book, &progress_with_points, at));
+        assert!(drag(&mut book, [at[0] + 2.0, at[1]], [2.0, 0.0]));
+        assert!(drag(&mut book, [at[0] + 10.0, at[1]], [8.0, 0.0]));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 10.0, at[1]],
+                |_| true
+            ),
+            (true, None)
+        );
+        assert!((book.view.pan[0] - (pan[0] - 10.0)).abs() < 1e-3);
+        // A tab changed by keyboard while the button is held cancels the click.
+        let (_, rect, _) = targets(&book, &progress)
+            .into_iter()
+            .find(|(t, ..)| *t == Target::Node(NODE_REACH))
+            .unwrap();
+        let at = [rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0];
+        assert!(press(&mut book, &progress_with_points, at));
+        activate(
+            &mut book,
+            Target::Tab(Tab::Diary),
+            &progress_with_points,
+            |_| true,
+        );
+        assert_eq!(
+            release(&mut book, &progress_with_points, at, |_| true),
+            (false, None)
+        );
+        // A pointer that moved off the node (out of the slop by a held still press) buys nothing.
+        book.tab = Tab::Tree;
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [CANVAS[0] + 1.0, CANVAS[1] + 1.0],
+                |_| true
+            ),
+            (true, None)
+        );
+        // A release 4 pixels away with no drag event between is a drag: no click (Codex r2).
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 4.0, at[1]],
+                |_| true
+            ),
+            (true, None)
+        );
+        // At 125 % the slop is 3 GUI pixels: 2.5 local pixels (3.1 GUI) already drag (Codex r3).
+        book.frame = Some(([0.0, 0.0], 1.25));
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 2.5, at[1]],
+                |_| true
+            ),
+            (true, None)
+        );
+        book.frame = None;
+        // Outside the map, a press is not ours.
+        assert!(!press(&mut book, &progress, [1.0, 1.0]));
     }
 
     #[test]
-    fn scrolling_is_clamped_and_only_over_the_window() {
-        let mut book = Book::new();
-        let max = max_scroll(Tab::Tree, 0);
-        assert!(
-            max > 0.0,
-            "the iron and steel tree is taller than its window"
-        );
+    fn the_wheel_zooms_the_map_and_scrolls_the_diary() {
+        let mut book = Book::new(Pair::IronSteel);
         assert!(!scroll(&mut book, Some([0.0, 0.0]), -1.0));
-        assert!(scroll(
-            &mut book,
-            Some([CANVAS[0] + 1.0, CANVAS[1] + 1.0]),
-            -100.0
-        ));
-        assert_eq!(book.scroll, max);
-        assert!(scroll(&mut book, None, 100.0));
-        assert_eq!(book.scroll, 0.0);
+        let inside_map = [CANVAS[0] + 10.0, CANVAS[1] + 10.0];
+        assert!(scroll(&mut book, Some(inside_map), 1.0));
+        assert!((book.view.zoom - 1.25).abs() < 1e-4);
+        // One event moves at most 4 notches; enough of them stop at the bottom.
+        for _ in 0..3 {
+            assert!(scroll(&mut book, None, -100.0));
+        }
+        assert_eq!(book.view.zoom, map::ZOOM_MIN);
+        book.tab = Tab::Diary;
+        assert!(scroll(&mut book, None, -1.0));
+        assert_eq!(book.list_scroll, max_list_scroll().min(16.0));
+    }
+
+    #[test]
+    fn arrows_walk_the_map_and_pages_visit_the_sectors() {
+        let progress = Progress::default();
+        let mut book = Book::new(Pair::IronSteel);
+        book.focus = Some(Target::Node(NODE_REACH));
+        // From reach, down-right leads inwards; up from accel leads on along the branch.
+        arrow(&mut book, &progress, 1);
+        assert!(book.focus.is_some());
+        book.view.centre([0.0, 0.0]);
+        book.focus = None;
+        arrow(&mut book, &progress, 0);
+        assert_eq!(book.focus, Some(Target::Node(NODE_ECONOMY)));
+        page(&mut book, true);
+        assert_eq!(book.view.pan, sector_view(Pair::IronSteel));
+        page(&mut book, false);
+        assert_eq!(book.view.pan, [0.0, 0.0]);
+        page(&mut book, false);
+        assert_eq!(book.view.pan, sector_view(Pair::ZincBrass));
+        let _ = NODE_ACCEL;
     }
 
     #[test]
@@ -644,6 +795,9 @@ mod tests {
         assert_eq!(key("key.keyboard.tab", false), Some(Key::Next));
         assert_eq!(key("key.keyboard.tab", true), Some(Key::Previous));
         assert_eq!(key("key.keyboard.page.down", false), Some(Key::PageDown));
+        assert_eq!(key("key.keyboard.down", false), Some(Key::Arrow(2)));
+        assert_eq!(key("key.keyboard.equal", false), Some(Key::ZoomIn));
+        assert_eq!(key("key.keyboard.home", false), Some(Key::Home));
         assert_eq!(key("key.keyboard.j", false), None);
     }
 }
