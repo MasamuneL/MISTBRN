@@ -84,10 +84,18 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         ControlRequest::ToggleFlare => (3, 0),
         ControlRequest::Off => (4, 0),
         ControlRequest::SelectPair(pair) => (5, pair_code(pair)),
-        // Codes above 127 do not exist (`MAX_CODE`): the shift drops their top bit.
-        ControlRequest::Purchase { code, rank } if code >= 64 => (9, (code - 64) << 2 | (rank & 3)),
-        ControlRequest::Purchase { code, rank } => (6, code << 2 | (rank & 3)),
-        ControlRequest::RevealHint { research, index } => (7, research << 2 | (index & 3)),
+        // A code past `MAX_CODE`, a research past 63 or an index outside 1..=3 cannot be
+        // packed: it goes as arg 0, which the server refuses, never as another node (Codex
+        // review, round 1).
+        ControlRequest::Purchase { code, rank } if code > 127 || !(1..=3).contains(&rank) => (6, 0),
+        ControlRequest::Purchase { code, rank } if code >= 64 => (9, (code - 64) << 2 | rank),
+        ControlRequest::Purchase { code, rank } => (6, code << 2 | rank),
+        ControlRequest::RevealHint { research, index }
+            if research > 63 || !(1..=3).contains(&index) =>
+        {
+            (7, 0)
+        }
+        ControlRequest::RevealHint { research, index } => (7, research << 2 | index),
         ControlRequest::Conclude { research } => (8, research),
     };
     [CONTROL_VERSION, op, arg]

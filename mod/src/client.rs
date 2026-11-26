@@ -748,7 +748,11 @@ pub(crate) fn mouse_released(host: &dyn ClientHost, pointer: [f32; 2], button: i
         return false;
     };
     let press = open.book.press;
-    let (ours, request) = book::release(&mut open.book, progress, &unlocked);
+    let Some(at) = open.book.local(pointer) else {
+        open.book.press = None;
+        return press.is_some();
+    };
+    let (ours, request) = book::release(&mut open.book, progress, at, &unlocked);
     if let Some(request) = request {
         open.request.get_or_insert(request);
     }

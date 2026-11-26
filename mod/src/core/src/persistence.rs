@@ -287,6 +287,16 @@ fn pair_unlocked(state: &PlayerState, pair: Pair) -> bool {
         .all(|metal| state.metals[metal.index()].unlocked)
 }
 
+/// Dosing's extra share of a vial of `amount_milli` (P8), at most `room`. Computed wide, so
+/// no amount the core accepts loses any of it (Codex review, round 1).
+fn dosing_bonus(amount_milli: i64, progress: &Progress, room: u64) -> i64 {
+    let dosing = u128::from(progress.effect(NodeEffect::DosingMilli, &CATALOG));
+    let amount = u128::try_from(amount_milli).unwrap_or(0);
+    let bonus = (amount * dosing / 1_000).min(u128::from(room));
+    // At most half of an i64 amount (dosing ≤ 500): it fits.
+    i64::try_from(bonus).unwrap_or(i64::MAX)
+}
+
 /// A drink's credit (P5 tutorial): the vial's reserve, and the first vial of a tutorial pair
 /// (`CATALOG.tutorial_pairs`) drunk while that pair is locked also unlocks and selects it, in
 /// the same transaction. Returns whether it unlocked.
@@ -307,14 +317,12 @@ pub fn prepare_vial(
         )
         .map_err(SaveError::InvalidReserves)?;
         // Dosing (P8): a share more, only as far as the capacity has room after the vial.
-        let dosing = i64::from(next.progress.effect(NodeEffect::DosingMilli, &CATALOG));
         let room = next
             .rules
             .capacity(metal)
             .map_err(SaveError::InvalidReserves)?
             .saturating_sub(next.state.metals[metal.index()].reserve_milli);
-        let bonus = (amount_milli.saturating_mul(dosing) / 1_000)
-            .min(i64::try_from(room).unwrap_or(i64::MAX));
+        let bonus = dosing_bonus(amount_milli, &next.progress, room);
         if bonus > 0 {
             credit_reserve(&mut next.state, &next.accounting, &next.rules, metal, bonus)
                 .map_err(SaveError::InvalidReserves)?;
@@ -328,7 +336,7 @@ pub fn prepare_vial(
 }
 
 /// A basic-metals vial's credit (P3c): `amount_milli` to every unlocked metal, each up to its
-/// capacity, in one transaction; it unlocks nothing. Refused with `NothingToCredit` (the vial
+/// capacity, in one transaction; it unlocks nothing. Dosing (P8) adds its share to each. Refused with `NothingToCredit` (the vial
 /// is kept) only when no metal would receive anything. Returns what each metal receives, in
 /// `Metal::ALL` order.
 pub fn prepare_basic_vial(
@@ -346,7 +354,9 @@ pub fn prepare_basic_vial(
                 .rules
                 .capacity(metal)
                 .map_err(SaveError::InvalidReserves)?;
-            credited[metal.index()] = amount.min(capacity.saturating_sub(value.reserve_milli));
+            let room = capacity.saturating_sub(value.reserve_milli);
+            let bonus = dosing_bonus(amount_milli, &saved.progress, room).unsigned_abs();
+            credited[metal.index()] = amount.saturating_add(bonus).min(room);
         }
     }
     if credited.iter().all(|&c| c == 0) {
@@ -356,13 +366,17 @@ pub fn prepare_basic_vial(
         for metal in Metal::ALL {
             let credit = credited[metal.index()];
             if credit > 0 {
-                // Fits in i64: it never exceeds `amount`, which came from one.
+                // At most the metal's room (a valid reserve's capacity), checked anyway: with
+                // dosing it can exceed `amount` (Gemini review, round 1).
+                let credit = i64::try_from(credit).map_err(|_| {
+                    SaveError::InvalidReserves(ReserveError::ArithmeticOverflow(metal))
+                })?;
                 credit_reserve(
                     &mut next.state,
                     &next.accounting,
                     &next.rules,
                     metal,
-                    credit as i64,
+                    credit,
                 )
                 .map_err(SaveError::InvalidReserves)?;
             }

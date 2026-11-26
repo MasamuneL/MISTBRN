@@ -303,6 +303,8 @@ pub(crate) fn activate(
     match target {
         Target::Tab(tab) => {
             book.tab = tab;
+            // A press held over the map does not survive leaving it.
+            book.press = None;
             None
         }
         Target::Research(code) => {
@@ -406,17 +408,21 @@ pub(crate) fn drag(book: &mut Book, at: [f32; 2], delta: [f32; 2]) -> bool {
     true
 }
 
-/// The button let go: a press that did not drag is a click on what it went down on.
+/// The button let go at the local point `at`: a press that did not drag is a click on what it
+/// went down on, if the map still shows and that is still under the pointer (a tab changed by
+/// keyboard meanwhile, or a pointer that left, clicks nothing: Codex review, round 1).
 pub(crate) fn release(
     book: &mut Book,
     progress: &Progress,
+    at: [f32; 2],
     unlocked: impl Fn(Pair) -> bool,
 ) -> (bool, Option<ControlRequest>) {
     let Some(press) = book.press.take() else {
         return (false, None);
     };
+    let still = book.tab == Tab::Tree && target_at(book, progress, at) == press.target;
     let request = match press.target {
-        Some(target) if !press.dragged => activate(book, target, progress, unlocked),
+        Some(target) if !press.dragged && still => activate(book, target, progress, unlocked),
         _ => None,
     };
     (true, request)
@@ -637,7 +643,12 @@ mod tests {
         // A jitter below the slop is still a click.
         assert!(press(&mut book, &progress_with_points, at));
         assert!(drag(&mut book, [at[0] + 1.0, at[1]], [1.0, 0.0]));
-        let (ours, request) = release(&mut book, &progress_with_points, |p| p == Pair::IronSteel);
+        let (ours, request) = release(
+            &mut book,
+            &progress_with_points,
+            [at[0] + 1.0, at[1]],
+            |p| p == Pair::IronSteel,
+        );
         assert!(ours);
         assert_eq!(
             request,
@@ -652,10 +663,44 @@ mod tests {
         assert!(drag(&mut book, [at[0] + 2.0, at[1]], [2.0, 0.0]));
         assert!(drag(&mut book, [at[0] + 10.0, at[1]], [8.0, 0.0]));
         assert_eq!(
-            release(&mut book, &progress_with_points, |_| true),
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 10.0, at[1]],
+                |_| true
+            ),
             (true, None)
         );
         assert!((book.view.pan[0] - (pan[0] - 10.0)).abs() < 1e-3);
+        // A tab changed by keyboard while the button is held cancels the click.
+        let (_, rect, _) = targets(&book, &progress)
+            .into_iter()
+            .find(|(t, ..)| *t == Target::Node(NODE_REACH))
+            .unwrap();
+        let at = [rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0];
+        assert!(press(&mut book, &progress_with_points, at));
+        activate(
+            &mut book,
+            Target::Tab(Tab::Diary),
+            &progress_with_points,
+            |_| true,
+        );
+        assert_eq!(
+            release(&mut book, &progress_with_points, at, |_| true),
+            (false, None)
+        );
+        // A pointer that moved off the node (out of the slop by a held still press) buys nothing.
+        book.tab = Tab::Tree;
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [CANVAS[0] + 1.0, CANVAS[1] + 1.0],
+                |_| true
+            ),
+            (true, None)
+        );
         // Outside the map, a press is not ours.
         assert!(!press(&mut book, &progress, [1.0, 1.0]));
     }

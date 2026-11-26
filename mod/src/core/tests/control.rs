@@ -332,6 +332,26 @@ fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
         Err(ControlError::Arg { op: 9, arg: 0 })
     );
     assert_eq!(decode_control(&[1, 10, 0]), Err(ControlError::Op(10)));
+    // What cannot be packed is sent as a request the server refuses, never as another node.
+    for request in [
+        ControlRequest::Purchase { code: 128, rank: 1 },
+        ControlRequest::Purchase { code: 192, rank: 1 },
+        ControlRequest::Purchase { code: 5, rank: 0 },
+        ControlRequest::Purchase { code: 5, rank: 4 },
+        ControlRequest::RevealHint {
+            research: 64,
+            index: 1,
+        },
+        ControlRequest::RevealHint {
+            research: 1,
+            index: 4,
+        },
+    ] {
+        assert!(
+            decode_control(&encode_control(request)).is_err(),
+            "{request:?}"
+        );
+    }
 }
 
 #[test]

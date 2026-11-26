@@ -227,3 +227,49 @@ fn dosing_adds_its_share_up_to_the_capacity() {
     );
     assert!(prepare_vial(&saved, Metal::Iron, 25_000).is_err());
 }
+
+// Catches a bonus that overfills the capacity, or one dropped when only part of it fits.
+#[test]
+fn dosing_fills_what_room_is_left_after_the_vial() {
+    let mut saved = knowing();
+    commit(&mut saved, |s| prepare_purchase(s, NODE_CAPACITY, 1));
+    commit(&mut saved, |s| prepare_purchase(s, NODE_DOSING, 1));
+    // Iron at 25 000 of 110 000: two vials (27 500 each) leave 30 000; the third gets 25 000
+    // and 2 500 of its bonus; then 2 500 room: refused, the vial alone does not fit.
+    for _ in 0..2 {
+        commit(&mut saved, |s| {
+            prepare_vial(s, Metal::Iron, 25_000).map(|(p, _)| p)
+        });
+    }
+    let iron = |s: &SavedPlayer| s.state().metals[Metal::Iron.index()].reserve_milli;
+    assert_eq!(iron(&saved), 80_000);
+    commit(&mut saved, |s| {
+        prepare_vial(s, Metal::Iron, 26_000).map(|(p, _)| p)
+    });
+    assert_eq!(iron(&saved), 108_600);
+    commit(&mut saved, |s| {
+        prepare_vial(s, Metal::Iron, 1_000).map(|(p, _)| p)
+    });
+    // 1 400 of room: the 1 000 and its whole 100 bonus fit.
+    assert_eq!(iron(&saved), 109_700);
+}
+
+// Catches dosing skipped by the basic-metals vial (Codex review, round 1).
+#[test]
+fn dosing_also_adds_to_each_metal_of_a_basic_vial() {
+    let mut saved = knowing();
+    commit(&mut saved, |s| prepare_purchase(s, NODE_CAPACITY, 1));
+    commit(&mut saved, |s| prepare_purchase(s, NODE_DOSING, 1));
+    // Iron 25 000, steel 0 (unlocked by the first vial): both get 27 500, iron up to 110 000.
+    let (prepared, credited) = prepare_basic_vial(&saved, 25_000).unwrap();
+    commit_credit(&mut saved, prepared).unwrap();
+    assert_eq!(credited[Metal::Iron.index()], 27_500);
+    assert_eq!(credited[Metal::Steel.index()], 27_500);
+    for _ in 0..2 {
+        let (prepared, _) = prepare_basic_vial(&saved, 25_000).unwrap();
+        commit_credit(&mut saved, prepared).unwrap();
+    }
+    // Iron: 25 000 + 3 × 27 500 = 107 500; one more fills the 2 500 left.
+    let (_, credited) = prepare_basic_vial(&saved, 25_000).unwrap();
+    assert_eq!(credited[Metal::Iron.index()], 2_500);
+}

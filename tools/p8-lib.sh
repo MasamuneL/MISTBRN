@@ -88,7 +88,7 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=book_view .* pan=92,-92 .*innate\.steel@'
       k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
     g2)  # the mouse: a drag pans and buys nothing, a still press buys, the wheel zooms
-      local from x y
+      local from x y line bought
       launch MISTBRN_TEST_SCENARIO=p4
       book_quiet
       p6_place
@@ -101,6 +101,13 @@ p8_scenario() {
           "$(awk -v x="$x" 'BEGIN { printf "%d", x + 60 }')" "$y" >/dev/null
         ctl wait 10 >/dev/null
       fi
+      # Right after the drag (live log): the view moved and nothing was bought (Codex r1).
+      line="$(book_line)"
+      if [[ -n "$line" && "$line" != *" pan=-92,-92 "* ]]; then k_ok "the drag moved the map"
+      else k_fail "the map did not move with the drag: ${line:0:160}"; fi
+      bought="$(grep -ac 'MISTBRN event=purchase ' "$sockdir/l$launch_no.log" || true)"
+      if [[ "$bought" == 0 ]]; then k_ok "the drag bought nothing"
+      else k_fail "the drag bought something ($bought purchase lines)"; fi
       book_shot g2-dragged
       # A press that does not move buys reach (100 XP: one point).
       book_click node.1
@@ -112,10 +119,6 @@ p8_scenario() {
       report; quit_game
       expect_log 1 'MISTBRN event=notebook_click .* target=node.1 dragged=true'
       expect_log 1 'MISTBRN event=notebook_click .* target=node.1 dragged=false'
-      # The drag moved the view (it opens at -92,-92) without buying anything.
-      if grep -a 'MISTBRN event=book_view ' "$(log 1)" | grep -qv 'pan=-92,-92 '; then
-        k_ok "the drag moved the map"
-      else k_fail "the map never moved"; fi
       k_expect_count "one purchase, from the still press" \
         'MISTBRN event=purchase node=reach rank=1 result=ok' 1 1
       expect_log 1 'MISTBRN event=book_scroll lines=-1 pan=[-0-9]*,[-0-9]* zoom=0.64 '
