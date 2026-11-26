@@ -420,7 +420,11 @@ pub(crate) fn release(
     let Some(press) = book.press.take() else {
         return (false, None);
     };
-    let still = book.tab == Tab::Tree && target_at(book, progress, at) == press.target;
+    let moved = ((at[0] - press.at[0]).powi(2) + (at[1] - press.at[1]).powi(2)).sqrt();
+    // A release past the slop is a drag even if no drag event said so (Codex review, round 2).
+    let still = book.tab == Tab::Tree
+        && moved < CLICK_SLOP
+        && target_at(book, progress, at) == press.target;
     let request = match press.target {
         Some(target) if !press.dragged && still => activate(book, target, progress, unlocked),
         _ => None,
@@ -697,6 +701,17 @@ mod tests {
                 &mut book,
                 &progress_with_points,
                 [CANVAS[0] + 1.0, CANVAS[1] + 1.0],
+                |_| true
+            ),
+            (true, None)
+        );
+        // A release 4 pixels away with no drag event between is a drag: no click (Codex r2).
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 4.0, at[1]],
                 |_| true
             ),
             (true, None)

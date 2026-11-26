@@ -425,6 +425,11 @@ fn notebook_tick(host: &dyn ClientHost, state: &mut ClientState, sends: &mut Vec
         eprintln!("MISTBRN event=notebook result=closed");
         return false;
     }
+    // A press held while the window loses focus is dropped: its release clicks nothing
+    // (Codex review, round 2).
+    if !host.window_focused() {
+        open.book.press = None;
+    }
     if let Some(request) = open.request.take()
         && host.window_focused()
     {
@@ -748,6 +753,10 @@ pub(crate) fn mouse_released(host: &dyn ClientHost, pointer: [f32; 2], button: i
         return false;
     };
     let press = open.book.press;
+    if !host.window_focused() {
+        open.book.press = None;
+        return press.is_some();
+    }
     let Some(at) = open.book.local(pointer) else {
         open.book.press = None;
         return press.is_some();

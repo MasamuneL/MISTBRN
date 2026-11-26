@@ -252,6 +252,19 @@ fn dosing_fills_what_room_is_left_after_the_vial() {
     });
     // 1 400 of room: the 1 000 and its whole 100 bonus fit.
     assert_eq!(iron(&saved), 109_700);
+    // A part of the bonus: from 80 000, 28 000 leaves 2 000 room for its 2 800 bonus.
+    let mut partial = knowing();
+    commit(&mut partial, |s| prepare_purchase(s, NODE_CAPACITY, 1));
+    commit(&mut partial, |s| prepare_purchase(s, NODE_DOSING, 1));
+    for _ in 0..2 {
+        commit(&mut partial, |s| {
+            prepare_vial(s, Metal::Iron, 25_000).map(|(p, _)| p)
+        });
+    }
+    commit(&mut partial, |s| {
+        prepare_vial(s, Metal::Iron, 28_000).map(|(p, _)| p)
+    });
+    assert_eq!(iron(&partial), 110_000);
 }
 
 // Catches dosing skipped by the basic-metals vial (Codex review, round 1).

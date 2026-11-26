@@ -364,21 +364,18 @@ pub fn prepare_basic_vial(
     }
     let prepared = prepare(saved, |next| {
         for metal in Metal::ALL {
+            // The vial's part (at most `amount`, an i64) and dosing's (at most `dosing_bonus`,
+            // an i64) credited apart: their sum may not fit an i64 (Codex review, round 2).
             let credit = credited[metal.index()];
-            if credit > 0 {
-                // At most the metal's room (a valid reserve's capacity), checked anyway: with
-                // dosing it can exceed `amount` (Gemini review, round 1).
-                let credit = i64::try_from(credit).map_err(|_| {
-                    SaveError::InvalidReserves(ReserveError::ArithmeticOverflow(metal))
-                })?;
-                credit_reserve(
-                    &mut next.state,
-                    &next.accounting,
-                    &next.rules,
-                    metal,
-                    credit,
-                )
-                .map_err(SaveError::InvalidReserves)?;
+            let base = credit.min(amount);
+            for part in [base, credit - base] {
+                if part > 0 {
+                    let part = i64::try_from(part).map_err(|_| {
+                        SaveError::InvalidReserves(ReserveError::ArithmeticOverflow(metal))
+                    })?;
+                    credit_reserve(&mut next.state, &next.accounting, &next.rules, metal, part)
+                        .map_err(SaveError::InvalidReserves)?;
+                }
             }
         }
         Ok(())
