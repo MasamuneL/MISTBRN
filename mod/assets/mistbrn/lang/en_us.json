@@ -139,6 +139,7 @@
   "notebook.mistbrn.milestone.unlocks": "Opens %s",
   "notebook.mistbrn.pair.later": "Unlocked · its powers come in a later version",
   "notebook.mistbrn.pair.locked": "Unlocked by: %s",
+  "notebook.mistbrn.pair.tutorial": "its first vial",
   "notebook.mistbrn.requires.discovery": "Requires discovering: %s.",
   "notebook.mistbrn.requires.node": "Requires %s %s.",
   "notebook.mistbrn.requires.pair": "Requires the pair unlocked.",

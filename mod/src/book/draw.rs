@@ -322,13 +322,15 @@ fn tooltip(
             tr(host, "notebook.mistbrn.innate"),
         ],
         Target::Locked(pair) => {
-            let mut lines = vec![pair_label(host, pair)];
-            if let Some(m) = unlocking_milestone(pair) {
-                lines.push(tr_args(
+            let mut lines = vec![
+                pair_label(host, pair),
+                tr_args(
                     host,
                     "notebook.mistbrn.pair.locked",
-                    &[tr(host, &format!("milestone.mistbrn.{}", m.key))],
-                ));
+                    &[unlock_name(host, pair)],
+                ),
+            ];
+            if let Some(m) = unlocking_milestone(pair) {
                 lines.push(tr(host, &format!("milestone.mistbrn.{}.where", m.key)));
             }
             lines
@@ -377,6 +379,18 @@ fn requirement_text(
     String::new()
 }
 
+/// What unlocks `pair`: its milestone, or the first vial of a tutorial pair (iron and steel,
+/// which has no milestone: p8-final hv-tree showed «Unlocked by:» with nothing after it).
+fn unlock_name(host: &dyn ClientHost, pair: Pair) -> String {
+    match unlocking_milestone(pair) {
+        Some(m) => tr(host, &format!("milestone.mistbrn.{}", m.key)),
+        None if CATALOG.tutorial_pairs.contains(&pair) => {
+            tr(host, "notebook.mistbrn.pair.tutorial")
+        }
+        None => String::new(),
+    }
+}
+
 /// The pair whose sector the view is in (`None`: the centre).
 fn sector_in_view(book: &Book) -> Option<Pair> {
     let [x, y] = book.view.pan;
@@ -408,10 +422,11 @@ fn draw_map(
     let (title, line) = match sector_in_view(book) {
         Some(pair) => {
             let line = if !unlocked(pair) {
-                let how = unlocking_milestone(pair).map_or_else(String::new, |m| {
-                    tr(host, &format!("milestone.mistbrn.{}", m.key))
-                });
-                tr_args(host, "notebook.mistbrn.pair.locked", &[how])
+                tr_args(
+                    host,
+                    "notebook.mistbrn.pair.locked",
+                    &[unlock_name(host, pair)],
+                )
             } else {
                 let points = progress.available(Pool::Pair(pair), &CATALOG).to_string();
                 draw_points(p, [right, 4.0], &points);
@@ -480,10 +495,7 @@ fn draw_map(
             continue;
         }
         let [cx, cy] = view.to_local(map::polar(map::LABEL_R, map::bisector(pair)));
-        let mut lines = vec![pair_label(host, pair)];
-        if let Some(m) = unlocking_milestone(pair) {
-            lines.push(tr(host, &format!("milestone.mistbrn.{}", m.key)));
-        }
+        let lines = [pair_label(host, pair), unlock_name(host, pair)];
         let width = lines.iter().map(|l| p.text_width(l)).fold(0.0, f32::max);
         let top = cy - 11.0;
         let backing = [
