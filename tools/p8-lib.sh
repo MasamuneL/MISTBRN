@@ -43,8 +43,9 @@ p8_migrate() {
   report; ctl save >/dev/null; quit_game
   expect_log 1 'MISTBRN event=save_loaded state=found'
   new="$(grep -ah 'MISTBRN_TEST scenario=report state=active ' "$(log 1)" | tail -1)"
-  # Every field the P3c report had is the same, but the schema (3 → 4).
-  for field in $(tr ' ' '\n' <<< "$old" | grep '=' | grep -v '^schema=' | grep -v '^scenario='); do
+  # Every field the P3c report had is the same, but the schema (3 → 4) and what a load and
+  # save change anyway (the revision and the raw bytes' hash).
+  for field in $(tr ' ' '\n' <<< "$old" | grep '=' | grep -Ev '^(schema|scenario|revision|raw_hash)='); do
     if ! tr ' ' '\n' <<< "$new" | grep -qxF -- "$field"; then
       k_fail "after migration, $field changed: $(tr ' ' '\n' <<< "$new" | grep "^${field%%=*}=" || echo missing)"
       missing=1
@@ -83,7 +84,8 @@ p8_scenario() {
       if grep -a 'MISTBRN event=book_view .* pan=92,-92 ' "$(log 1)" | grep -q 'locked\.tin_pewter@'; then
         k_fail "tin and pewter still drawn locked once unlocked"
       else k_ok "the unlocked sector is no silhouette"; fi
-      expect_log 1 'MISTBRN event=book_view .* pan=92,-92 .*locked\.copper_bronze@'
+      # From tin and pewter's sector, iron and steel's push branch shows on the left.
+      expect_log 1 'MISTBRN event=book_view .* pan=92,-92 .*innate\.steel@'
       k_expect_count "no purchase from looking" 'MISTBRN event=purchase ' 0 0 ;;
     g2)  # the mouse: a drag pans and buys nothing, a still press buys, the wheel zooms
       local from x y
@@ -137,9 +139,9 @@ p8_scenario() {
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
-      expect_log 1 'MISTBRN event=purchase node=unknown rank=1 result=Progress(UnknownNode) code=64'
+      expect_log 1 'MISTBRN event=purchase node=unknown rank=1 result=UnknownNode code=64'
       # Flare cost needs economy first.
-      expect_log 1 'MISTBRN event=purchase node=flare_cost rank=1 result=Progress(MissingRequirement) code=18'
+      expect_log 1 'MISTBRN event=purchase node=flare_cost rank=1 result=MissingRequirement code=18'
       expect_log 1 'MISTBRN event=purchase node=economy rank=1 result=ok seq=[0-9]* code=16'
       expect_log 1 'MISTBRN event=purchase node=flare_cost rank=1 result=ok seq=[0-9]* code=18'
       expect 2 report state=active nodes=16:1,18:1

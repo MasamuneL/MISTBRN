@@ -90,7 +90,7 @@ p5_disk_schema() {
       tag = " 07 00 07 6d 69 73 74 62 72 6e( [0-9a-f][0-9a-f]){4} 4d 42 52 4e"
       if (!match(bytes, tag)) exit 1
       split(substr(bytes, RSTART + RLENGTH + 1, 5), schema, " ")
-      if (schema[2] != "00" || (schema[1] != "01" && schema[1] != "02" && schema[1] != "03")) exit 1
+      if (schema[2] != "00" || (schema[1] != "01" && schema[1] != "02" && schema[1] != "03" && schema[1] != "04")) exit 1
       print schema[1] + 0
     }'
 }
