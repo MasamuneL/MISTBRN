@@ -36,7 +36,7 @@ Decisiones del usuario: congelar gates como legacy y borrar `codex/*`; desarroll
 ### Peso del repo (aplicado por `tools/check.sh`)
 - Prohibido versionar: `.horizon/`, `target/`, `mod/Cargo.lock` (el mod no tiene dependencias de registro **propias**; las del SDK se resuelven con el `Cargo.lock` del SDK, que `tools/check.sh` copia temporalmente), logs, capturas, zips, `.dat/.mca`, binarios (`.dylib .so .dll .exe`), mundos, SDK, recursos de Minecraft.
 - Imágenes: solo texturas originales del mod en `mod/assets/mistbrn/textures/**.png`, ≤ 16 KiB cada una (`.gitignore` las excluye del ignore de `*.png`; `tools/check.sh` rechaza cualquier otro PNG o uno mayor).
-- `tools/check.sh` falla si: algún fichero versionado > 64 KiB; extensión prohibida (`zip jpg jpeg gif log dat dat_old mca dylib so dll exe jar tar xz gz`); PNG fuera de texturas o > 16 KiB; árbol versionado (index) > 1 MiB.
+- `tools/check.sh` falla si: algún fichero versionado > 64 KiB; extensión prohibida (`zip jpg jpeg gif log dat dat_old mca dylib so dll exe jar tar xz gz`); PNG fuera de texturas o > 16 KiB; árbol versionado (index) > 1,5 MiB (1 MiB hasta P8; el usuario lo subió el 2026-11-25 porque las tres parejas no caben).
 - Evidencia: un `docs/evidence/<fase>.md` por fase, ≤ 16 KiB, con comandos, SHA del commit probado, SHA256 del artefacto, resultados por escenario y límites. Logs crudos quedan fuera del repo en el runtime root.
 - Estado de reanudación: `docs/STATUS.md` ≤ 60 líneas (sustituye CHECKPOINT.md, progress.md, HANDOFF, PLAN-ADJUSTMENTS). Contiene: rama, commit base, fase y paso, operación en curso, último resultado, siguiente acción exacta.
 
