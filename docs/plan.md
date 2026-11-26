@@ -174,7 +174,7 @@ Regla común: al empezar una fase, comprobar en `surface.json` del SDK que exist
 | P5 habilidades/investigación | `feat/p5-progress` | V1 | árboles, experiencia por práctica, investigación con pistas; **esquema de guardado 2 + migración 1→2** | Tests core + fixture v1 migrado; escenario en juego |
 | P6 hitos | `feat/p6-milestones` | P5 | fragmentos ligados a bastión, guardián, ciudad antigua, dragona; reclamo único por jugador | Duplicados rechazados en core y en juego |
 | P7b UI completa | `feat/p7b-ui` | P5 | libro, árboles, pistas | Revisión visual del usuario. Integrado en `917b40d` (PR #20) con 32/32 en `p7b-final` y dos revisiones. [Evidencia](evidence/p7b.md) |
-| P8 tres parejas restantes | `feat/p8-<pareja>` | P7b | estaño/peltre, zinc/latón, cobre/bronce | Pruebas por pareja |
+| P8 tres parejas restantes | `feat/p8-map`, `feat/p8-tin-pewter`, `feat/p8-zinc-brass`, `feat/p8-copper-bronze` | P7b, P3c | mapa radial único; estaño/peltre, zinc/latón, cobre/bronce | Pruebas por rama (ver P8) |
 | P9 cooperativo | `feat/p9-coop` | P8 | autoridad servidor con 2 clientes, server export dedicado | Dos clientes reales; si no se logra, se entrega individual y se documenta |
 | P10 publicación | `feat/p10-release` | P8 (P9 opcional) | `.hmod`, verificación **Windows x64 y Linux x64** con el mismo pin (incluye `tools/*.sh` en Git Bash: `cygpath`, `tasklist`/`taskkill`, `jq` instalado), código de escenarios inactivo sin variable y sin sondas `mistbrn_probe*` en un mundo jugado sin ella, licencias de assets | Build y S1/S4/S5 en Windows x64 y Linux x64 PASS; paquete sin recursos de terceros |
 
@@ -378,3 +378,19 @@ Aprobado por el usuario el 2026-11-24.
 **Implementación**: `prepare_basic_vial` en el núcleo (exactly-once con `commit_credit`); el progreso de la tanda en el nbt del block entity y la barra en un data slot; la tanda se identifica por ingrediente y huecos. Formatos de datos 26.3 (botín con `condition`/`modifier`, `simple_block` con `to_place`). Pruebas en Windows x64, instancia `mistbrn-p3c`.
 
 **Escenarios** (`tools/p3c-lib.sh`): A1 vial de agua; A2 sal (piedra, Toque de Seda, arena de playa y llanura, horno); A3 alambique (dos etapas, 600 ticks, guardado a mitad, etapa equivocada, vial tardío, rotura); A4 vial de básicos (rechazo, crédito, fallo forzado); A5 receta vieja; A6 worldgen; AV capturas. [Evidencia](evidence/p3c.md) · [Guía](p3c-guide.md)
+
+### P8 — Mapa único y las tres parejas
+
+Aprobado por el usuario el 2026-11-25. Cuatro ramas, cada una con su batería y su PR: `feat/p8-map` (núcleo común y mapa), `feat/p8-tin-pewter`, `feat/p8-zinc-brass` y `feat/p8-copper-bronze`.
+
+**Decisiones del usuario**
+- El árbol es **un mapa radial único**: General en el centro y cuatro sectores colocados como la tabla alomántica (hierro/acero físico externo arriba a la izquierda, estaño/peltre físico interno arriba a la derecha, cobre/bronce mental interno abajo a la derecha, zinc/latón mental externo abajo a la izquierda). En cada sector, rama de tirar y rama de empujar y la combinada al fondo; nodos puente entre sectores vecinos; sectores bloqueados como siluetas hasta su hito. Diseño propio (inspiración de género: árboles radiales).
+- Puntos: el centro con conocimiento; cada sector, solo con los puntos de su pareja; un puente con los de sus dos parejas si su efecto es de ellas, con conocimiento si es una mejora general.
+- Alcance por pareja: los dos poderes propios con sus subnodos, la segunda técnica de cada rama con los suyos y la combinada; las terceras técnicas quedan como siluetas. Hierro/acero solo se recoloca. Una investigación por pareja, que abre su combinada. Cobre/bronce con emisor y guardián alomántico.
+- Límite del árbol versionado: 1,5 MiB.
+
+**`feat/p8-map`**
+- Núcleo: códigos de nodo hasta 127 (op 9 «comprar alto», `arg = (código − 64) << 2 | rango`); `Pool::Bridge(a, b)` cobra el coste a las dos parejas, que deben ser vecinas; esquema 4: las ventanas de práctica de las categorías 3–10 van antes del byte de hitos (`n_extra ≤ 8`, las que faltan se leen sin abrir; una ventana de una categoría que el catálogo no define debe estar sin abrir), migración 3→4. General: `flare_cost` (18, pide `economy` 1; avivado ×3 → ×2,7 / ×2,4) y `dosing` (20, pide `capacity` 1; cada vial +10 / +20 % hasta la capacidad), derivados al usarse, sin guardarse. `simultaneous` (19) y `transition` (21) llegan con estaño/peltre.
+- Libro: la pestaña Árboles es el mapa (`book/map.rs`): abre centrado en la pareja seleccionada al 100 %; arrastre (un clic se resuelve al soltar, umbral de 3 px), rueda = zoom 50–200 % alrededor del puntero, flechas al nodo más cercano en esa dirección, Re Pág/Av Pág por los sectores, `+`/`−` e Inicio. Objetivos con nombre `node.N`, `innate.<metal>`, `locked.<pareja>`. Iconos de `flare_cost` y `dosing` en una fila nueva del atlas (128×80; Codex APROBADO).
+- Escenarios (`tools/p8-lib.sh`): G1 sectores y siluetas, G2 arrastre, clic y zoom, G3 op 9 y avivado eficiente (consumo medido), G4 dosificación, M4 un mundo P3c real (hito reclamado) migra 3→4. L1 y L2 siguen al mapa; M1, M3 y PD1 esperan el esquema 4 y S10 bloquea el 5.
+

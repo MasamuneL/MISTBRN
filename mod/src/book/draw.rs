@@ -460,24 +460,6 @@ fn draw_map(
             }
         }
     }
-    // A locked sector's name and the milestone that opens it, over its silhouette.
-    for pair in map::SECTOR_ORDER {
-        if unlocked(pair) {
-            continue;
-        }
-        let [cx, cy] = view.to_local(map::polar(map::LABEL_R, map::bisector(pair)));
-        let name = pair_label(host, pair);
-        p.text(
-            &name,
-            [cx - p.text_width(&name) / 2.0, cy - 10.0],
-            DIM,
-            true,
-        );
-        if let Some(m) = unlocking_milestone(pair) {
-            let how = tr(host, &format!("milestone.mistbrn.{}", m.key));
-            p.text(&how, [cx - p.text_width(&how) / 2.0, cy + 1.0], DIM, true);
-        }
-    }
     // The pulse of a node that can be bought: a soft brightening every 1.5 s, none when
     // `reduce_flashes` is on.
     let pulse = if look.steady {
@@ -489,6 +471,33 @@ fn draw_map(
     for (target, rect, _) in targets(book, progress) {
         if !matches!(target, Target::Tab(_)) && overlaps(rect, CANVAS) {
             draw_place(p, target, rect, progress, unlocked, hovered, pulse);
+        }
+    }
+    // A locked sector's name and the milestone that opens it, over its silhouette (on a dark
+    // backing, after the places, so no silhouette covers it: p8-2 l1-zoomed-out).
+    for pair in map::SECTOR_ORDER {
+        if unlocked(pair) {
+            continue;
+        }
+        let [cx, cy] = view.to_local(map::polar(map::LABEL_R, map::bisector(pair)));
+        let mut lines = vec![pair_label(host, pair)];
+        if let Some(m) = unlocking_milestone(pair) {
+            lines.push(tr(host, &format!("milestone.mistbrn.{}", m.key)));
+        }
+        let width = lines.iter().map(|l| p.text_width(l)).fold(0.0, f32::max);
+        let top = cy - 11.0;
+        let backing = [
+            cx - width / 2.0 - 3.0,
+            top - 2.0,
+            width + 6.0,
+            11.0 * lines.len() as f32 + 3.0,
+        ];
+        if overlaps(backing, CANVAS) {
+            p.fill(backing, 0xE010_1114);
+            for (i, line) in lines.iter().enumerate() {
+                let at = [cx - p.text_width(line) / 2.0, top + 11.0 * i as f32];
+                p.text(line, at, DIM, true);
+            }
         }
     }
     p.pop_clip();
