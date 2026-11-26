@@ -134,7 +134,7 @@ p8_scenario() {
       ctl command "tp @s 512.5 100 512.5" >/dev/null
       ctl look 0 90 >/dev/null
       ctl command "mistbrn-test burn iron flare" >/dev/null
-      ctl wait 100 >/dev/null
+      ctl wait 400 >/dev/null
       ctl command "mistbrn-test off" >/dev/null
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
@@ -145,11 +145,12 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=purchase node=economy rank=1 result=ok seq=[0-9]* code=16'
       expect_log 1 'MISTBRN event=purchase node=flare_cost rank=1 result=ok seq=[0-9]* code=18'
       expect 2 report state=active nodes=16:1,18:1
-      # 100 ± 5 ticks flared at 10 × 0.95 × 2.7 = 25.65 a tick (× 3 would be 28.5).
+      # 400 ticks flared (plus up to ~17 of command latency; p8-2 saw 6 on 100) at
+      # 10 × 0.95 × 2.7 = 25.65 a tick; × 3 (28.5) would use 11 400 or more.
       reserve="$(field 2 report reserve_iron)"
       used=$((30000 - reserve))
-      if (( used >= 2437 && used <= 2694 )); then k_ok "flared fuel used: $used (x2.7)"
-      else k_fail "flared fuel used: $used, expected 2437..2694 (x2.7; x3 gives ~2850)"; fi ;;
+      if (( used >= 10260 && used <= 10700 )); then k_ok "flared fuel used: $used (x2.7)"
+      else k_fail "flared fuel used: $used, expected 10260..10700 (x2.7; x3 gives 11400+)"; fi ;;
     g4)  # dosing: an iron vial gives 10 % more with dosing 1
       launch MISTBRN_TEST_SCENARIO=p4
       p6_place
