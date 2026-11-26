@@ -125,8 +125,14 @@ pub(crate) struct Press {
     pub(crate) dragged: bool,
 }
 
-/// How far (local pixels) a press may move and still be a click.
+/// How far (GUI pixels, whatever the book's scale) a press may move and still be a click.
 const CLICK_SLOP: f32 = 3.0;
+
+/// A distance in the book's local pixels as GUI pixels, at the last frame's scale.
+fn gui_distance(book: &Book, from: [f32; 2], to: [f32; 2]) -> f32 {
+    let scale = book.frame.map_or(1.0, |(_, scale)| scale);
+    ((to[0] - from[0]).powi(2) + (to[1] - from[1]).powi(2)).sqrt() * scale
+}
 
 /// Every place of the map as the player sees it: a locked pair's places are its silhouette.
 fn shown_places(unlocked: &dyn Fn(Pair) -> bool) -> Vec<(Target, [f32; 2])> {
@@ -388,11 +394,14 @@ pub(crate) fn press(book: &mut Book, progress: &Progress, at: [f32; 2]) -> bool 
 
 /// The held button moved by `delta` local pixels: past the slop, the map follows it.
 pub(crate) fn drag(book: &mut Book, at: [f32; 2], delta: [f32; 2]) -> bool {
+    let Some(start) = book.press.map(|p| p.at) else {
+        return false;
+    };
+    let moved = gui_distance(book, start, at);
     let Some(press) = book.press.as_mut() else {
         return false;
     };
     if !press.dragged {
-        let moved = ((at[0] - press.at[0]).powi(2) + (at[1] - press.at[1]).powi(2)).sqrt();
         if moved < CLICK_SLOP {
             return true;
         }
@@ -420,7 +429,7 @@ pub(crate) fn release(
     let Some(press) = book.press.take() else {
         return (false, None);
     };
-    let moved = ((at[0] - press.at[0]).powi(2) + (at[1] - press.at[1]).powi(2)).sqrt();
+    let moved = gui_distance(book, press.at, at);
     // A release past the slop is a drag even if no drag event said so (Codex review, round 2).
     let still = book.tab == Tab::Tree
         && moved < CLICK_SLOP
@@ -716,6 +725,19 @@ mod tests {
             ),
             (true, None)
         );
+        // At 125 % the slop is 3 GUI pixels: 2.5 local pixels (3.1 GUI) already drag (Codex r3).
+        book.frame = Some(([0.0, 0.0], 1.25));
+        assert!(press(&mut book, &progress_with_points, at));
+        assert_eq!(
+            release(
+                &mut book,
+                &progress_with_points,
+                [at[0] + 2.5, at[1]],
+                |_| true
+            ),
+            (true, None)
+        );
+        book.frame = None;
         // Outside the map, a press is not ours.
         assert!(!press(&mut book, &progress, [1.0, 1.0]));
     }

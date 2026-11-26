@@ -234,8 +234,8 @@ fn dosing_fills_what_room_is_left_after_the_vial() {
     let mut saved = knowing();
     commit(&mut saved, |s| prepare_purchase(s, NODE_CAPACITY, 1));
     commit(&mut saved, |s| prepare_purchase(s, NODE_DOSING, 1));
-    // Iron at 25 000 of 110 000: two vials (27 500 each) leave 30 000; the third gets 25 000
-    // and 2 500 of its bonus; then 2 500 room: refused, the vial alone does not fit.
+    // Iron at 25 000 of 110 000: two vials (27 500 each) reach 80 000; 26 000 and its 2 600
+    // bonus reach 108 600; then 1 000 and its 100 fit the 1 400 left.
     for _ in 0..2 {
         commit(&mut saved, |s| {
             prepare_vial(s, Metal::Iron, 25_000).map(|(p, _)| p)
