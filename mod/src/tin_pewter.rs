@@ -156,6 +156,8 @@ fn ours(effect: &ActiveEffect, given: Option<u64>, tick: u64) -> bool {
         && effect.ambient
         && !effect.visible
         && !effect.show_icon
+        // An infinite one (-1) is never ours.
+        && effect.duration > 0
         && (expected - 2..=expected).contains(&i64::from(effect.duration))
 }
 
