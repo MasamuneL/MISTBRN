@@ -91,7 +91,8 @@ struct Player {
     pewter: Option<bool>,
     /// Pewter's modifiers on the player, as applied.
     body: Option<PewterBody>,
-    night_vision: bool,
+    /// The tick this module last gave night vision (None: the active one, if any, is not ours).
+    night_vision: Option<u64>,
     flared_since: Option<u64>,
     last_stun: Option<u64>,
     dodge_ready: u64,
@@ -142,20 +143,31 @@ fn lit(burn: BurnState) -> Option<bool> {
     }
 }
 
-/// Ours: the hidden night vision this module gives (no particles, no icon, never longer).
-fn ours(effect: &ActiveEffect) -> bool {
+/// Ours: the hidden night vision this module gave at `given`, still counting down from it
+/// (a tick or two of slack). Anything else, even with the same flags, belongs to someone else.
+fn ours(effect: &ActiveEffect, given: Option<u64>, tick: u64) -> bool {
+    let Some(given) = given else {
+        return false;
+    };
+    let expected = i64::from(NIGHT_VISION_TICKS) - tick.saturating_sub(given) as i64;
     effect.amplifier == 0
         && effect.ambient
         && !effect.visible
         && !effect.show_icon
-        && (0..=NIGHT_VISION_TICKS).contains(&effect.duration)
+        && (i64::from(effect.duration) - expected).abs() <= 2
 }
 
-fn remove_night_vision(host: &mut dyn ServerHost, living: LivingRef, effects: Effects) {
+fn remove_night_vision(
+    host: &mut dyn ServerHost,
+    living: LivingRef,
+    effects: Effects,
+    given: Option<u64>,
+    tick: u64,
+) {
     let read: &dyn Host = host;
     if living
         .effect(read, effects.night_vision)
-        .is_some_and(|effect| ours(&effect))
+        .is_some_and(|effect| ours(&effect, given, tick))
     {
         let _ = living.remove_effect(host, effects.night_vision);
     }
@@ -352,16 +364,15 @@ impl TinPewterPowers {
     /// still reachable; otherwise what is left of it (20 s at most) runs out after the next login.
     pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
         self.clear(uuid, "logout");
-        let gave = self
+        let given = self
             .players
             .remove(&uuid)
-            .is_some_and(|entry| entry.night_vision);
+            .and_then(|entry| entry.night_vision);
+        let tick = self.tick;
         if let (Some(player), Some(&effects)) = (host.player(uuid), EFFECTS.get()) {
             let read: &dyn Host = host;
             if let Some(living) = read.living(player.entity()) {
-                if gave {
-                    remove_night_vision(host, living, effects);
-                }
+                remove_night_vision(host, living, effects, given, tick);
                 set_body(host, living, None);
             }
         }
@@ -592,14 +603,20 @@ impl TinPewterPowers {
         if left < DODGE_COST_MILLI {
             return Err("NotEnough".into());
         }
+        // The spent save is prepared and validated on a copy first, so a refused change
+        // never leaves a free dodge; it is installed only once the player has moved.
+        let mut spent = saved.clone();
+        let rules = spent.rules().clone();
+        update_player(&mut spent, |state, accounting| {
+            spend_reserve(state, accounting, &rules, Metal::Pewter, DODGE_COST_MILLI)
+        })
+        .map_err(|error| format!("{error:?}"))?;
         if !player.set_velocity(host, velocity) {
             return Err("NoMove".into());
         }
         session.change(uuid, true, |saved| {
-            let rules = saved.rules().clone();
-            update_player(saved, |state, accounting| {
-                spend_reserve(state, accounting, &rules, Metal::Pewter, DODGE_COST_MILLI)
-            })
+            *saved = spent;
+            Ok(())
         })?;
         entry.dodge_ready = tick + DODGE_COOLDOWN;
         entry.iframes_until = tick + DODGE_IFRAMES;
@@ -623,9 +640,9 @@ fn tin_tick(
     tick: u64,
 ) {
     let Some(flared) = entry.tin else {
-        if entry.night_vision {
-            remove_night_vision(host, living, effects);
-            entry.night_vision = false;
+        if entry.night_vision.is_some() {
+            remove_night_vision(host, living, effects, entry.night_vision, tick);
+            entry.night_vision = None;
             eprintln!("MISTBRN event=power power=night_vision state=off");
         }
         entry.heard.clear();
@@ -634,10 +651,12 @@ fn tin_tick(
         return;
     };
     let read: &dyn Host = host;
-    // A potion's night vision is left alone; ours is renewed before it runs low.
+    // Someone else's night vision is left alone; ours is renewed before it runs low.
     let renew = living
         .effect(read, effects.night_vision)
-        .is_none_or(|effect| ours(&effect) && effect.duration <= NIGHT_VISION_RENEW);
+        .is_none_or(|effect| {
+            ours(&effect, entry.night_vision, tick) && effect.duration <= NIGHT_VISION_RENEW
+        });
     if renew {
         let given = living.add_effect(
             host,
@@ -650,10 +669,12 @@ fn tin_tick(
                 false,
             ),
         );
-        if !entry.night_vision && given {
-            eprintln!("MISTBRN event=power power=night_vision state=on");
+        if given {
+            if entry.night_vision.is_none() {
+                eprintln!("MISTBRN event=power power=night_vision state=on");
+            }
+            entry.night_vision = Some(tick);
         }
-        entry.night_vision |= given;
     }
     entry.heard.retain(|_, (until, _)| *until >= tick);
     clarity(host, living, entry, effects, tick);
