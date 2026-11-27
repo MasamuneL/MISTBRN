@@ -548,11 +548,12 @@ impl Hooks for Allomancy {
         side: HostSide<'_>,
         event: &mut PlayLevelSoundAtPositionEvent<'_>,
     ) -> Flow {
-        if let HostSide::Server(host) = side {
-            match self.tin_pewter.try_lock() {
+        match side {
+            HostSide::Server(host) => match self.tin_pewter.try_lock() {
                 Ok(mut tin_pewter) => tin_pewter.sound(host, event.level, event.position),
                 Err(_) => tin_pewter::debug_sound("busy", event.position),
-            }
+            },
+            _ => tin_pewter::debug_sound("client", event.position),
         }
         Flow::Continue
     }
