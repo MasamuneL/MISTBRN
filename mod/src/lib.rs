@@ -26,11 +26,11 @@ use mod_api::{
     FurnaceSmeltEvent, GuiLayerDrawEvent, Hooks, HostSide, InteractionResult,
     ItemPickedUpPostEvent, LevelHost, LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent,
     LivingDeathEvent, LivingDeathPostEvent, LivingEntityUseItemFinishEvent, LivingFallEvent,
-    LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide, MobEffectAddedEvent,
-    MovementInputEvent, PlayLevelSoundAtPositionEvent, PlayerChangedDimensionEvent,
-    PlayerCloneEvent, PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent,
-    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent,
-    Registrar, RegistrationContext, RenderFogEvent, RightClickItemEvent, RunModCommandEvent,
+    LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide, MovementInputEvent,
+    PlayLevelSoundAtPositionEvent, PlayerChangedDimensionEvent, PlayerCloneEvent,
+    PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent,
+    PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar,
+    RegistrationContext, RenderFogEvent, RightClickItemEvent, RunModCommandEvent,
     ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
     ScreenMouseButtonReleasedPreEvent, ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent,
     ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
@@ -588,14 +588,6 @@ impl Hooks for Allomancy {
     fn living_jump_power(&self, context: &dyn LoopContext, event: &mut LivingJumpPowerEvent<'_>) {
         if context.side() == LoopSide::Client {
             senses::jump(event.entity, &mut event.power);
-        }
-    }
-
-    fn mob_effect_added(&self, host: &mut dyn ServerHost, event: &mut MobEffectAddedEvent) {
-        if let Some(entity) = event.entity
-            && let Ok(mut tin_pewter) = self.tin_pewter.try_lock()
-        {
-            tin_pewter.effect_added(host, event.effect, entity);
         }
     }
 

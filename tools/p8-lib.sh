@@ -218,8 +218,8 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=burn metal=iron burn=burning result=TooManyBurning changed=0'
       expect_log 1 'MISTBRN event=purchase node=simultaneous rank=1 result=ok seq=[0-9]* code=19'
       expect_log 1 'MISTBRN event=burn metal=iron burn=burning result=ok changed=1'
-      expect 2 report state=active burn_iron=burning burn_tin=burning burn_pewter=burning \
-        nodes=17:1,19:1 ;;
+      # Reconnecting puts every metal out: the three lit at once show in the log above.
+      expect 2 report state=active nodes=17:1,19:1 ;;
     tp1)  # senses: hidden night vision on and off, farther fog, the stun in daylight, clarity
       p8_tp
       p8_tp_xp 1000
@@ -262,9 +262,12 @@ p8_scenario() {
       ctl command "summon minecraft:cow 519.5 100 512.5 {NoAI:1b,Tags:[heard]}" >/dev/null
       ctl look -90 0 >/dev/null
       ctl command "mistbrn-test burn tin" >/dev/null
-      ctl wait 10 >/dev/null
-      ctl command "damage @e[tag=heard,limit=1] 1 minecraft:generic" >/dev/null
-      ctl wait 10 >/dev/null
+      # The cow's own ambient sound is the server's (hurt sounds are played by clients): wait
+      # for it, up to 800 ticks.
+      for _ in $(seq 40); do
+        grep -aq 'MISTBRN event=heard ' "$sockdir/l$launch_no.log" 2>/dev/null && break
+        ctl wait 20 >/dev/null
+      done
       book_shot tp2-heard
       ctl command "damage @e[tag=heard,limit=1] 1 minecraft:player_attack by @s" >/dev/null
       ctl wait 10 >/dev/null

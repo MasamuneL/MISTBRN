@@ -2,13 +2,14 @@
 //!
 //! Each server tick reconciles what a player has lit with what this module put on them: tin's
 //! hidden night vision, the stun in bright light, pewter's attribute modifiers, the flare's
-//! tiredness and the drag after a long flare. Hooks read the same state (by entity id): the
-//! damage and fall hooks scale pewter's damage, the sound hook marks what tin hears, the effect
-//! hook shortens darkness and blindness. Nothing here is saved: putting the metal out, dying,
+//! tiredness, the drag after a long flare and clarity (darkness and blindness shortened: the
+//! game's effect hooks only see content mods' own effects). Hooks read the same state (by
+//! entity id): the damage and fall hooks scale pewter's damage, the sound hook marks what tin
+//! hears. Nothing here is saved: putting the metal out, dying,
 //! changing dimension or reconnecting undoes it (`event=power_cleared`).
 //!
-//! Hooks may fire while this module's own tick holds its lock (an effect it adds runs the
-//! effect hook): they use `try_lock` and skip, which is what this module's own changes want.
+//! Hooks may fire while this module's own tick holds its lock: they use `try_lock` and skip,
+//! which is what this module's own changes want.
 use crate::bridge::Session;
 use allomancy_core::{
     BurnState, CATALOG, DODGE_COOLDOWN, DODGE_COST_MILLI, DODGE_IFRAMES, EVIDENCE_FALL,
@@ -29,6 +30,8 @@ use std::sync::OnceLock;
 pub(crate) const SENSES_CHANNEL: &str = "mistbrn:senses";
 /// The senses list goes at most this often.
 const SENSES_EVERY_TICKS: u64 = 5;
+/// The stun's blindness is left alone by clarity for this long after it is given.
+const STUN_GRACE: u64 = 45;
 /// Tin's darkness check (research evidence) runs this often.
 const DARK_EVERY_TICKS: u64 = 20;
 
@@ -99,6 +102,8 @@ struct Player {
     unseen_seen: bool,
     /// Login, respawn, dimension: clear everything this module may have left, then reconcile.
     fresh: bool,
+    /// The darkness and blindness clarity last shortened: (tick, duration it was left with).
+    clarified: [Option<(u64, i32)>; 2],
 }
 
 /// A player with tin lit, for the sound hook.
@@ -466,67 +471,6 @@ impl TinPewterPowers {
         Some(multiplier)
     }
 
-    /// An effect just added: tin's clarity shortens darkness and blindness, and either one with
-    /// tin lit is the threshold research's evidence.
-    pub(crate) fn effect_added(
-        &mut self,
-        host: &mut dyn ServerHost,
-        effect: EffectKey,
-        entity: i32,
-    ) {
-        let Some(&effects) = EFFECTS.get() else {
-            return;
-        };
-        if effect != effects.darkness && effect != effects.blindness {
-            return;
-        }
-        let Some((uuid, player)) = u32::try_from(entity)
-            .ok()
-            .and_then(|entity| self.player_of(entity))
-        else {
-            return;
-        };
-        if player.tin.is_none() {
-            return;
-        }
-        let rules = player.rules;
-        if let Some(entry) = self.players.get_mut(&uuid)
-            && !entry.dark_seen
-        {
-            entry.dark_seen = true;
-            self.observations.push((uuid, evidence(EVIDENCE_TIN_DARK)));
-        }
-        if !rules.has_clarity() {
-            return;
-        }
-        let Some(player) = host.player(uuid) else {
-            return;
-        };
-        let read: &dyn Host = host;
-        let Some(living) = read.living(player.entity()) else {
-            return;
-        };
-        let Some(active) = living.effect(read, effect) else {
-            return;
-        };
-        let left = rules.clarity(active.duration);
-        let _ = living.remove_effect(host, effect);
-        if left > 0 {
-            let _ = living.add_effect(
-                host,
-                &ActiveEffect::new(
-                    effect,
-                    left,
-                    active.amplifier,
-                    active.ambient,
-                    active.visible,
-                    active.show_icon,
-                ),
-            );
-        }
-        eprintln!("MISTBRN event=clarity from={} to={left}", active.duration);
-    }
-
     /// A creature died: a hostile one killed by a player with pewter lit is practice.
     pub(crate) fn died(&mut self, kind: &str, source: &HurtSource<'_>) {
         let Some((uuid, player)) = u32::try_from(source.causing)
@@ -624,6 +568,7 @@ fn tin_tick(
         entry.night_vision |= given;
     }
     entry.heard.retain(|_, (until, _)| *until >= tick);
+    clarity(host, living, entry, effects, tick);
     if !flared || entry.last_stun.is_some_and(|at| tick < at + STUN_COOLDOWN) {
         return;
     }
@@ -640,6 +585,58 @@ fn tin_tick(
             &ActiveEffect::new(effects.blindness, ticks as i32, 0, false, true, true),
         );
         eprintln!("MISTBRN event=stun light={light} ticks={ticks}");
+    }
+}
+
+/// Tin's clarity: a darkness or blindness not yet shortened (one this module did not leave)
+/// keeps only its share. The game's effect hooks only see content mods' own effects, so this
+/// runs each tick instead.
+fn clarity(
+    host: &mut dyn ServerHost,
+    living: LivingRef,
+    entry: &mut Player,
+    effects: Effects,
+    tick: u64,
+) {
+    if !entry.rules.has_clarity() {
+        return;
+    }
+    for (slot, key) in [effects.darkness, effects.blindness]
+        .into_iter()
+        .enumerate()
+    {
+        let read: &dyn Host = host;
+        let Some(active) = living.effect(read, key) else {
+            entry.clarified[slot] = None;
+            continue;
+        };
+        // Ours: what was left, counted down since (a tick or two of slack).
+        let ours = entry.clarified[slot].is_some_and(|(at, left)| {
+            let expected = i64::from(left) - (tick - at) as i64;
+            (i64::from(active.duration) - expected).abs() <= 2
+        });
+        // The stun's own blindness is already its length.
+        let stun = slot == 1 && entry.last_stun.is_some_and(|at| tick - at <= STUN_GRACE);
+        if ours || stun || active.duration < 0 {
+            continue;
+        }
+        let left = entry.rules.clarity(active.duration);
+        let _ = living.remove_effect(host, key);
+        if left > 0 {
+            let _ = living.add_effect(
+                host,
+                &ActiveEffect::new(
+                    key,
+                    left,
+                    active.amplifier,
+                    active.ambient,
+                    active.visible,
+                    active.show_icon,
+                ),
+            );
+        }
+        entry.clarified[slot] = Some((tick, left));
+        eprintln!("MISTBRN event=clarity from={} to={left}", active.duration);
     }
 }
 
