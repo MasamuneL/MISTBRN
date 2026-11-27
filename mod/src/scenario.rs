@@ -235,9 +235,11 @@ pub(crate) fn progress_fields(saved: &SavedPlayer) -> String {
         .map(|w| format!("{}/{}", w.start, w.count))
         .collect();
     format!(
-        "xp_iron_steel={} pair_points={} knowledge={} nodes={} research={} windows={} selected_pair={} capacity_iron={} reduction={} milestones={} unlocked_pairs={}",
+        "xp_iron_steel={} pair_points={} xp_tin_pewter={} tp_points={} knowledge={} nodes={} research={} windows={} selected_pair={} capacity_iron={} reduction={} milestones={} unlocked_pairs={}",
         progress.pair_xp(Pair::IronSteel),
         progress.available(Pool::Pair(Pair::IronSteel), &CATALOG),
+        progress.pair_xp(Pair::TinPewter),
+        progress.available(Pool::Pair(Pair::TinPewter), &CATALOG),
         progress.available(Pool::Knowledge, &CATALOG),
         if nodes.is_empty() {
             "-".into()
@@ -303,7 +305,7 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
             let steel = saved.state().metals[Metal::Steel.index()];
             let progress = progress_fields(saved);
             format!(
-                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} reserve_steel={} reserve_tin={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
+                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} reserve_steel={} reserve_tin={} burn_tin={} reserve_pewter={} burn_pewter={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
                 iron.reserve_milli,
                 burn_name(iron.burn),
                 iron.unlocked,
@@ -311,6 +313,9 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
                 burn_name(steel.burn),
                 steel.reserve_milli,
                 saved.state().metals[Metal::Tin.index()].reserve_milli,
+                burn_name(saved.state().metals[Metal::Tin.index()].burn),
+                saved.state().metals[Metal::Pewter.index()].reserve_milli,
+                burn_name(saved.state().metals[Metal::Pewter.index()].burn),
                 saved.accounting().remainder[Metal::Iron.index()],
                 saved.revision(),
                 saved.last_transaction(),

@@ -344,8 +344,11 @@ impl Hooks for Allomancy {
         };
         match command.literals.get(1).map(String::as_str) {
             Some("xp") => {
+                let category = integer("category")
+                    .and_then(|c| u8::try_from(c).ok())
+                    .unwrap_or(allomancy_core::PRACTICE_ANCHOR_MOVE);
                 self.session()
-                    .test_xp(host, *player, integer("amount").unwrap_or(0));
+                    .test_xp(host, *player, integer("amount").unwrap_or(0), category);
                 return Flow::Cancel;
             }
             Some(probe @ ("bastion-find" | "bastion-probe")) => {
@@ -357,7 +360,13 @@ impl Hooks for Allomancy {
                 let bit = integer("bit")
                     .and_then(|b| u8::try_from(b).ok())
                     .unwrap_or(0);
-                let kind = anchor_evidence(bit);
+                let kind = match integer("research").and_then(|r| u16::try_from(r).ok()) {
+                    Some(research) => allomancy_core::EventKind::ResearchEvidence {
+                        research,
+                        evidence: bit,
+                    },
+                    None => anchor_evidence(bit),
+                };
                 let mut session = self.session();
                 session.observe_event(host, *player, kind);
                 session.flush(host, *player);

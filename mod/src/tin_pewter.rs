@@ -440,7 +440,11 @@ impl TinPewterPowers {
             eprintln!("MISTBRN event=dodged damage_type={}", source.damage_type);
             return (true, None);
         }
-        let Some(flared) = player.pewter else {
+        // Falls have their own multiplier (`fall`).
+        let Some(flared) = player
+            .pewter
+            .filter(|_| source.damage_type != "minecraft:fall")
+        else {
             return (false, None);
         };
         let taken = damage * player.rules.body(flared).damage_taken;

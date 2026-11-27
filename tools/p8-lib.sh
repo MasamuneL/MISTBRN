@@ -22,11 +22,34 @@ p8_buy() {
   ctl wait 10 >/dev/null
 }
 
+# p8_tp: P4's box (peaceful, creative), tin and pewter unlocked by test credits (30 000 each)
+# and selected.
+p8_tp() {
+  p4_fixture
+  ctl command "mistbrn-test credit tin 30000" >/dev/null
+  ctl command "mistbrn-test credit pewter 30000" >/dev/null
+  ctl command "mistbrn-test inject select_tin_pewter" >/dev/null
+  ctl wait 5 >/dev/null
+}
+
+# p8_tp_xp AMOUNT: tin and pewter experience (pewter fall practice in past windows, 10 a step).
+p8_tp_xp() { ctl command "mistbrn-test xp $1 4" >/dev/null; ctl wait 5 >/dev/null; }
+
+# p8_log_range LABEL PATTERN FIELD MIN MAX: FIELD of the first launch-1 line matching PATTERN
+# lies in MIN..MAX (integers; a decimal value is cut at its point).
+p8_log_range() {
+  local value
+  value="$({ grep -a "$2" "$(log 1)" || true; } | head -1 | tr ' ' '\n' | sed -n "s/^$3=//p")"
+  value="${value%%.*}"
+  if [[ "$value" =~ ^[0-9]+$ ]] && (( value >= $4 && value <= $5 )); then k_ok "$1: $value"
+  else k_fail "$1: '${value}' not in $4..$5"; fi
+}
+
 # p8_migrate: a real P3c world (schema 3 on disk, a claimed milestone) loads and saves
 # schema 4 with everything it had (P8 adds only unopened practice windows).
 p8_migrate() {
   local name="${MISTBRN_P3C_FIXTURE:-p3c-fixture-h2}" src uuid player before after old new
-  local field value missing=0
+  local field value old_windows missing=0
   src="$RT/runs/$name"
   [[ -d "$src/saves/mistbrn-h2" && -s "$src/horizon-player.txt" ]] ||
     die "incomplete P3c migration fixture: $src (an h2 run of a P3c build as $name)"
@@ -45,13 +68,18 @@ p8_migrate() {
   new="$(grep -ah 'MISTBRN_TEST scenario=report state=active ' "$(log 1)" | tail -1)"
   # Every field the P3c report had is the same, but the schema (3 → 4) and what a load and
   # save change anyway (the revision and the raw bytes' hash).
-  for field in $(tr ' ' '\n' <<< "$old" | grep '=' | grep -Ev '^(schema|scenario|revision|raw_hash)='); do
+  for field in $(tr ' ' '\n' <<< "$old" | grep '=' | grep -Ev '^(schema|scenario|revision|raw_hash|windows)='); do
     if ! tr ' ' '\n' <<< "$new" | grep -qxF -- "$field"; then
       k_fail "after migration, $field changed: $(tr ' ' '\n' <<< "$new" | grep "^${field%%=*}=" || echo missing)"
       missing=1
     fi
   done
   [[ "$missing" == 0 ]] && k_ok "every report field kept"
+  # The windows list grows with the catalog's categories (tin and pewter's are new, unopened).
+  old_windows="$(tr ' ' '\n' <<< "$old" | sed -n 's/^windows=//p')"
+  value="$(tr ' ' '\n' <<< "$new" | sed -n 's/^windows=//p')"
+  if [[ "$value" == "$old_windows",* ]]; then k_ok "windows kept, new ones after: $value"
+  else k_fail "windows changed: $old_windows -> $value"; fi
   value="$(tr ' ' '\n' <<< "$new" | sed -n 's/^schema=//p')"
   if [[ "$value" == 4 ]]; then k_ok "reported schema 4"; else k_fail "reported schema $value"; fi
   after="$(p5_disk_schema "$player")" || die "could not read the schema from $player"
@@ -171,6 +199,191 @@ p8_scenario() {
       expect 2 report state=active reserve_iron=57500 nodes=17:1,20:1 ;;
     m4)
       p8_migrate ;;
+    g5)  # simultaneous burning: a third metal is refused, then lit once the node is bought
+      p8_tp
+      ctl command "mistbrn-test credit iron 30000" >/dev/null
+      p8_knowledge
+      ctl command "gamemode creative" >/dev/null
+      p6_place
+      ctl command "mistbrn-test burn tin" >/dev/null
+      ctl command "mistbrn-test burn pewter" >/dev/null
+      ctl command "mistbrn-test burn iron" >/dev/null
+      ctl wait 5 >/dev/null
+      p8_buy 17 1
+      p8_buy 19 1
+      ctl command "mistbrn-test burn iron" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=burn metal=iron burn=burning result=TooManyBurning changed=0'
+      expect_log 1 'MISTBRN event=purchase node=simultaneous rank=1 result=ok seq=[0-9]* code=19'
+      expect_log 1 'MISTBRN event=burn metal=iron burn=burning result=ok changed=1'
+      expect 2 report state=active burn_iron=burning burn_tin=burning burn_pewter=burning \
+        nodes=17:1,19:1 ;;
+    tp1)  # senses: hidden night vision on and off, farther fog, the stun in daylight, clarity
+      p8_tp
+      p8_tp_xp 1000
+      p8_buy 41 1
+      ctl command "time set midnight" >/dev/null
+      ctl look -90 0 >/dev/null
+      ctl command "mistbrn-test burn tin" >/dev/null
+      ctl wait 20 >/dev/null
+      book_shot tp1-burning
+      ctl command "mistbrn-test burn tin flare" >/dev/null
+      ctl wait 20 >/dev/null
+      book_shot tp1-flared
+      ctl command "time set noon" >/dev/null
+      ctl wait 20 >/dev/null
+      book_shot tp1-stun
+      ctl wait 60 >/dev/null
+      ctl command "effect give @s minecraft:darkness 13" >/dev/null
+      ctl wait 20 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=purchase node=tin_clarity rank=1 result=ok'
+      expect_log 1 'MISTBRN event=power power=night_vision state=on'
+      expect_log 1 'MISTBRN event=fog factor=1.50'
+      expect_log 1 'MISTBRN event=fog factor=2.00'
+      expect_log 1 'MISTBRN event=stun light=1[45] ticks=40'
+      # 13 s of darkness (260 ticks) with clarity 1 keeps two thirds.
+      expect_log 1 'MISTBRN event=clarity from=2[0-9][0-9] to=1[67][0-9]'
+      expect_log 1 'MISTBRN event=evidence research=threshold_principle bit=4 ready=false'
+      expect_log 1 'MISTBRN event=power power=night_vision state=off'
+      expect_log 1 'MISTBRN event=power_cleared reason=off tin=false pewter=false'
+      expect 2 report state=active burn_tin=off nodes=41:1 research=2:e4h0c0 ;;
+    tp2)  # hearing: a creature behind a wall is heard, glows for the player, and a hit counts
+      p8_tp
+      p8_tp_xp 1000
+      p8_buy 40 1
+      p8_buy 42 1
+      ctl command "fill 516 100 508 516 104 516 minecraft:stone" >/dev/null
+      ctl command "summon minecraft:cow 519.5 100 512.5 {NoAI:1b,Tags:[heard]}" >/dev/null
+      ctl look -90 0 >/dev/null
+      ctl command "mistbrn-test burn tin" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "damage @e[tag=heard,limit=1] 1 minecraft:generic" >/dev/null
+      ctl wait 10 >/dev/null
+      book_shot tp2-heard
+      ctl command "damage @e[tag=heard,limit=1] 1 minecraft:player_attack by @s" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=purchase node=hearing rank=1 result=ok'
+      expect_log 1 'MISTBRN event=heard entity=[0-9]* distance=[0-9.]* unseen=true'
+      expect_log 1 'MISTBRN event=senses_sent count=1'
+      expect_log 1 'MISTBRN event=senses count=1'
+      expect_log 1 'MISTBRN event=heard_hit entity='
+      expect_log 1 'MISTBRN event=practice category=heard_hit xp=10 count=1'
+      expect_log 1 'MISTBRN event=evidence research=threshold_principle bit=1 ready=false'
+      # Tin out: the client is sent an empty list.
+      expect_log 1 'MISTBRN event=senses count=0'
+      expect 2 report state=active nodes=40:1,42:1 research=2:e1h0c0 ;;
+    tp3)  # pewter's body: less damage taken, burning and flared, and a softer fall survived
+      p8_tp
+      ctl command "gamemode survival" >/dev/null
+      ctl command "mistbrn-test burn pewter" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "damage @s 4 minecraft:generic" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "tp @s 512.5 115 512.5" >/dev/null
+      ctl wait 80 >/dev/null
+      ctl command "mistbrn-test burn pewter flare" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "damage @s 4 minecraft:generic" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=power power=pewter_body state=burning'
+      expect_log 1 'MISTBRN event=pewter_damage from=4.00 to=3.40'
+      expect_log 1 'MISTBRN event=pewter_fall_damage distance=1[45]\.[0-9] multiplier=0.70'
+      expect_log 1 'MISTBRN event=pewter_fall distance=1[45]\.[0-9] survived=true'
+      expect_log 1 'MISTBRN event=practice category=pewter_fall xp=10 count=1'
+      expect_log 1 'MISTBRN event=evidence research=threshold_principle bit=2 ready=false'
+      expect_log 1 'MISTBRN event=power power=pewter_body state=flared'
+      expect_log 1 'MISTBRN event=pewter_damage from=4.00 to=2.80'
+      expect_log 1 'MISTBRN event=power power=pewter_body state=off'
+      expect 2 report state=active burn_pewter=off xp_tin_pewter=10 research=2:e2h0c0 ;;
+    tp4)  # R flares both lit metals; a long flare drags when it ends
+      p8_tp
+      ctl command "mistbrn-test burn tin" >/dev/null
+      ctl command "mistbrn-test burn pewter" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject flare" >/dev/null
+      ctl wait 220 >/dev/null
+      ctl command "mistbrn-test inject flare" >/dev/null
+      ctl wait 20 >/dev/null
+      book_shot tp4-drag
+      ctl command "mistbrn-test off" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=control op=flare command=flare_pair:tin_pewter:true .*result=ok changed=2'
+      expect_log 1 'MISTBRN event=control op=flare command=flare_pair:tin_pewter:false .*result=ok changed=2'
+      # Flared about 220 ticks: half of it, 110 or a little more for command latency.
+      p8_log_range "drag after the flare" 'MISTBRN event=drag ticks=' ticks 105 130
+      expect 2 report state=active burn_tin=off burn_pewter=off ;;
+    tp5)  # Reflexes: refused without the technique or a metal, then a dodge, i-frames, cooldown
+      p8_tp
+      ctl command "mistbrn-test inject dodge.1" >/dev/null
+      ctl wait 5 >/dev/null
+      p8_tp_xp 3000
+      ctl command "mistbrn-test evidence 1 2" >/dev/null
+      ctl command "mistbrn-test evidence 2 2" >/dev/null
+      ctl command "gamemode survival" >/dev/null
+      p5_select_table
+      ctl command "mistbrn-test inject conclude.2.0" >/dev/null
+      ctl wait 20 >/dev/null
+      for node in 40 42 48 50 56; do p8_buy "$node" 1; done
+      ctl command "mistbrn-test burn pewter" >/dev/null
+      ctl command "mistbrn-test inject dodge.1" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl command "mistbrn-test burn tin" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl command "mistbrn-test inject dodge.0" >/dev/null
+      ctl wait 1 >/dev/null
+      ctl command "damage @s 2 minecraft:mob_attack" >/dev/null
+      ctl command "mistbrn-test inject dodge.0" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=control op=dodge direction=1 result=NotOwned'
+      expect_log 1 'MISTBRN event=conclude research=threshold_principle result=ok'
+      expect_log 1 'MISTBRN event=purchase node=reflexes rank=1 result=ok'
+      expect_log 1 'MISTBRN event=control op=dodge direction=1 result=NotLit'
+      k_expect_count "one dodge" 'MISTBRN event=control op=dodge direction=0 result=ok' 1 1
+      expect_log 1 'MISTBRN event=control op=dodge direction=0 result=Cooldown'
+      expect_log 1 'MISTBRN event=dodged damage_type=minecraft:mob_attack'
+      expect 2 report state=active nodes=40:1,42:1,48:1,50:1,56:1 research=2:e3h0c1 ;;
+    tp6)  # pewter's fight practice, and the tin/pewter sector of the map bought by a click
+      p8_tp
+      ctl command "difficulty easy" >/dev/null
+      p8_tp_xp 1000
+      ctl command "summon minecraft:zombie 515.5 100 512.5 {NoAI:1b,Tags:[fight]}" >/dev/null
+      ctl command "mistbrn-test burn pewter" >/dev/null
+      ctl wait 5 >/dev/null
+      ctl command "damage @e[tag=fight,limit=1] 200 minecraft:player_attack by @s" >/dev/null
+      ctl wait 10 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      book_quiet
+      book_open tp6-map
+      book_click node.48
+      book_shot tp6-bought
+      k_key esc 10
+      ctl save >/dev/null; quit_game
+      report; quit_game
+      expect_log 1 'MISTBRN event=pewter_kill kind=minecraft:zombie'
+      expect_log 1 'MISTBRN event=practice category=pewter_fight xp=10 count=1'
+      expect_log 1 'MISTBRN event=book_view .* pan=92,-92 .*innate\.tin@.*node\.40@.*node\.42@'
+      expect_log 1 'MISTBRN event=purchase node=pewter_strength rank=1 result=ok'
+      expect 2 report state=active nodes=48:1 ;;
     *) return 1 ;;
   esac
 }
