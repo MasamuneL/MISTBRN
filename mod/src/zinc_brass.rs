@@ -42,6 +42,10 @@ const STRUCK_TICKS: u64 = 100;
 const ALLY_SEARCH: f64 = 24.0;
 /// A refused creature in the view (incompatible, immune) is logged at most this often.
 const QUIET_TICKS: u64 = 20;
+/// Courage is given in short pulses renewed by the ally's level pass, so what an unloaded
+/// ally or a closed game keeps in its saved effects runs out within a pulse.
+const COURAGE_PULSE: u64 = 40;
+const COURAGE_RENEW: u64 = 20;
 
 #[derive(Clone, Copy)]
 struct Effects {
@@ -72,6 +76,11 @@ struct Hold {
     gazed: bool,
     neutral: bool,
     hostile: bool,
+    /// A wolf: its hold ends the moment anyone tames it.
+    wolf: bool,
+    /// Brass: since when it has been soothed by brass itself (no zinc holding it, not
+    /// targeting the player); practice needs `SOOTHE_PRACTICE` of it in a row.
+    calm_since: Option<u64>,
     influence: Influence,
     /// Brass: it was chasing the player on its own when soothed (not by this player's zinc).
     chaser: bool,
@@ -102,6 +111,9 @@ struct Ally {
     given: u64,
     ticks: i32,
     amplifier: i32,
+    /// The last pulse: when, and how long it was given for.
+    pulse_at: u64,
+    pulse: i32,
     /// The creature it was last sent at.
     led: Option<u32>,
     ending: bool,
@@ -485,6 +497,15 @@ impl ZincBrassPowers {
             };
             if ally_of(host, target, uuid) {
                 if zinc {
+                    // The view left the provoked creature for the ally: it keeps its `after`.
+                    let tick = self.tick;
+                    for hold in self
+                        .holds
+                        .iter_mut()
+                        .filter(|h| h.player == uuid && h.zinc && h.gazed)
+                    {
+                        hold.influence.released.get_or_insert(tick);
+                    }
                     self.courage(host, level, uuid, target);
                 }
                 continue;
@@ -636,6 +657,8 @@ impl ZincBrassPowers {
             gazed,
             neutral: is_neutral(&target_kind),
             hostile: is_hostile(&target_kind),
+            wolf: target_kind == "minecraft:wolf",
+            calm_since: None,
             influence: Influence {
                 started,
                 released: None,
@@ -683,6 +706,18 @@ impl ZincBrassPowers {
             let Some(mob) = read.mob(hold.entity) else {
                 continue;
             };
+            // Tamed since: nobody's zinc or brass holds it any more (ended on the next pass).
+            let tamed = hold.wolf
+                && read
+                    .living(hold.entity)
+                    .and_then(|l| l.owner(read))
+                    .is_some();
+            if tamed {
+                for other in self.holds.iter_mut().filter(|h| h.entity.id() == id) {
+                    other.ending.get_or_insert("owned");
+                }
+                continue;
+            }
             let want = wanted(&self.holds, &self.players, id, tick);
             match (want.keep, target_id(read, mob)) {
                 (Some((keeper, Some(living))), current) if current != Some(keeper) => {
@@ -728,7 +763,13 @@ impl ZincBrassPowers {
                     eprintln!("MISTBRN event=provoke_near entity={id} distance={dist:.1}");
                 }
             } else {
-                if !mine && !hold.verified {
+                // Brass's own work: no provocation holds it and it does not target the player.
+                if mine || want.keep.is_some() {
+                    hold.calm_since = None;
+                } else {
+                    hold.calm_since.get_or_insert(tick);
+                }
+                if hold.calm_since.is_some() && !hold.verified {
                     hold.verified = true;
                     first_seen = true;
                     eprintln!("MISTBRN event=brass_verified entity={id} tick={tick}");
@@ -746,11 +787,12 @@ impl ZincBrassPowers {
                         eprintln!("MISTBRN event=retreat_reached entity={id} distance={dist:.1}");
                     }
                 }
-                if hold.verified
-                    && hold.chaser
+                if hold.chaser
                     && hold.hostile
                     && !hold.counted
-                    && tick.saturating_sub(hold.influence.started) >= SOOTHE_PRACTICE
+                    && hold
+                        .calm_since
+                        .is_some_and(|since| tick.saturating_sub(since) >= SOOTHE_PRACTICE)
                 {
                     hold.counted = true;
                     seen.push(practice(PRACTICE_SOOTHE));
@@ -808,14 +850,8 @@ impl ZincBrassPowers {
         };
         let duration = i32::try_from(ticks).unwrap_or(i32::MAX);
         let amplifier = i32::from(amplifier);
-        let strength = living.add_effect(
-            host,
-            &ActiveEffect::new(effects.strength, duration, amplifier, true, false, false),
-        );
-        let speed = living.add_effect(
-            host,
-            &ActiveEffect::new(effects.speed, duration, amplifier, true, false, false),
-        );
+        let pulse = pulse_for(ticks);
+        let (strength, speed) = give_courage(host, living, effects, pulse, amplifier);
         if !strength && !speed {
             return;
         }
@@ -827,6 +863,8 @@ impl ZincBrassPowers {
             given: tick,
             ticks: duration,
             amplifier,
+            pulse_at: tick,
+            pulse,
             led: None,
             ending: false,
         });
@@ -866,6 +904,15 @@ impl ZincBrassPowers {
                 eprintln!("MISTBRN event=courage_cleared entity={}", ally.entity.id());
                 continue;
             }
+            if tick >= ally.pulse_at + COURAGE_RENEW
+                && let Some(living) = read.living(ally.entity)
+            {
+                let pulse = pulse_for(ally.until() - tick);
+                let _ = give_courage(host, living, effects, pulse, ally.amplifier);
+                ally.pulse_at = tick;
+                ally.pulse = pulse;
+            }
+            let read: &dyn Host = host;
             let struck = self
                 .players
                 .get(&ally.player)
@@ -994,14 +1041,37 @@ impl ZincBrassPowers {
     }
 }
 
+fn pulse_for(left: u64) -> i32 {
+    i32::try_from(left.min(COURAGE_PULSE)).unwrap_or(0)
+}
+
+/// One pulse of courage: hidden strength and speed of the courage level.
+fn give_courage(
+    host: &mut dyn ServerHost,
+    living: LivingRef,
+    effects: Effects,
+    pulse: i32,
+    amplifier: i32,
+) -> (bool, bool) {
+    let strength = living.add_effect(
+        host,
+        &ActiveEffect::new(effects.strength, pulse, amplifier, true, false, false),
+    );
+    let speed = living.add_effect(
+        host,
+        &ActiveEffect::new(effects.speed, pulse, amplifier, true, false, false),
+    );
+    (strength, speed)
+}
+
 /// Takes off the strength and speed this module gave an ally, and only those: the same
-/// level, hidden, counting down from when they were given (another source's stay).
+/// level, hidden, counting down from the last pulse (another source's stay).
 fn take_courage(host: &mut dyn ServerHost, ally: &Ally, effects: Effects, tick: u64) {
     let read: &dyn Host = host;
     let Some(living) = read.living(ally.entity) else {
         return;
     };
-    let expected = i64::from(ally.ticks) - tick.saturating_sub(ally.given) as i64;
+    let expected = i64::from(ally.pulse) - tick.saturating_sub(ally.pulse_at) as i64;
     for key in [effects.strength, effects.speed] {
         let read: &dyn Host = host;
         let ours = living.effect(read, key).is_some_and(|e| {

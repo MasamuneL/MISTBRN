@@ -450,6 +450,7 @@ p8_scenario() {
       expect 2 report state=active nodes=48:1 ;;
     zb1)  # Riot: a calm zombified piglin turns on the player and comes close; zinc out lets it
          # go once its after-time ends
+      local piglin
       p8_zb
       p8_summon zombified_piglin 524.5 zb
       ctl look-at 524.5 101.2 512.5 >/dev/null
@@ -468,7 +469,8 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=provoke_near entity='
       expect_log 1 'MISTBRN event=practice category=provoke xp=10 count=1'
       expect_log 1 'MISTBRN event=power_cleared reason=off zinc=false brass=false'
-      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=time'
+      piglin="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:zombified_piglin' "$(log 1)" || true; } | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${piglin:-x} reason=time cleared=true"
       expect 2 report state=active burn_zinc=off research=3:e1h0c0 ;;
     zb2)  # Soothe: a husk chasing the player lets go and cannot take them back, stays soothed;
          # once it ends the husk ignores brass a while; an angry zombified piglin calms
@@ -508,7 +510,7 @@ p8_scenario() {
       husk="$({ grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       expect_log 1 "MISTBRN event=zb_immune metal=brass entity=${husk:-none} kind=minecraft:husk"
       expect_log 1 'MISTBRN event=brass_calm entity=[0-9]* changed=true'
-      anger="$(grep -ao 'anger_end_time[^,}]*\|[0-9-]*L' "$dir/zb2-anger.json" | head -3 | tr '\n' ' ')"
+      anger="$({ grep -ao 'anger_end_time[^,}]*\|[0-9-]*L' "$dir/zb2-anger.json" || true; } | head -3 | tr '\n' ' ')"
       if grep -aq 'has the following entity data: 0L\|: 0L\|found no elements\|Found no elements' "$dir/zb2-anger.json"; then
         k_ok "the zombified piglin's anger ended: $anger"
       else k_fail "the zombified piglin still angry: $(head -c 300 "$dir/zb2-anger.json")"; fi
@@ -580,12 +582,26 @@ p8_scenario() {
       ctl command "mistbrn-test burn brass" >/dev/null
       p8_until 'MISTBRN event=retreat_reached ' 300
       ctl command "mistbrn-test off" >/dev/null
-      ctl wait 5 >/dev/null
+      ctl command "kill @e[tag=r]" >/dev/null
+      # Courage on a fresh wolf, then the game closes with it running: the saved pulse runs out
+      # within 2 s of the next load.
+      p8_summon wolf 516.5 w2 "Owner:$uuid"
+      ctl look-at 516.5 100.4 512.5 >/dev/null
+      ctl command "mistbrn-test burn zinc" >/dev/null
+      ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
-      report; quit_game
+      report
+      ctl wait 60 >/dev/null
+      ctl command "data get entity @e[tag=w2,limit=1] active_effects" > "$dir/zb4-courage-reload.json"
+      quit_game
+      if grep -aq 'minecraft:strength' "$dir/zb4-courage-reload.json"; then
+        k_fail "courage outlived the reload: $(head -c 300 "$dir/zb4-courage-reload.json")"
+      elif grep -aqi 'found no elements\|entity data' "$dir/zb4-courage-reload.json"; then
+        k_ok "courage gone 60 ticks after the reload"
+      else k_fail "no reading of the reloaded wolf: $(head -c 300 "$dir/zb4-courage-reload.json")"; fi
       expect_log 1 'MISTBRN event=purchase node=courage rank=1 result=ok'
       expect_log 1 'MISTBRN event=purchase node=retreat rank=1 result=ok'
-      p8_count_re "courage on the wolf and the golem" 'MISTBRN event=courage entity=[0-9]* level=1 ticks=200 strength=true speed=true' 2 2
+      p8_count_re "courage on the wolf, the golem and the second wolf" 'MISTBRN event=courage entity=[0-9]* level=1 ticks=200 strength=true speed=true' 3 3
       expect_log 1 'MISTBRN event=ally_hit entity='
       expect_log 1 'MISTBRN event=practice category=ally xp=10 count=1'
       husk="$({ grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
