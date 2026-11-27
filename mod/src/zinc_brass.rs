@@ -137,8 +137,9 @@ struct Player {
     brass: Option<bool>,
     /// The last creature (never a player) the player hurt, and when.
     struck: Option<(u32, u64)>,
-    /// The last tick a lit metal's view found nothing (logged at most every `QUIET_TICKS`).
-    missed: u64,
+    /// The last tick each lit metal's view (zinc, brass) found nothing, logged at most every
+    /// `QUIET_TICKS`.
+    missed: [u64; 2],
     /// When each creature was first seen provoked and soothed (the third evidence).
     provoked_at: BTreeMap<u32, u64>,
     soothed_at: BTreeMap<u32, u64>,
@@ -481,9 +482,9 @@ impl ZincBrassPowers {
             let Some(target) = gaze(read, level, body, rules.range(zinc, flared)) else {
                 let tick = self.tick;
                 if let Some(entry) = self.players.get_mut(&uuid)
-                    && tick >= entry.missed + QUIET_TICKS
+                    && tick >= entry.missed[usize::from(!zinc)] + QUIET_TICKS
                 {
-                    entry.missed = tick;
+                    entry.missed[usize::from(!zinc)] = tick;
                     let fmt = |v: Option<[f64; 3]>| {
                         v.map_or("none".into(), |v| {
                             format!("{:.2},{:.2},{:.2}", v[0], v[1], v[2])
