@@ -814,8 +814,9 @@ impl ZincBrassPowers {
                     tick.saturating_sub(at) <= STRUCK_TICKS && victim != ally.entity.id()
                 })
                 .map(|(victim, _)| victim);
+            // One try per victim: a refused target is not asked for again every tick.
             let victim = struck
-                .filter(|&v| target_id(read, mob) != Some(v))
+                .filter(|&v| target_id(read, mob) != Some(v) && ally.led != Some(v))
                 .and_then(|v| {
                     let center = ally.entity.position(read)?;
                     near(read, level, center, ALLY_SEARCH)
@@ -977,8 +978,9 @@ fn retreat(
     ];
     let started = mob.move_to(host, to, speed);
     eprintln!(
-        "MISTBRN event=retreat entity={} to={:.1},{:.1},{:.1} speed={speed:.2} ok={started}",
+        "MISTBRN event=retreat entity={} distance={:.1} to={:.1},{:.1},{:.1} speed={speed:.2} ok={started}",
         mob.entity().id(),
+        distance(at, from),
         to[0],
         to[1],
         to[2]
