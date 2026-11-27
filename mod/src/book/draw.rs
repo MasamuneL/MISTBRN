@@ -17,7 +17,7 @@ use allomancy_core::{
 use mod_api::{ClientHost, DrawContext};
 
 const SHEET: &str = "mistbrn:gui/progress";
-const SHEET_SIZE: [f32; 2] = [128.0, 96.0];
+const SHEET_SIZE: [f32; 2] = [128.0, 128.0];
 const HUD_SHEET: &str = "mistbrn:gui/hud";
 const HUD_SIZE: [f32; 2] = [160.0, 64.0];
 const NODE_LOCKED: [f32; 4] = [0.0, 0.0, 22.0, 22.0];
@@ -96,7 +96,7 @@ fn icon(code: u16) -> Option<[f32; 4]> {
     let (column, y) = if index < 5 {
         (index, ICON_Y)
     } else {
-        // Rows of eight from `ICON_Y_P8` (P8: 64 and 80).
+        // Rows of eight from `ICON_Y_P8` (P8: 64, 80, 96 and 112).
         let row = (index - 5) / 8;
         ((index - 5) % 8, ICON_Y_P8 + 16.0 * row as f32)
     };
