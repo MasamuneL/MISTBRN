@@ -18,16 +18,17 @@ mod save;
 mod scenario;
 mod senses;
 mod tin_pewter;
+mod zinc_brass;
 
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
     ClientTickPostEvent, ContainerLootFilledEvent, EntityOutlineEvent, EntityTeleportEvent, Flow,
     FurnaceSmeltEvent, GuiLayerDrawEvent, Hooks, HostSide, InteractionResult,
-    ItemPickedUpPostEvent, LevelHost, LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent,
-    LivingDeathEvent, LivingDeathPostEvent, LivingEntityUseItemFinishEvent, LivingFallEvent,
-    LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide, MovementInputEvent,
-    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
+    ItemPickedUpPostEvent, LevelHost, LevelRandomHost, LevelTickPostEvent, LivingChangeTargetEvent,
+    LivingDamagePostEvent, LivingDeathEvent, LivingDeathPostEvent, LivingEntityUseItemFinishEvent,
+    LivingFallEvent, LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide,
+    MovementInputEvent, PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
     PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
     RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext, RenderFogEvent,
     RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent,
@@ -48,6 +49,7 @@ struct Allomancy {
     milestones: Mutex<milestones::Milestones>,
     beach_salt: Mutex<alchemy::BeachSalt>,
     tin_pewter: Mutex<tin_pewter::TinPewterPowers>,
+    zinc_brass: Mutex<zinc_brass::ZincBrassPowers>,
 }
 
 impl Default for Allomancy {
@@ -62,6 +64,7 @@ impl Default for Allomancy {
             milestones: Mutex::default(),
             beach_salt: Mutex::default(),
             tin_pewter: Mutex::default(),
+            zinc_brass: Mutex::default(),
         }
     }
 }
@@ -81,6 +84,7 @@ impl Hooks for Allomancy {
             senses::handler(),
         );
         tin_pewter::register(registrar);
+        zinc_brass::register(registrar);
         client::register_keys(registrar);
         client::register_settings(registrar);
     }
@@ -162,6 +166,7 @@ impl Hooks for Allomancy {
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = alchemy::BeachSalt::default();
         *self.tin_pewter() = tin_pewter::TinPewterPowers::default();
+        *self.zinc_brass() = zinc_brass::ZincBrassPowers::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -196,8 +201,14 @@ impl Hooks for Allomancy {
         powers.apply_prepared(host, &session, tick);
         // Tin and pewter (P8): what is lit, on the player.
         tin_pewter.tick(host, &session, tick);
-        let observed = tin_pewter.take_observations();
+        let mut observed = tin_pewter.take_observations();
         drop(tin_pewter);
+        // Zinc and brass (P8) act in the levels' passes; this tick's passes come next.
+        {
+            let mut zinc_brass = self.zinc_brass();
+            observed.extend(zinc_brass.take_observations());
+            zinc_brass.begin(host, tick + 1);
+        }
         // Practice and evidence seen this tick (P5), after the forces that caused them.
         for (uuid, kind) in powers.take_observations().into_iter().chain(observed) {
             if let Some(player) = host.player(uuid) {
@@ -238,6 +249,7 @@ impl Hooks for Allomancy {
         }
         let session = self.session();
         self.milestones().tick_level(host, &session, event.level);
+        self.zinc_brass().tick_level(host, &session, event.level);
         drop(session);
         let Some(dimension) = event.level.dimension().id(host) else {
             return;
@@ -404,6 +416,7 @@ impl Hooks for Allomancy {
         self.powers()
             .changed_dimension(&mut self.session(), event.player);
         self.tin_pewter().clear(event.player, "dimension");
+        self.zinc_brass().clear(event.player, "dimension");
         let mut controls = self.controls();
         controls.purge(event.player);
         controls.resend(event.player);
@@ -430,11 +443,13 @@ impl Hooks for Allomancy {
             self.session().ensure_loaded(host, player);
         }
         self.tin_pewter().clear(event.player, "login");
+        self.zinc_brass().clear(event.player, "login");
         self.controls().resend(event.player);
     }
 
     fn player_logged_out(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedOutEvent<'_>) {
         self.tin_pewter().logged_out(host, event.player);
+        self.zinc_brass().logged_out(host, event.player);
         self.session().logged_out(host, event.player);
         self.controls().logged_out(event.player);
     }
@@ -443,6 +458,7 @@ impl Hooks for Allomancy {
         self.controls().purge(event.player);
         self.powers().died(event.player);
         self.tin_pewter().clear(event.player, "death");
+        self.zinc_brass().clear(event.player, "death");
         self.session().died(host, event.player);
     }
 
@@ -451,6 +467,7 @@ impl Hooks for Allomancy {
             self.session().respawned_after_death(host, event.player);
         }
         self.tin_pewter().clear(event.player, "respawn");
+        self.zinc_brass().clear(event.player, "respawn");
         self.controls().resend(event.player);
     }
 
@@ -549,6 +566,9 @@ impl Hooks for Allomancy {
         _: &mut dyn LevelRandomHost,
         event: &mut LivingIncomingDamageEvent<'_>,
     ) -> Flow {
+        if let Ok(mut zinc_brass) = self.zinc_brass.try_lock() {
+            zinc_brass.incoming_damage(event.entity, event.source);
+        }
         let Ok(mut tin_pewter) = self.tin_pewter.try_lock() else {
             return Flow::Continue;
         };
@@ -561,6 +581,18 @@ impl Hooks for Allomancy {
             }
             (false, None) => Flow::Continue,
         }
+    }
+
+    /// Zinc and brass hold the targets they set (P8).
+    fn living_change_target(
+        &self,
+        _: &dyn mod_api::Host,
+        event: &mut LivingChangeTargetEvent<'_>,
+    ) -> Flow {
+        if let Ok(zinc_brass) = self.zinc_brass.try_lock() {
+            zinc_brass.change_target(event.mob, event.new_target);
+        }
+        Flow::Continue
     }
 
     fn living_fall(&self, context: &dyn LoopContext, event: &mut LivingFallEvent<'_>) -> Flow {
@@ -619,6 +651,12 @@ fn anchor_evidence(bit: u8) -> allomancy_core::EventKind {
 }
 
 impl Allomancy {
+    fn zinc_brass(&self) -> MutexGuard<'_, zinc_brass::ZincBrassPowers> {
+        self.zinc_brass
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn tin_pewter(&self) -> MutexGuard<'_, tin_pewter::TinPewterPowers> {
         self.tin_pewter
             .lock()

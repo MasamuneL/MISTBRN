@@ -111,8 +111,11 @@ fn shown_value(effect: NodeEffect, value: u16) -> String {
         | NodeEffect::DosingMilli
         | NodeEffect::TransitionMilli
         | NodeEffect::ClarityMilli => tenths(u32::from(value)),
-        // Hearing's memory in seconds: 20 ticks → «1».
-        NodeEffect::HearingMemoryTicks => tenths(u32::from(value) / 2),
+        // Ticks in seconds: 20 ticks → «1».
+        NodeEffect::HearingMemoryTicks
+        | NodeEffect::ZincAfterTicks
+        | NodeEffect::BrassAfterTicks
+        | NodeEffect::CourageTicks => tenths(u32::from(value) / 2),
         // The flare multiplier left: 300 → «2.7».
         NodeEffect::FlareCostMilli => {
             let left = BASE_FLARE_MILLI as u32 - u32::from(value).min(2_000);

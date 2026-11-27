@@ -12,6 +12,11 @@
 use super::{CANVAS, Target};
 use allomancy_core::{NODE_ACCEL, NODE_CAPACITY, NODE_COIN_JUMP, NODE_DOSING, NODE_ECONOMY};
 use allomancy_core::{
+    NODE_BRASS_DURATION, NODE_BRASS_RANGE, NODE_COURAGE, NODE_COURAGE_DURATION, NODE_COURAGE_LEVEL,
+    NODE_OUTER_REACH, NODE_RETREAT, NODE_RETREAT_DISTANCE, NODE_RETREAT_SPEED, NODE_SELECTIVE,
+    NODE_ZINC_DURATION, NODE_ZINC_RANGE,
+};
+use allomancy_core::{
     NODE_FLARE_COST, NODE_HEARING, NODE_HEARING_MEMORY, NODE_HEARING_RANGE, NODE_JUMP_CUSHION,
     NODE_JUMP_HEIGHT, NODE_PEWTER_ENDURANCE, NODE_PEWTER_JUMP, NODE_PEWTER_STRENGTH, NODE_REACH,
     NODE_REFLEXES, NODE_SIMULTANEOUS, NODE_STEEL_BODY, NODE_TIN_CLARITY, NODE_TIN_RANGE,
@@ -125,11 +130,45 @@ const SECTORS: [Sector; 4] = [
         branches: [[INNATE, UNKNOWN, UNKNOWN], [INNATE, UNKNOWN, UNKNOWN]],
         combined: Slot::Hidden,
     },
+    // Zinc and brass (P8): each innate power with its two sub-nodes, courage and retreat with
+    // theirs, and selective influence at the far end.
     Sector {
         pair: Pair::ZincBrass,
         bisector: 135.0,
-        branches: [[INNATE, UNKNOWN, UNKNOWN], [INNATE, UNKNOWN, UNKNOWN]],
-        combined: Slot::Hidden,
+        branches: [
+            [
+                (
+                    Slot::Innate,
+                    [Slot::Node(NODE_ZINC_RANGE), Slot::Node(NODE_ZINC_DURATION)],
+                ),
+                (
+                    Slot::Node(NODE_COURAGE),
+                    [
+                        Slot::Node(NODE_COURAGE_LEVEL),
+                        Slot::Node(NODE_COURAGE_DURATION),
+                    ],
+                ),
+                UNKNOWN,
+            ],
+            [
+                (
+                    Slot::Innate,
+                    [
+                        Slot::Node(NODE_BRASS_RANGE),
+                        Slot::Node(NODE_BRASS_DURATION),
+                    ],
+                ),
+                (
+                    Slot::Node(NODE_RETREAT),
+                    [
+                        Slot::Node(NODE_RETREAT_DISTANCE),
+                        Slot::Node(NODE_RETREAT_SPEED),
+                    ],
+                ),
+                UNKNOWN,
+            ],
+        ],
+        combined: Slot::Node(NODE_SELECTIVE),
     },
 ];
 
@@ -150,7 +189,7 @@ const BRIDGES: [(f32, usize, usize, Slot); 4] = [
     (-90.0, 0, 1, Slot::Node(NODE_STEEL_BODY)),
     (0.0, 1, 2, Slot::Hidden),
     (90.0, 2, 3, Slot::Hidden),
-    (180.0, 3, 0, Slot::Hidden),
+    (180.0, 3, 0, Slot::Node(NODE_OUTER_REACH)),
 ];
 
 /// One drawn place: its target, its centre in map units, and the sector it belongs to
@@ -271,8 +310,30 @@ pub(crate) fn map_layout() -> (Vec<Place>, Vec<Link>) {
                 second
             }
         };
-        links.push((near(a), at, bridge));
-        links.push((near(b), at, bridge));
+        // A catalog bridge's lines come from the nodes it requires (they are its path).
+        let required: Vec<[f32; 2]> = match slot {
+            Slot::Node(code) => allomancy_core::node_def(code, &allomancy_core::CATALOG)
+                .map(|def| def.requires)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|requirement| match *requirement {
+                    allomancy_core::Requirement::Node { code, .. } => places
+                        .iter()
+                        .find(|p| p.target == Target::Node(code))
+                        .map(|p| p.at),
+                    allomancy_core::Requirement::Discovery { .. } => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        if required.len() == 2 {
+            for from in required {
+                links.push((from, at, bridge));
+            }
+        } else {
+            links.push((near(a), at, bridge));
+            links.push((near(b), at, bridge));
+        }
     }
     (places, links)
 }
