@@ -11,7 +11,12 @@
 //! pixels per unit. Nothing here reaches the server: positions are the book's alone.
 use super::{CANVAS, Target};
 use allomancy_core::{NODE_ACCEL, NODE_CAPACITY, NODE_COIN_JUMP, NODE_DOSING, NODE_ECONOMY};
-use allomancy_core::{NODE_FLARE_COST, NODE_REACH, Pair};
+use allomancy_core::{
+    NODE_FLARE_COST, NODE_HEARING, NODE_HEARING_MEMORY, NODE_HEARING_RANGE, NODE_JUMP_CUSHION,
+    NODE_JUMP_HEIGHT, NODE_PEWTER_ENDURANCE, NODE_PEWTER_JUMP, NODE_PEWTER_STRENGTH, NODE_REACH,
+    NODE_REFLEXES, NODE_SIMULTANEOUS, NODE_STEEL_BODY, NODE_TIN_CLARITY, NODE_TIN_RANGE,
+    NODE_TRANSITION, Pair,
+};
 
 /// A node's side in map units (the frame sprite's 22 pixels at 100 %).
 pub(crate) const NODE_U: f32 = 22.0;
@@ -77,11 +82,42 @@ const SECTORS: [Sector; 4] = [
         ],
         combined: Slot::Hidden,
     },
+    // Tin and pewter (P8): each innate power with its two sub-nodes, the second techniques
+    // (hearing, pewter's jump) with theirs, and Reflexes at the far end.
     Sector {
         pair: Pair::TinPewter,
         bisector: -45.0,
-        branches: [[INNATE, UNKNOWN, UNKNOWN], [INNATE, UNKNOWN, UNKNOWN]],
-        combined: Slot::Hidden,
+        branches: [
+            [
+                (
+                    Slot::Innate,
+                    [Slot::Node(NODE_TIN_RANGE), Slot::Node(NODE_TIN_CLARITY)],
+                ),
+                (
+                    Slot::Node(NODE_HEARING),
+                    [
+                        Slot::Node(NODE_HEARING_RANGE),
+                        Slot::Node(NODE_HEARING_MEMORY),
+                    ],
+                ),
+                UNKNOWN,
+            ],
+            [
+                (
+                    Slot::Innate,
+                    [
+                        Slot::Node(NODE_PEWTER_STRENGTH),
+                        Slot::Node(NODE_PEWTER_ENDURANCE),
+                    ],
+                ),
+                (
+                    Slot::Node(NODE_PEWTER_JUMP),
+                    [Slot::Node(NODE_JUMP_HEIGHT), Slot::Node(NODE_JUMP_CUSHION)],
+                ),
+                UNKNOWN,
+            ],
+        ],
+        combined: Slot::Node(NODE_REFLEXES),
     },
     Sector {
         pair: Pair::CopperBronze,
@@ -97,20 +133,25 @@ const SECTORS: [Sector; 4] = [
     },
 ];
 
-/// The general ring, clockwise from the top: consumption, flare cost, (simultaneous burning),
-/// capacity, dosing, (transition). The two to come arrive with tin and pewter.
+/// The general ring, clockwise from the top: consumption, flare cost, simultaneous burning,
+/// capacity, dosing, transition.
 const GENERAL_SLOTS: [Slot; 6] = [
     Slot::Node(NODE_ECONOMY),
     Slot::Node(NODE_FLARE_COST),
-    Slot::Hidden,
+    Slot::Node(NODE_SIMULTANEOUS),
     Slot::Node(NODE_CAPACITY),
     Slot::Node(NODE_DOSING),
-    Slot::Hidden,
+    Slot::Node(NODE_TRANSITION),
 ];
 
 /// The bridges, on the borders between neighbouring sectors: (border angle, the two sectors'
-/// indices in `SECTORS`). Their codes arrive with the pairs' branches.
-const BRIDGES: [(f32, usize, usize); 4] = [(-90.0, 0, 1), (0.0, 1, 2), (90.0, 2, 3), (180.0, 3, 0)];
+/// indices in `SECTORS`, the node). The others' codes arrive with their pairs' branches.
+const BRIDGES: [(f32, usize, usize, Slot); 4] = [
+    (-90.0, 0, 1, Slot::Node(NODE_STEEL_BODY)),
+    (0.0, 1, 2, Slot::Hidden),
+    (90.0, 2, 3, Slot::Hidden),
+    (180.0, 3, 0, Slot::Hidden),
+];
 
 /// One drawn place: its target, its centre in map units, and the sector it belongs to
 /// (`None`: the general ring or a bridge).
@@ -212,10 +253,11 @@ pub(crate) fn map_layout() -> (Vec<Place>, Vec<Link>) {
             sector: Some(sector.pair),
         });
     }
-    for &(angle, a, b) in &BRIDGES {
+    for &(angle, a, b, slot) in &BRIDGES {
         let at = polar(BRIDGE_R, angle);
+        let bridge = target(slot, Pair::IronSteel, 0);
         places.push(Place {
-            target: Target::Hidden,
+            target: bridge,
             at,
             sector: None,
         });
@@ -229,8 +271,8 @@ pub(crate) fn map_layout() -> (Vec<Place>, Vec<Link>) {
                 second
             }
         };
-        links.push((near(a), at, Target::Hidden));
-        links.push((near(b), at, Target::Hidden));
+        links.push((near(a), at, bridge));
+        links.push((near(b), at, bridge));
     }
     (places, links)
 }

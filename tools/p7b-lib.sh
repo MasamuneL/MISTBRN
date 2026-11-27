@@ -115,9 +115,9 @@ p7b_scenario() {
       # 450 XP: three points, enough for reach 1 (cost 1) and reach 2 (cost 2).
       ctl command "mistbrn-test xp 350" >/dev/null; ctl wait 10 >/dev/null
       book_open l2-open
-      # Focus order: 4 tabs, the 4 general nodes, then reach (the metals' own powers are not
-      # focusable).
-      for _ in 1 2 3 4 5 6 7 8 9; do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
+      # Focus order: 4 tabs, the 6 general nodes (P8), then reach (the metals' own powers are
+      # not focusable).
+      for _ in $(seq 11); do ctl key tab tap >/dev/null; ctl wait 2 >/dev/null; done
       book_shot l2-focus
       ctl key enter tap >/dev/null; ctl wait 10 >/dev/null
       ctl key enter repeat >/dev/null; ctl wait 20 >/dev/null

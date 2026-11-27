@@ -17,7 +17,7 @@ use allomancy_core::{
 use mod_api::{ClientHost, DrawContext};
 
 const SHEET: &str = "mistbrn:gui/progress";
-const SHEET_SIZE: [f32; 2] = [128.0, 80.0];
+const SHEET_SIZE: [f32; 2] = [128.0, 96.0];
 const HUD_SHEET: &str = "mistbrn:gui/hud";
 const HUD_SIZE: [f32; 2] = [160.0, 64.0];
 const NODE_LOCKED: [f32; 4] = [0.0, 0.0, 22.0, 22.0];
@@ -96,17 +96,23 @@ fn icon(code: u16) -> Option<[f32; 4]> {
     let (column, y) = if index < 5 {
         (index, ICON_Y)
     } else {
-        (index - 5, ICON_Y_P8)
+        // Rows of eight from `ICON_Y_P8` (P8: 64 and 80).
+        let row = (index - 5) / 8;
+        ((index - 5) % 8, ICON_Y_P8 + 16.0 * row as f32)
     };
-    (column < 8).then_some([16.0 * column as f32, y, 16.0, 16.0])
+    (y < SHEET_SIZE[1]).then_some([16.0 * column as f32, y, 16.0, 16.0])
 }
 
 /// The value an effect shows to a player: blocks or percent.
 fn shown_value(effect: NodeEffect, value: u16) -> String {
     match effect {
-        NodeEffect::ReductionMilli | NodeEffect::CapacityBonusMilli | NodeEffect::DosingMilli => {
-            tenths(u32::from(value))
-        }
+        NodeEffect::ReductionMilli
+        | NodeEffect::CapacityBonusMilli
+        | NodeEffect::DosingMilli
+        | NodeEffect::TransitionMilli
+        | NodeEffect::ClarityMilli => tenths(u32::from(value)),
+        // Hearing's memory in seconds: 20 ticks → «1».
+        NodeEffect::HearingMemoryTicks => tenths(u32::from(value) / 2),
         // The flare multiplier left: 300 → «2.7».
         NodeEffect::FlareCostMilli => {
             let left = BASE_FLARE_MILLI as u32 - u32::from(value).min(2_000);
@@ -314,13 +320,19 @@ fn tooltip(
             }
             lines
         }
-        Target::Innate(metal) => vec![
-            tr(
-                host,
-                &format!("node.mistbrn.innate.{}", crate::bridge::metal_name(metal)),
-            ),
-            tr(host, "notebook.mistbrn.innate"),
-        ],
+        Target::Innate(metal) => {
+            let name = format!("node.mistbrn.innate.{}", crate::bridge::metal_name(metal));
+            let mut lines = vec![tr(host, &name)];
+            // What the power does, for the metals that have one (P4, P8).
+            if matches!(
+                metal,
+                Metal::Iron | Metal::Steel | Metal::Tin | Metal::Pewter
+            ) {
+                lines.push(tr(host, &format!("{name}.effect")));
+            }
+            lines.push(tr(host, "notebook.mistbrn.innate"));
+            lines
+        }
         Target::Locked(pair) => {
             let mut lines = vec![
                 pair_label(host, pair),

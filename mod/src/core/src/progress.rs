@@ -72,6 +72,27 @@ pub enum NodeEffect {
     FlareCostMilli,
     /// Extra share of each vial's credit, in thousandths, up to the capacity (P8).
     DosingMilli,
+    /// Metals lit at once beyond `BASE_BURN_LIMIT` (P8).
+    ExtraBurning,
+    /// Thousandths taken off the end-of-flare penalties: pewter's drag, tin's stun (P8).
+    TransitionMilli,
+    /// A technique that is there or not (value 1); its sub-nodes tune it (P8).
+    Technique,
+    /// Tin: farther fog, in percent.
+    TinRangePercent,
+    /// Tin: thousandths taken off darkness and blindness.
+    ClarityMilli,
+    /// Tin's hearing: extra range in blocks, extra memory in ticks.
+    HearingRangeBlocks,
+    HearingMemoryTicks,
+    /// Pewter: extra attack damage, extra damage taken off, in percent.
+    PewterStrengthPercent,
+    PewterEndurancePercent,
+    /// Pewter's jump: extra jump power, extra fall damage taken off, in percent.
+    JumpPercent,
+    CushionPercent,
+    /// Steel's push off an anchor below the feet with pewter lit, in percent (bridge).
+    SteelBodyPercent,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,7 +180,29 @@ pub const NODE_ECONOMY: u16 = 16;
 pub const NODE_CAPACITY: u16 = 17;
 pub const NODE_FLARE_COST: u16 = 18;
 pub const NODE_DOSING: u16 = 20;
+pub const NODE_SIMULTANEOUS: u16 = 19;
+pub const NODE_TRANSITION: u16 = 21;
+pub const NODE_STEEL_BODY: u16 = 24;
+pub const NODE_TIN_RANGE: u16 = 40;
+pub const NODE_TIN_CLARITY: u16 = 41;
+pub const NODE_HEARING: u16 = 42;
+pub const NODE_HEARING_RANGE: u16 = 43;
+pub const NODE_HEARING_MEMORY: u16 = 44;
+pub const NODE_PEWTER_STRENGTH: u16 = 48;
+pub const NODE_PEWTER_ENDURANCE: u16 = 49;
+pub const NODE_PEWTER_JUMP: u16 = 50;
+pub const NODE_JUMP_HEIGHT: u16 = 51;
+pub const NODE_JUMP_CUSHION: u16 = 52;
+pub const NODE_REFLEXES: u16 = 56;
 pub const RESEARCH_ANCHOR: u16 = 1;
+/// Tin and pewter's research (P8): opens Reflexes.
+pub const RESEARCH_THRESHOLD: u16 = 2;
+/// A creature heard (a sound within reach) without a line of sight, tin lit.
+pub const EVIDENCE_HEARD_UNSEEN: u8 = 1;
+/// A fall of 12 blocks or more survived with pewter lit.
+pub const EVIDENCE_PEWTER_FALL: u8 = 2;
+/// Tin lit with darkness or blindness on.
+pub const EVIDENCE_TIN_DARK: u8 = 4;
 /// Evidence of the anchor principle: a loose metal item pulled into the hand.
 pub const EVIDENCE_ITEM_PULLED: u8 = 1;
 /// A pull towards a block anchor that moved the player.
@@ -177,6 +220,12 @@ pub const MILESTONE_DRAGON: u8 = 8;
 pub const PRACTICE_ANCHOR_MOVE: u8 = 0;
 pub const PRACTICE_COIN_JUMP: u8 = 1;
 pub const PRACTICE_COIN_HIT: u8 = 2;
+/// A hit on a creature Hearing marked while it was out of sight (P8).
+pub const PRACTICE_HEARD_HIT: u8 = 3;
+/// A fall of 8 blocks or more survived with pewter lit.
+pub const PRACTICE_PEWTER_FALL: u8 = 4;
+/// A hostile creature killed with pewter lit.
+pub const PRACTICE_PEWTER_FIGHT: u8 = 5;
 
 const fn rank(cost: u16, value: u16) -> Rank {
     Rank { cost, value }
@@ -253,17 +302,188 @@ pub const CATALOG: Catalog = Catalog {
                 rank: 1,
             }],
         },
+        // P8, tin and pewter (trial values).
+        NodeDef {
+            code: NODE_SIMULTANEOUS,
+            key: "simultaneous",
+            pool: Pool::Knowledge,
+            effect: NodeEffect::ExtraBurning,
+            ranks: &[rank(2, 1), rank(4, 2)],
+            requires: &[Requirement::Node {
+                code: NODE_CAPACITY,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_TRANSITION,
+            key: "transition",
+            pool: Pool::Knowledge,
+            effect: NodeEffect::TransitionMilli,
+            ranks: &[rank(2, 250), rank(4, 500)],
+            requires: &[Requirement::Node {
+                code: NODE_FLARE_COST,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_TIN_RANGE,
+            key: "tin_range",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::TinRangePercent,
+            ranks: &[rank(1, 25), rank(2, 50), rank(3, 75)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_TIN_CLARITY,
+            key: "tin_clarity",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::ClarityMilli,
+            ranks: &[rank(1, 333), rank(2, 666), rank(3, 1000)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_HEARING,
+            key: "hearing",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(2, 1)],
+            requires: &[Requirement::Node {
+                code: NODE_TIN_RANGE,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_HEARING_RANGE,
+            key: "hearing_range",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::HearingRangeBlocks,
+            ranks: &[rank(1, 4), rank(2, 8)],
+            requires: &[Requirement::Node {
+                code: NODE_HEARING,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_HEARING_MEMORY,
+            key: "hearing_memory",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::HearingMemoryTicks,
+            ranks: &[rank(1, 20), rank(2, 40)],
+            requires: &[Requirement::Node {
+                code: NODE_HEARING,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_PEWTER_STRENGTH,
+            key: "pewter_strength",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::PewterStrengthPercent,
+            ranks: &[rank(1, 10), rank(2, 20), rank(3, 30)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_PEWTER_ENDURANCE,
+            key: "pewter_endurance",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::PewterEndurancePercent,
+            ranks: &[rank(1, 5), rank(2, 10), rank(3, 15)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_PEWTER_JUMP,
+            key: "pewter_jump",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(2, 1)],
+            requires: &[Requirement::Node {
+                code: NODE_PEWTER_STRENGTH,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_JUMP_HEIGHT,
+            key: "jump_height",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::JumpPercent,
+            ranks: &[rank(1, 10), rank(2, 20)],
+            requires: &[Requirement::Node {
+                code: NODE_PEWTER_JUMP,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_JUMP_CUSHION,
+            key: "jump_cushion",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::CushionPercent,
+            ranks: &[rank(1, 10), rank(2, 20)],
+            requires: &[Requirement::Node {
+                code: NODE_PEWTER_JUMP,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_REFLEXES,
+            key: "reflexes",
+            pool: Pool::Pair(Pair::TinPewter),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(4, 1)],
+            requires: &[
+                Requirement::Node {
+                    code: NODE_HEARING,
+                    rank: 1,
+                },
+                Requirement::Node {
+                    code: NODE_PEWTER_JUMP,
+                    rank: 1,
+                },
+                Requirement::Discovery {
+                    code: RESEARCH_THRESHOLD,
+                },
+            ],
+        },
+        // The bridge between iron/steel and tin/pewter: the two second techniques facing it.
+        NodeDef {
+            code: NODE_STEEL_BODY,
+            key: "steel_body",
+            pool: Pool::Bridge(Pair::IronSteel, Pair::TinPewter),
+            effect: NodeEffect::SteelBodyPercent,
+            ranks: &[rank(2, 15)],
+            requires: &[
+                Requirement::Node {
+                    code: NODE_COIN_JUMP,
+                    rank: 1,
+                },
+                Requirement::Node {
+                    code: NODE_HEARING,
+                    rank: 1,
+                },
+            ],
+        },
     ],
-    research: &[ResearchDef {
-        code: RESEARCH_ANCHOR,
-        key: "anchor_principle",
-        pair: Pair::IronSteel,
-        evidence: EVIDENCE_ITEM_PULLED | EVIDENCE_SELF_PULL | EVIDENCE_PUSH_LIFT,
-        needed: 2,
-        hints: 3,
-        pair_xp: 200,
-        knowledge: 3,
-    }],
+    research: &[
+        ResearchDef {
+            code: RESEARCH_ANCHOR,
+            key: "anchor_principle",
+            pair: Pair::IronSteel,
+            evidence: EVIDENCE_ITEM_PULLED | EVIDENCE_SELF_PULL | EVIDENCE_PUSH_LIFT,
+            needed: 2,
+            hints: 3,
+            pair_xp: 200,
+            knowledge: 3,
+        },
+        ResearchDef {
+            code: RESEARCH_THRESHOLD,
+            key: "threshold_principle",
+            pair: Pair::TinPewter,
+            evidence: EVIDENCE_HEARD_UNSEEN | EVIDENCE_PEWTER_FALL | EVIDENCE_TIN_DARK,
+            needed: 2,
+            hints: 3,
+            pair_xp: 200,
+            knowledge: 3,
+        },
+    ],
     milestones: &[
         MilestoneDef {
             bit: MILESTONE_BASTION,
@@ -307,6 +527,24 @@ pub const CATALOG: Catalog = Catalog {
             category: PRACTICE_COIN_HIT,
             key: "coin_hit",
             pair: Pair::IronSteel,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_HEARD_HIT,
+            key: "heard_hit",
+            pair: Pair::TinPewter,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_PEWTER_FALL,
+            key: "pewter_fall",
+            pair: Pair::TinPewter,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_PEWTER_FIGHT,
+            key: "pewter_fight",
+            pair: Pair::TinPewter,
             xp: 10,
         },
     ],
@@ -478,6 +716,11 @@ impl Progress {
     pub fn flare_milli(&self, catalog: &Catalog) -> u64 {
         BASE_FLARE_MILLI - u64::from(self.effect(NodeEffect::FlareCostMilli, catalog))
     }
+    /// How many metals may be lit at once, with the nodes owned (P8).
+    pub fn burn_limit(&self, catalog: &Catalog) -> u8 {
+        let extra = self.effect(NodeEffect::ExtraBurning, catalog).min(4) as u8;
+        crate::BASE_BURN_LIMIT + extra
+    }
     /// The current value of an effect (0 when no node with it is owned).
     pub fn effect(&self, effect: NodeEffect, catalog: &Catalog) -> u16 {
         catalog
@@ -578,6 +821,18 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
             NodeEffect::CapacityBonusMilli => 500,
             NodeEffect::FlareCostMilli => 1_000,
             NodeEffect::DosingMilli => 500,
+            NodeEffect::ExtraBurning => 2,
+            NodeEffect::TransitionMilli => 500,
+            NodeEffect::Technique => 1,
+            NodeEffect::TinRangePercent => 100,
+            NodeEffect::ClarityMilli => 1_000,
+            NodeEffect::HearingRangeBlocks => 16,
+            NodeEffect::HearingMemoryTicks => 100,
+            NodeEffect::PewterStrengthPercent => 50,
+            NodeEffect::PewterEndurancePercent => 25,
+            NodeEffect::JumpPercent => 50,
+            NodeEffect::CushionPercent => 30,
+            NodeEffect::SteelBodyPercent => 50,
         };
         // Flare steps of 100 keep consumption exact for any reduction step of 10.
         let coarse = def.effect == NodeEffect::FlareCostMilli
@@ -598,6 +853,9 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
         // The flare never costs less than burning: ×3 − 2 = ×1 at most.
         (NodeEffect::FlareCostMilli, 2_000),
         (NodeEffect::DosingMilli, 500),
+        // Six metals lit at most; transition never removes more than the penalty.
+        (NodeEffect::ExtraBurning, 4),
+        (NodeEffect::TransitionMilli, 1_000),
     ] {
         let total: u32 = catalog
             .nodes
@@ -837,6 +1095,25 @@ pub fn tuned_force(base: &ForceRules, progress: &Progress, catalog: &Catalog) ->
         accel: base.accel * (100.0 + accel) / 100.0,
         push_below_gain: base.push_below_gain * (100.0 + below) / 100.0,
         ..*base
+    }
+}
+
+/// [`tuned_force`] with what the player has lit: the iron/steel–tin/pewter bridge adds its
+/// push off an anchor below the feet while pewter burns (P8).
+pub fn tuned_force_lit(
+    base: &ForceRules,
+    progress: &Progress,
+    state: &PlayerState,
+    catalog: &Catalog,
+) -> ForceRules {
+    let rules = tuned_force(base, progress, catalog);
+    if state.metals[crate::Metal::Pewter.index()].burn == crate::BurnState::Off {
+        return rules;
+    }
+    let body = f64::from(progress.effect(NodeEffect::SteelBodyPercent, catalog));
+    ForceRules {
+        push_below_gain: rules.push_below_gain * (100.0 + body) / 100.0,
+        ..rules
     }
 }
 

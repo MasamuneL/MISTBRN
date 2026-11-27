@@ -54,6 +54,12 @@ pub enum Command {
     SelectPair {
         pair: Pair,
     },
+    /// R with both metals of a pair lit (P8): flare every lit metal of `pair`, or bring every
+    /// flared one back to burning.
+    FlarePair {
+        pair: Pair,
+        flared: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,6 +83,10 @@ pub enum RuleError {
     MetalLocked(Metal),
     EmptyReserve(Metal),
     NotImplemented(Operation),
+    /// Lighting this metal would pass the player's limit of metals lit at once (P8).
+    TooManyBurning,
+    /// `FlarePair` with no metal of that pair lit.
+    NothingBurning,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -232,8 +242,19 @@ fn signal(signal: Signal) -> Effect {
     }
 }
 
-/// P4 implements iron and steel only. They act on one target at a time, so lighting one puts
-/// the other out (the last one lit wins).
+/// Metals lit at once without `NodeEffect::ExtraBurning` (P8).
+pub const BASE_BURN_LIMIT: u8 = 2;
+
+/// The metals whose powers exist: iron and steel (P4), tin and pewter (P8).
+fn implemented(metal: Metal) -> bool {
+    matches!(
+        metal,
+        Metal::Iron | Metal::Steel | Metal::Tin | Metal::Pewter
+    )
+}
+
+/// Iron and steel act on one target at a time, so lighting one puts the other out (the last
+/// one lit wins).
 fn iron_steel_partner(metal: Metal) -> Option<Metal> {
     match metal {
         Metal::Iron => Some(Metal::Steel),
@@ -242,15 +263,22 @@ fn iron_steel_partner(metal: Metal) -> Option<Metal> {
     }
 }
 
-fn ignite(state: &mut PlayerState, metal: Metal, partner: Metal, burn: BurnState) -> Vec<Effect> {
+fn ignite(
+    state: &mut PlayerState,
+    metal: Metal,
+    partner: Option<Metal>,
+    burn: BurnState,
+) -> Vec<Effect> {
     let mut effects = Vec::new();
-    let other = &mut state.metals[partner.index()];
-    if other.burn != BurnState::Off {
-        other.burn = BurnState::Off;
-        effects.push(signal(Signal::BurnChanged {
-            metal: partner,
-            burn: BurnState::Off,
-        }));
+    if let Some(partner) = partner {
+        let other = &mut state.metals[partner.index()];
+        if other.burn != BurnState::Off {
+            other.burn = BurnState::Off;
+            effects.push(signal(Signal::BurnChanged {
+                metal: partner,
+                burn: BurnState::Off,
+            }));
+        }
     }
     let entry = &mut state.metals[metal.index()];
     if entry.burn != burn {
@@ -260,10 +288,22 @@ fn ignite(state: &mut PlayerState, metal: Metal, partner: Metal, burn: BurnState
     effects
 }
 
+/// [`apply_command_with`] at the base limit of metals lit at once.
 pub fn apply_command(
     state: &mut PlayerState,
     command: Command,
     ctx: &WorldSnapshot,
+) -> Result<Vec<Effect>, RuleError> {
+    apply_command_with(state, command, ctx, BASE_BURN_LIMIT)
+}
+
+/// Applies a command. `burn_limit` is how many metals may be lit at once (the caller derives it
+/// from the player's nodes, `Progress::burn_limit`).
+pub fn apply_command_with(
+    state: &mut PlayerState,
+    command: Command,
+    ctx: &WorldSnapshot,
+    burn_limit: u8,
 ) -> Result<Vec<Effect>, RuleError> {
     validate_context(state, ctx)?;
     if !ctx.input.gameplay_allowed && !matches!(&command, Command::Extinguish { .. }) {
@@ -283,7 +323,17 @@ pub fn apply_command(
             } else {
                 BurnState::Flared
             };
-            if let Some(partner) = iron_steel_partner(metal) {
+            if implemented(metal) {
+                let partner = iron_steel_partner(metal);
+                // Lit after the change: the others still lit, minus the partner it puts out.
+                let others = Metal::ALL
+                    .into_iter()
+                    .filter(|&m| m != metal && Some(m) != partner)
+                    .filter(|m| state.metals[m.index()].burn != BurnState::Off)
+                    .count();
+                if others + 1 > usize::from(burn_limit) {
+                    return Err(RuleError::TooManyBurning);
+                }
                 return Ok(ignite(state, metal, partner, burn));
             }
             Err(RuleError::NotImplemented(
@@ -310,6 +360,30 @@ pub fn apply_command(
                         metal: current,
                         burn: BurnState::Off,
                     }));
+                }
+            }
+            Ok(effects)
+        }
+        Command::FlarePair { pair, flared } => {
+            let lit: Vec<Metal> = pair
+                .metals()
+                .into_iter()
+                .filter(|m| state.metals[m.index()].burn != BurnState::Off)
+                .collect();
+            if lit.is_empty() {
+                return Err(RuleError::NothingBurning);
+            }
+            let burn = if flared {
+                BurnState::Flared
+            } else {
+                BurnState::Burning
+            };
+            let mut effects = Vec::new();
+            for metal in lit {
+                let entry = &mut state.metals[metal.index()];
+                if entry.burn != burn {
+                    entry.burn = burn;
+                    effects.push(signal(Signal::BurnChanged { metal, burn }));
                 }
             }
             Ok(effects)

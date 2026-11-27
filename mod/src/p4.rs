@@ -13,7 +13,7 @@ use allomancy_core::{
     Authority, BurnState, CATALOG, Command, EVIDENCE_ITEM_PULLED, EVIDENCE_PUSH_LIFT,
     EVIDENCE_SELF_PULL, Effect, EventKind, InputContext, Metal, PRACTICE_ANCHOR_MOVE,
     PRACTICE_COIN_HIT, PRACTICE_COIN_JUMP, RESEARCH_ANCHOR, Tick, Vec3, WorldSnapshot,
-    apply_command, credit_reserve, is_coin, is_metal, tuned_force, update_player,
+    apply_command_with, credit_reserve, is_coin, is_metal, tuned_force_lit, update_player,
 };
 use mod_api::{ClipBlock, ClipFluid, EntityRef, Host, LevelRef, PlayerRef, ServerHost};
 use std::collections::{BTreeMap, HashMap};
@@ -305,9 +305,9 @@ impl Powers {
         let uuid = player.uuid();
         // The nodes the player owns tune reach and force (P5).
         let base = ForceRules::for_flare(flared);
-        let rules = session
-            .saved(uuid)
-            .map_or(base, |saved| tuned_force(&base, saved.progress(), &CATALOG));
+        let rules = session.saved(uuid).map_or(base, |saved| {
+            tuned_force_lit(&base, saved.progress(), saved.state(), &CATALOG)
+        });
         let read: &dyn Host = host;
         let body = player.entity();
         let Some(level) = player.level(read) else {
@@ -1024,7 +1024,9 @@ pub(crate) fn run_core_with(
         probe.last_tick.unwrap_or(Tick(0)),
         gameplay_allowed,
     );
-    let effects: Vec<Effect> = match apply_command(&mut probe, command.clone(), &ctx) {
+    // P8: how many metals may be lit at once follows the player's nodes.
+    let limit = saved.progress().burn_limit(&CATALOG);
+    let effects: Vec<Effect> = match apply_command_with(&mut probe, command.clone(), &ctx, limit) {
         Ok(effects) => effects,
         Err(error) => {
             let word = format!("{error:?}");
@@ -1037,7 +1039,7 @@ pub(crate) fn run_core_with(
     }
     let result = session.change(uuid, true, |saved| {
         update_player(saved, |state, _| {
-            let _ = apply_command(state, command, &ctx);
+            let _ = apply_command_with(state, command, &ctx, limit);
             Ok(())
         })
     });
@@ -1069,7 +1071,7 @@ fn parse_metal(name: &str) -> Option<Metal> {
 }
 
 /// `/mistbrn-test …`, registered only when `MISTBRN_TEST_SCENARIO=p4`.
-pub(crate) const TEST_COMMANDS: [&str; 11] = [
+pub(crate) const TEST_COMMANDS: [&str; 13] = [
     "mistbrn-test burn <metal:word>",
     "mistbrn-test burn <metal:word> <mode:word>",
     "mistbrn-test off",
@@ -1082,6 +1084,10 @@ pub(crate) const TEST_COMMANDS: [&str; 11] = [
     // piece of the anchor research's evidence (bit 1, 2 or 4), as the server would observe.
     "mistbrn-test xp <amount:integer>",
     "mistbrn-test evidence <bit:integer>",
+    // P8: experience through practice category `category` (its pair's), and evidence `bit`
+    // of research `research`.
+    "mistbrn-test xp <amount:integer> <category:integer>",
+    "mistbrn-test evidence <bit:integer> <research:integer>",
     // P6: the nearest bastion's start, then a block inside one of its pieces near the player.
     "mistbrn-test bastion-find",
     "mistbrn-test bastion-probe",
@@ -1129,8 +1135,9 @@ pub(crate) fn run_test_command(
                 Command::Activate { metal }
             };
             let (result, changed) = run_core(session, uuid, position, core);
-            // A new lighting aims anew: the old target is not kept across it.
-            if changed > 0 {
+            // A new lighting aims anew: the old target is not kept across it (iron and steel
+            // only aim).
+            if changed > 0 && matches!(metal, Metal::Iron | Metal::Steel) {
                 powers.clear(uuid, "relit");
             }
             changed_save = changed > 0;

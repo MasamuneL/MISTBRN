@@ -25,7 +25,7 @@ pub(crate) const HUD_LAYER: &str = "mistbrn:reserves";
 
 /// Read in this order each tick. V comes last: a metal key pressed in the same tick as V
 /// acts on the pair the player saw when pressing it.
-const KEYS: [(&str, &str, ControlRequest); 5] = [
+const KEYS: [(&str, &str, ControlRequest); 6] = [
     (
         "toggle_first",
         "key.keyboard.z",
@@ -38,6 +38,12 @@ const KEYS: [(&str, &str, ControlRequest); 5] = [
     ),
     ("flare", "key.keyboard.r", ControlRequest::ToggleFlare),
     ("off", "key.keyboard.g", ControlRequest::Off),
+    // P8: Reflexes' dodge; the direction is the movement keys' when it is sent.
+    (
+        "dodge",
+        "key.keyboard.c",
+        ControlRequest::Dodge { direction: 2 },
+    ),
     ("cycle_pair", "key.keyboard.v", ControlRequest::CyclePair),
 ];
 /// J opens the notebook (P5); with the notebook open, J or Esc closes it. B was taken by
@@ -216,6 +222,38 @@ impl IPayloadHandler for HudInbox {
     }
 }
 
+/// How a metal burns as the server last showed it: `Some(flared)`, None when out (P8; the
+/// render hooks call it, so the state is not waited for).
+pub(crate) fn lit(metal: Metal) -> Option<bool> {
+    let state = STATE.try_lock().ok()?;
+    match state.hud?.metals[metal.index()].burn {
+        BurnState::Off => None,
+        BurnState::Burning => Some(false),
+        BurnState::Flared => Some(true),
+    }
+}
+
+/// Tin and pewter's rules at the nodes the server last showed.
+pub(crate) fn rules() -> allomancy_core::TinPewter {
+    STATE
+        .try_lock()
+        .ok()
+        .and_then(|state| {
+            state
+                .progress
+                .as_ref()
+                .map(|p| allomancy_core::TinPewter::new(p, &allomancy_core::CATALOG))
+        })
+        .unwrap_or_default()
+}
+
+/// Whether the local player has darkness or blindness on (tin leaves that fog alone).
+pub(crate) fn blinded(host: &dyn ClientHost) -> bool {
+    host.local_player()
+        .and_then(|player| host.living(player.entity()))
+        .is_some_and(|living| crate::tin_pewter::dark(host, living))
+}
+
 fn burn_name(burn: BurnState) -> &'static str {
     match burn {
         BurnState::Off => "off",
@@ -344,6 +382,7 @@ fn send(host: &mut dyn ClientHost, bytes: Vec<u8>) {
 }
 
 pub(crate) fn tick(host: &mut dyn ClientHost) {
+    crate::senses::tick(host);
     let allowed = host.playing() && host.window_focused();
     let mut state = state();
     state.ticks += 1;
@@ -375,7 +414,13 @@ pub(crate) fn tick(host: &mut dyn ClientHost) {
                 }
             } else {
                 eprintln!("MISTBRN event=key key={id}");
-                sends.push(encode_control(*request).to_vec());
+                let request = match request {
+                    ControlRequest::Dodge { .. } => ControlRequest::Dodge {
+                        direction: crate::senses::direction(),
+                    },
+                    other => *other,
+                };
+                sends.push(encode_control(request).to_vec());
             }
         }
     }
@@ -557,6 +602,7 @@ fn fuzz_requests() -> Vec<Vec<u8>> {
 }
 
 pub(crate) fn logged_out() {
+    crate::senses::logged_out();
     let mut state = state();
     state.hud = None;
     state.wheel = None;

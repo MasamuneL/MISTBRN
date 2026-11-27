@@ -625,7 +625,13 @@ impl Session {
                     "MISTBRN event=conclude research={key} result=ok seq={}",
                     seq.0
                 );
-                tell(host, player, "message.mistbrn.research.discovered");
+                // The anchor principle keeps its P5 line; later research names itself.
+                let line = if code == allomancy_core::RESEARCH_ANCHOR {
+                    "message.mistbrn.research.discovered".to_owned()
+                } else {
+                    format!("message.mistbrn.research.discovered.{key}")
+                };
+                tell(host, player, &line);
                 Ok(())
             }
             Err(error) => {
@@ -721,10 +727,10 @@ impl Session {
                     count,
                 },
             ) => {
-                let total = self
-                    .saved(uuid)
-                    .map_or(0, |s| s.progress().pair_xp(allomancy_core::Pair::IronSteel));
-                let key = allomancy_core::practice_def(category, &CATALOG).map_or("?", |d| d.key);
+                let def = allomancy_core::practice_def(category, &CATALOG);
+                let pair = def.map_or(allomancy_core::Pair::IronSteel, |d| d.pair);
+                let total = self.saved(uuid).map_or(0, |s| s.progress().pair_xp(pair));
+                let key = def.map_or("?", |d| d.key);
                 eprintln!(
                     "MISTBRN event=practice category={key} xp={xp} count={count} total_xp={total} game_time={game_time}"
                 );
@@ -755,7 +761,13 @@ impl Session {
 
     /// Test runs only (`/mistbrn-test xp`): `amount / 10` anchor practice actions, each in its
     /// own window far past the world's clock, so a later real action opens a fresh window.
-    pub(crate) fn test_xp(&mut self, host: &mut dyn ServerHost, player: PlayerRef, amount: u32) {
+    pub(crate) fn test_xp(
+        &mut self,
+        host: &mut dyn ServerHost,
+        player: PlayerRef,
+        amount: u32,
+        category: u8,
+    ) {
         let uuid = player.uuid();
         let window = CATALOG.window_ticks;
         let mut granted = 0;
@@ -774,9 +786,7 @@ impl Session {
                 };
                 let event = VerifiedEvent::from_server_observation(
                     EventId::new("test_xp"),
-                    EventKind::PracticeAction {
-                        category: allomancy_core::PRACTICE_ANCHOR_MOVE,
-                    },
+                    EventKind::PracticeAction { category },
                     &snapshot,
                 )
                 .map_err(|_| SaveError::InvalidIdentity)?;

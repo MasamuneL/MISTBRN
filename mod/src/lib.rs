@@ -16,20 +16,24 @@ mod p4;
 mod paint;
 mod save;
 mod scenario;
+mod senses;
+mod tin_pewter;
 
 use mod_api::command::{CommandArgumentValue, CommandSource};
 use mod_api::{
     self, Authority as HostAuthority, BlockDropsEvent, ClientHost, ClientPlayerLoggingOutEvent,
-    ClientTickPostEvent, ContainerLootFilledEvent, EntityTeleportEvent, Flow, FurnaceSmeltEvent,
-    GuiLayerDrawEvent, Hooks, HostSide, InteractionResult, ItemPickedUpPostEvent, LevelHost,
-    LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent, LivingDeathEvent,
-    LivingDeathPostEvent, LivingEntityUseItemFinishEvent, PlayerChangedDimensionEvent,
-    PlayerCloneEvent, PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent,
-    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent,
-    Registrar, RegistrationContext, RightClickItemEvent, RunModCommandEvent,
-    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
-    ScreenMouseButtonReleasedPreEvent, ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent,
-    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    ClientTickPostEvent, ContainerLootFilledEvent, EntityOutlineEvent, EntityTeleportEvent, Flow,
+    FurnaceSmeltEvent, GuiLayerDrawEvent, Hooks, HostSide, InteractionResult,
+    ItemPickedUpPostEvent, LevelHost, LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent,
+    LivingDeathEvent, LivingDeathPostEvent, LivingEntityUseItemFinishEvent, LivingFallEvent,
+    LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide, MovementInputEvent,
+    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
+    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
+    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext, RenderFogEvent,
+    RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent,
+    ScreenMouseButtonPressedPreEvent, ScreenMouseButtonReleasedPreEvent,
+    ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, ServerHost,
+    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -43,6 +47,7 @@ struct Allomancy {
     controls: Mutex<controls::Controls>,
     milestones: Mutex<milestones::Milestones>,
     beach_salt: Mutex<alchemy::BeachSalt>,
+    tin_pewter: Mutex<tin_pewter::TinPewterPowers>,
 }
 
 impl Default for Allomancy {
@@ -56,6 +61,7 @@ impl Default for Allomancy {
             controls: Mutex::default(),
             milestones: Mutex::default(),
             beach_salt: Mutex::default(),
+            tin_pewter: Mutex::default(),
         }
     }
 }
@@ -68,7 +74,13 @@ impl Hooks for Allomancy {
             .unwrap_or_else(PoisonError::into_inner)
             .register(registrar);
         alchemy::register(registrar);
-        controls::register(registrar, client::hud_handler(), client::progress_handler());
+        controls::register(
+            registrar,
+            client::hud_handler(),
+            client::progress_handler(),
+            senses::handler(),
+        );
+        tin_pewter::register(registrar);
         client::register_keys(registrar);
         client::register_settings(registrar);
     }
@@ -130,6 +142,9 @@ impl Hooks for Allomancy {
     fn living_death(&self, _: &mut dyn ServerHost, event: &mut LivingDeathEvent<'_>) -> Flow {
         if !event.cancelled {
             self.milestones().dying(event.entity, event.kind);
+            if let Ok(mut tin_pewter) = self.tin_pewter.try_lock() {
+                tin_pewter.died(event.kind, event.source);
+            }
         }
         Flow::Continue
     }
@@ -146,6 +161,7 @@ impl Hooks for Allomancy {
             .beach_salt
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = alchemy::BeachSalt::default();
+        *self.tin_pewter() = tin_pewter::TinPewterPowers::default();
         let mut controls = self.controls();
         controls.purge_all();
         *controls = controls::Controls::default();
@@ -173,11 +189,17 @@ impl Hooks for Allomancy {
         let tick = event.context.tick.get();
         let mut powers = self.powers();
         let mut controls = self.controls();
+        let mut tin_pewter = self.tin_pewter();
+        tin_pewter.begin(tick);
         // Key requests first, so a metal put out this tick takes no force.
-        controls.apply(host, &mut session, &mut powers, tick);
+        controls.apply(host, &mut session, &mut powers, &mut tin_pewter, tick);
         powers.apply_prepared(host, &session, tick);
+        // Tin and pewter (P8): what is lit, on the player.
+        tin_pewter.tick(host, &session, tick);
+        let observed = tin_pewter.take_observations();
+        drop(tin_pewter);
         // Practice and evidence seen this tick (P5), after the forces that caused them.
-        for (uuid, kind) in powers.take_observations() {
+        for (uuid, kind) in powers.take_observations().into_iter().chain(observed) {
             if let Some(player) = host.player(uuid) {
                 session.observe_event(host, player, kind);
             }
@@ -323,8 +345,11 @@ impl Hooks for Allomancy {
         };
         match command.literals.get(1).map(String::as_str) {
             Some("xp") => {
+                let category = integer("category")
+                    .and_then(|c| u8::try_from(c).ok())
+                    .unwrap_or(allomancy_core::PRACTICE_ANCHOR_MOVE);
                 self.session()
-                    .test_xp(host, *player, integer("amount").unwrap_or(0));
+                    .test_xp(host, *player, integer("amount").unwrap_or(0), category);
                 return Flow::Cancel;
             }
             Some(probe @ ("bastion-find" | "bastion-probe")) => {
@@ -336,7 +361,13 @@ impl Hooks for Allomancy {
                 let bit = integer("bit")
                     .and_then(|b| u8::try_from(b).ok())
                     .unwrap_or(0);
-                let kind = anchor_evidence(bit);
+                let kind = match integer("research").and_then(|r| u16::try_from(r).ok()) {
+                    Some(research) => allomancy_core::EventKind::ResearchEvidence {
+                        research,
+                        evidence: bit,
+                    },
+                    None => anchor_evidence(bit),
+                };
                 let mut session = self.session();
                 session.observe_event(host, *player, kind);
                 session.flush(host, *player);
@@ -372,6 +403,7 @@ impl Hooks for Allomancy {
     ) {
         self.powers()
             .changed_dimension(&mut self.session(), event.player);
+        self.tin_pewter().clear(event.player, "dimension");
         let mut controls = self.controls();
         controls.purge(event.player);
         controls.resend(event.player);
@@ -397,10 +429,12 @@ impl Hooks for Allomancy {
         if let Some(player) = host.player(event.player) {
             self.session().ensure_loaded(host, player);
         }
+        self.tin_pewter().clear(event.player, "login");
         self.controls().resend(event.player);
     }
 
     fn player_logged_out(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedOutEvent<'_>) {
+        self.tin_pewter().logged_out(host, event.player);
         self.session().logged_out(host, event.player);
         self.controls().logged_out(event.player);
     }
@@ -408,6 +442,7 @@ impl Hooks for Allomancy {
     fn player_died(&self, host: &mut dyn ServerHost, event: &mut PlayerDiedEvent<'_>) {
         self.controls().purge(event.player);
         self.powers().died(event.player);
+        self.tin_pewter().clear(event.player, "death");
         self.session().died(host, event.player);
     }
 
@@ -415,6 +450,7 @@ impl Hooks for Allomancy {
         if event.was_death {
             self.session().respawned_after_death(host, event.player);
         }
+        self.tin_pewter().clear(event.player, "respawn");
         self.controls().resend(event.player);
     }
 
@@ -506,6 +542,65 @@ impl Hooks for Allomancy {
         }
     }
 
+    // P8, tin and pewter: these hooks skip when the powers' state is busy (see `tin_pewter`).
+
+    fn living_incoming_damage(
+        &self,
+        _: &mut dyn LevelRandomHost,
+        event: &mut LivingIncomingDamageEvent<'_>,
+    ) -> Flow {
+        let Ok(mut tin_pewter) = self.tin_pewter.try_lock() else {
+            return Flow::Continue;
+        };
+        let damage = event.container.new_damage();
+        match tin_pewter.incoming_damage(event.entity, event.source, damage) {
+            (true, _) => Flow::Cancel,
+            (false, Some(taken)) => {
+                event.container.set_new_damage(taken);
+                Flow::Continue
+            }
+            (false, None) => Flow::Continue,
+        }
+    }
+
+    fn living_fall(&self, context: &dyn LoopContext, event: &mut LivingFallEvent<'_>) -> Flow {
+        if context.side() == LoopSide::Server
+            && let Ok(mut tin_pewter) = self.tin_pewter.try_lock()
+            && let Some(multiplier) = tin_pewter.fall(event.entity, event.distance)
+        {
+            event.multiplier *= multiplier;
+        }
+        Flow::Continue
+    }
+
+    fn living_jump_power(&self, context: &dyn LoopContext, event: &mut LivingJumpPowerEvent<'_>) {
+        if context.side() == LoopSide::Client {
+            senses::jump(event.entity, &mut event.power);
+        } else if context.side() == LoopSide::Server
+            && let Ok(tin_pewter) = self.tin_pewter.try_lock()
+            && let Some(factor) = tin_pewter.jump(event.entity)
+        {
+            event.power *= factor;
+        }
+    }
+
+    fn entity_outline(&self, _: &dyn ClientHost, event: &mut EntityOutlineEvent<'_>) {
+        senses::outline(event.entity_id, event.outline);
+    }
+
+    fn render_fog(&self, host: &dyn ClientHost, event: &mut RenderFogEvent<'_>) {
+        senses::fog(host, event.fog_type, event.fog);
+    }
+
+    fn movement_input(&self, _: &dyn ClientHost, event: &mut MovementInputEvent) {
+        senses::movement(
+            event.left_key,
+            event.right_key,
+            event.backward_key,
+            event.forward_key,
+        );
+    }
+
     fn client_player_logging_out(
         &self,
         _: &mut dyn ClientHost,
@@ -524,6 +619,12 @@ fn anchor_evidence(bit: u8) -> allomancy_core::EventKind {
 }
 
 impl Allomancy {
+    fn tin_pewter(&self) -> MutexGuard<'_, tin_pewter::TinPewterPowers> {
+        self.tin_pewter
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn powers(&self) -> MutexGuard<'_, p4::Powers> {
         self.powers.lock().unwrap_or_else(PoisonError::into_inner)
     }

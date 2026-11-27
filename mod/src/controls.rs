@@ -14,6 +14,7 @@
 //! transactions (`Session::purchase`, `Session::reveal_hint`), not power commands.
 use crate::bridge::{Session, metal_name};
 use crate::p4::{Powers, run_core_with};
+use crate::tin_pewter::TinPewterPowers;
 use allomancy_core::{
     BurnState, Command, ControlError, ControlRequest, HudSnapshot, Metal, PROGRESS_LEN, Pair,
     RequestBudget, Side, Vec3, decode_control, encode_hud, encode_progress_snapshot,
@@ -82,6 +83,12 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         "flare" => (ControlRequest::ToggleFlare, 1),
         "off" => (ControlRequest::Off, 1),
         "select_tin_pewter" => (ControlRequest::SelectPair(Pair::TinPewter), 1),
+        "select_iron_steel" => (ControlRequest::SelectPair(Pair::IronSteel), 1),
+        // P8: the dodge, as the client sends it (`dodge.<direction>`).
+        "dodge.0" => (ControlRequest::Dodge { direction: 0 }, 1),
+        "dodge.1" => (ControlRequest::Dodge { direction: 1 }, 1),
+        "dodge.2" => (ControlRequest::Dodge { direction: 2 }, 1),
+        "dodge.3" => (ControlRequest::Dodge { direction: 3 }, 1),
         // P5: notebook requests as the client sends them (`buy.<code>.<rank>`,
         // `hint.<research>.<index>`), with an optional repeat count (`.<count>`, 1–4) queued
         // in this one call, so the copies reach the server in the same tick.
@@ -140,12 +147,17 @@ pub(crate) fn register(
     registrar: &mut dyn Registrar,
     hud: Arc<dyn IPayloadHandler>,
     progress: Arc<dyn IPayloadHandler>,
+    senses: Arc<dyn IPayloadHandler>,
 ) {
     let mut payloads = registrar.payload_handlers();
     let mut view = payloads.registrar(CHANNEL_VERSION);
     view.play_to_server(PayloadId(CONTROL_CHANNEL.into()), Arc::new(ControlInbox));
     view.play_to_client(PayloadId(HUD_CHANNEL.into()), Some(hud));
     view.play_to_client(PayloadId(PROGRESS_CHANNEL.into()), Some(progress));
+    view.play_to_client(
+        PayloadId(crate::tin_pewter::SENSES_CHANNEL.into()),
+        Some(senses),
+    );
 }
 
 #[derive(Default)]
@@ -223,6 +235,7 @@ fn op_name(request: ControlRequest) -> &'static str {
         ControlRequest::Purchase { .. } => "buy",
         ControlRequest::RevealHint { .. } => "hint",
         ControlRequest::Conclude { .. } => "conclude",
+        ControlRequest::Dodge { .. } => "dodge",
     }
 }
 
@@ -242,6 +255,9 @@ fn command_name(command: &Command) -> String {
         Command::Extinguish { metal: Some(metal) } => format!("off:{}", metal_name(*metal)),
         Command::Extinguish { metal: None } => "off:all".into(),
         Command::SelectPair { pair } => format!("pair:{}", pair_name(*pair)),
+        Command::FlarePair { pair, flared } => {
+            format!("flare_pair:{}:{flared}", pair_name(*pair))
+        }
         _ => "other".into(),
     }
 }
@@ -291,6 +307,7 @@ impl Controls {
         host: &mut dyn ServerHost,
         session: &mut Session,
         powers: &mut Powers,
+        tin_pewter: &mut TinPewterPowers,
         tick: u64,
     ) {
         let dropped = DROPPED.swap(0, Ordering::Relaxed);
@@ -325,7 +342,7 @@ impl Controls {
                     continue;
                 }
             };
-            self.apply_one(host, session, powers, uuid, request);
+            self.apply_one(host, session, powers, tin_pewter, uuid, request);
         }
     }
 
@@ -334,6 +351,7 @@ impl Controls {
         host: &mut dyn ServerHost,
         session: &mut Session,
         powers: &mut Powers,
+        tin_pewter: &mut TinPewterPowers,
         uuid: u128,
         request: ControlRequest,
     ) {
@@ -367,6 +385,18 @@ impl Controls {
                 eprintln!(
                     "MISTBRN event=control op={op} result={}",
                     result.map_or_else(|error| error, |_| "ok".into())
+                );
+                return;
+            }
+            ControlRequest::Dodge { direction } => {
+                let result = if allowed {
+                    tin_pewter.dodge(host, session, player, direction)
+                } else {
+                    Err("InputCaptured".to_owned())
+                };
+                eprintln!(
+                    "MISTBRN event=control op={op} direction={direction} result={}",
+                    result.map_or_else(|error| error, |()| "ok".into())
                 );
                 return;
             }
@@ -405,9 +435,11 @@ impl Controls {
             }
             return;
         };
+        // Only iron and steel aim: lighting another metal keeps their target.
         let newly_lit = match &command {
             Command::Activate { metal } => {
-                saved.state().metals[metal.index()].burn == BurnState::Off
+                matches!(metal, Metal::Iron | Metal::Steel)
+                    && saved.state().metals[metal.index()].burn == BurnState::Off
             }
             _ => false,
         };
@@ -438,6 +470,8 @@ impl Controls {
                 hint(host, player, "message.mistbrn.metal_locked", Some(metal));
             } else if result.starts_with("EmptyReserve") {
                 hint(host, player, "message.mistbrn.metal_empty", Some(metal));
+            } else if result.starts_with("TooManyBurning") {
+                hint(host, player, "message.mistbrn.too_many_burning", None);
             }
         }
     }

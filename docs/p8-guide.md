@@ -1,43 +1,50 @@
-# P8 — Guía para probar el mapa de habilidades
+# P8 — Guía para probar el mapa y estaño/peltre
 
-El libro (J) ya no tiene un árbol por pareja: la pestaña Árboles es **un mapa único**. En el centro está General (se paga con conocimiento). Alrededor, un sector por pareja, colocado como en la tabla alomántica: hierro/acero arriba a la izquierda, estaño/peltre arriba a la derecha, cobre/bronce abajo a la derecha y zinc/latón abajo a la izquierda. Cada sector tiene la rama del metal que tira y la del que empuja, y la técnica combinada al fondo. Entre sectores vecinos hay nodos puente.
+## El mapa (J, pestaña Árboles)
 
-## Qué mirar
+- **Disposición**: un solo mapa con General (conocimiento) en el centro y un sector por pareja colocado como en la tabla alomántica:
+  - hierro/acero arriba a la izquierda;
+  - estaño/peltre arriba a la derecha;
+  - cobre/bronce abajo a la derecha;
+  - zinc/latón abajo a la izquierda.
+- **Sectores bloqueados**: son siluetas que nombran su hito.
+- **Ratón**: arrastrar mueve el mapa, un clic quieto compra y la rueda hace zoom.
+- **Teclado**: Tab y las flechas mueven el foco e Intro compra. Re Pág y Av Pág saltan de sector; Inicio vuelve al centro.
 
-1. **Al abrir**, el mapa se centra en la pareja seleccionada. Arriba sale el nombre del sector que estás mirando y su experiencia; arriba a la derecha, sus puntos. Mirando al centro (General), los puntos de arriba a la derecha son los de conocimiento.
-2. **Sectores bloqueados**: son siluetas oscuras con el nombre de la pareja y el hito que la abre. Al pasar el ratón por encima, el recuadro dice dónde buscarlo.
-3. **Nodos**: el primer nodo de cada rama es el poder propio del metal, que tienes con la pareja. Los «?» son técnicas que llegan más adelante. En hierro/acero, Alcance y Fuerza cuelgan del tirón y Salto con moneda está en la rama del empujón.
-4. **General**: Economía, Capacidad y dos nuevos:
-   - **Avivado eficiente**: avivar consume ×2,7 y luego ×2,4, en vez de ×3. Pide Economía.
-   - **Dosificación**: cada vial da un 10 % y luego un 20 % más, sin pasar de la capacidad. Pide Capacidad.
-   - Dos siluetas más llegan con estaño/peltre.
+## Estaño y peltre
 
-## Ratón
+Se desbloquean en el bastión. Selecciona la pareja con V: Z enciende estaño, X peltre y R aviva lo que arde (los dos si arden los dos).
 
-- **Arrastra** con el botón izquierdo para mover el mapa. Si el ratón no se mueve, el clic compra el siguiente rango. Si arrastras, no compra nada.
-- **Rueda**: zoom del 50 % al 200 % alrededor del puntero.
+- **Sentidos (estaño)**: ves de noche y la niebla se aleja ×1,5 (avivado ×2). Avivado con mucha luz te deslumbra un par de segundos.
+- **Cuerpo de peltre**: +20 % de ataque, +10 % de velocidad, menos empuje, −15 % de daño y −30 % de caída. Avivado, el doble, pero da hambre, y un avivado de 10 s o más deja lentitud y fatiga al terminar.
+- Nodos:
+  - **Vista lejana**, **Claridad** (oscuridad y ceguera más cortas);
+  - **Oído** (las criaturas que se mueven cerca brillan para ti a través de las paredes), con **Oído fino** y **Eco**;
+  - **Fuerza**, **Aguante**;
+  - **Salto de peltre**, con **Impulso** y **Amortiguación**.
+- **Reflejos** (al fondo del sector): pide Oído, Salto de peltre y el principio del umbral. Con los dos metales encendidos, C esquiva hacia donde te mueves, gasta peltre e ignora golpes y flechas un instante.
+- **Investigación «el principio del umbral»** (Diario), con dos de estas tres:
+  - oír con estaño a una criatura que no ves;
+  - sobrevivir con peltre a una caída de 12 bloques o más;
+  - quemar estaño con oscuridad o ceguera.
 
-## Teclado
-
-- **Tab** y Mayús+Tab recorren las pestañas y los nodos reales (comprables o no). Se saltan los «?», los poderes propios y los sectores bloqueados.
-- **Las flechas** van al nodo más cercano en esa dirección.
-- **Intro** compra.
-- **Re Pág/Av Pág** saltan de un sector a otro, empezando por el centro.
-- **+ y −** cambian el zoom. **Inicio** vuelve al centro.
-- El mapa se mueve solo para que el nodo con foco se vea.
+  Se concluye en un alambique.
+- **General** (conocimiento):
+  - **Combustión simultánea**: un tercer metal encendido a la vez.
+  - **Transición**: el deslumbramiento y la lentitud al dejar de avivar duran menos.
+- **Puente Cuerpo de acero** (entre los dos sectores; pide Salto con moneda y Oído y cuesta 2 puntos de cada pareja): con peltre encendido, el empujón de acero hacia abajo da más.
 
 ## Prueba rápida
 
-1. En supervivencia, bebe un vial de hierro y abre el libro con J. Mira el sector de hierro/acero, arrastra hacia los otros sectores y aleja el zoom hasta ver el mapa entero.
-2. Pasa el ratón por un sector bloqueado y por un «?».
-3. Sin ratón: pulsa Tab hasta Alcance y prueba las flechas. Intro compra solo si tienes un punto de la pareja (100 de experiencia, por ejemplo practicando tirones).
-4. Concluir el principio del ancla en un alambique da 3 puntos de conocimiento. Con ellos, compra Economía (1) y Avivado eficiente (1), aviva hierro y compara cuánto baja la barra.
-5. En otra partida con esos 3 puntos, compra Capacidad (1) y Dosificación (1) y bebe un vial: deberían entrar 27 500 en lugar de 25 000.
+1. Con estaño y peltre desbloqueados, enciende estaño de noche y mira lejos; avívalo a mediodía.
+2. Enciende peltre en supervivencia: pega, recibe un golpe y salta desde 12 bloques.
+3. Con Oído comprado, ponte tras un muro junto a una vaca: debe brillar cuando se mueve.
+4. Concluye el principio del umbral, compra Fuerza, Salto de peltre y Reflejos, enciende los dos metales y pulsa C moviéndote a un lado.
 
 ## Qué anotar
 
-- Texto tapado o cortado a algún zoom, o un nodo que no se ve al recibir el foco.
-- Un clic que compra al arrastrar, o un arrastre que no mueve el mapa.
-- Si algo del mapa no se entiende sin leer esta guía.
+- Efectos que se quedan puestos tras apagar, morir o cambiar de dimensión.
+- La niebla, el contorno o el salto raros o molestos.
+- Texto tapado en el mapa o iconos que no se entienden.
 
 Envía las notas en el chat; se añaden a `docs/evidence/p8.md`.
