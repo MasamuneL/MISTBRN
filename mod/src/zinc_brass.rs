@@ -1,16 +1,21 @@
 //! Zinc and brass's powers (P8), server side.
 //!
-//! Each level's pass (`level_tick_post`, while the level is in place: rays of a parked level
-//! answer nothing) looks along each lit player's view for one compatible creature per metal.
-//! Zinc provokes it (its target becomes the player), brass soothes it (it lets the player go
-//! and cannot pick them again). Owned techniques add courage for an ally in the view, a retreat
-//! for the soothed and, with both metals, selective influence. `living_change_target` holds the
-//! choice: a provoked creature keeps the player, a soothed one never takes them.
+//! Each level's pass (`level_tick_post`, while the level is in place: rays and entity reads of
+//! a parked level answer nothing) looks along each lit player's view for one compatible
+//! creature per metal. Zinc provokes it (its target becomes the player), brass soothes it (it
+//! lets the player go and cannot pick them again). Owned techniques add courage for an ally in
+//! the view, a retreat for the soothed and, with both metals, selective influence.
+//!
+//! Influence is kept per creature (`Hold`), not per player: a creature's own level pass ends,
+//! keeps and lets go of it, with the player entity id it was taken for, wherever the player is
+//! by then. Immunity is per creature and metal, shared by every player. `living_change_target`
+//! enforces the same resolution as the pass: the oldest provocation wins; a soothed creature
+//! never takes a player who soothes it.
 //!
 //! An effect lasts while the metal holds it and `after` ticks once let go (bosses: 40 ticks at
 //! most); then that creature ignores the same metal for a while. Nothing here is saved:
-//! putting the metals out, dying, changing dimension or reconnecting lets every creature go
-//! (`event=power_cleared`). Courage's effects on an ally run out by themselves.
+//! putting the metals out lets go; dying, changing dimension or leaving ends every hold and
+//! courage the player gave at once (`event=power_cleared`).
 //!
 //! Hooks may fire while this module's own pass holds its lock: they use `try_lock` and skip,
 //! which is what this module's own target changes want.
@@ -18,8 +23,8 @@ use crate::bridge::Session;
 use allomancy_core::{
     BurnState, CATALOG, EMOTION_PAIR_TICKS, EVIDENCE_BOTH, EVIDENCE_PROVOKED_NEUTRAL,
     EVIDENCE_SOOTHED_CHASER, EventKind, Influence, Metal, PRACTICE_ALLY, PRACTICE_PROVOKE,
-    PRACTICE_SOOTHE, PROVOKE_NEAR, RESEARCH_EMOTION, SELECTIVE_RADIUS, SOOTHE_PRACTICE, ZincBrass,
-    is_boss, is_compatible, is_hostile, is_neutral,
+    PRACTICE_SOOTHE, PROVOKE_NEAR, RESEARCH_EMOTION, SELECTIVE_RADIUS, SOOTHE_PRACTICE, ZB_AFTER,
+    ZincBrass, is_boss, is_compatible, is_hostile, is_neutral,
 };
 use mod_api::{
     ActiveEffect, ClipBlock, ClipFluid, EffectKey, EntityRef, Host, HurtSource, LevelRef,
@@ -33,10 +38,10 @@ const RAY_MARGIN: f64 = 0.3;
 const RETREAT_EVERY_TICKS: u64 = 10;
 /// The player's last hit counts for an ally this long.
 const STRUCK_TICKS: u64 = 100;
-/// Allies and struck creatures are looked for this far from the player.
+/// An ally looks for the creature its player hit this far from itself.
 const ALLY_SEARCH: f64 = 24.0;
-/// An incompatible creature in the view is logged at most this often.
-const INCOMPATIBLE_QUIET: u64 = 20;
+/// A refused creature in the view (incompatible, immune) is logged at most this often.
+const QUIET_TICKS: u64 = 20;
 
 #[derive(Clone, Copy)]
 struct Effects {
@@ -54,62 +59,84 @@ pub(crate) fn register(registrar: &mut dyn Registrar) {
     });
 }
 
-/// A creature under one of this player's metals.
-struct Held {
+/// A creature under one player's metal.
+struct Hold {
     entity: EntityRef,
+    level: LevelRef,
     zinc: bool,
-    /// Taken by the view (one per metal); false for selective influence's soothed ones.
+    player: u128,
+    /// The player's body when the hold began (the target zinc holds, the one brass refuses).
+    player_entity: u32,
+    player_living: Option<LivingRef>,
+    /// Taken by the view (one per metal and player), not by selective influence's area.
     gazed: bool,
-    /// A neutral creature: calmed when soothed, and when zinc lets it go.
     neutral: bool,
+    hostile: bool,
     influence: Influence,
-    /// Brass: it had the player as target when soothed (a chaser).
+    /// Brass: it was chasing the player on its own when soothed (not by this player's zinc).
     chaser: bool,
+    /// Zinc: it started farther than `PROVOKE_NEAR`.
+    far: bool,
+    /// The effect was seen working (zinc: it targets the player; brass: it does not).
+    verified: bool,
     /// Practice already counted for this hold.
     counted: bool,
     next_path: u64,
-    /// Retreat: sent away at least once, and reached its distance.
     retreating: bool,
     reached: bool,
+    /// Death, dimension, login, logout: ended on its level's next pass, with no immunity.
+    ending: Option<&'static str>,
+}
+
+impl Hold {
+    fn live(&self, after: u64, tick: u64) -> bool {
+        self.ending.is_none() && self.influence.active(after, tick)
+    }
+}
+
+/// Courage given to an ally: what to take off if the player leaves before it runs out.
+struct Ally {
+    entity: EntityRef,
+    level: LevelRef,
+    player: u128,
+    given: u64,
+    ticks: i32,
+    amplifier: i32,
+    /// The creature it was last sent at.
+    led: Option<u32>,
+    ending: bool,
+}
+
+impl Ally {
+    fn until(&self) -> u64 {
+        self.given + u64::try_from(self.ticks).unwrap_or(0)
+    }
 }
 
 #[derive(Default)]
 struct Player {
     entity: u32,
-    /// The player's body as a living handle (the target zinc holds).
     living: Option<LivingRef>,
     rules: ZincBrass,
     zinc: Option<bool>,
     brass: Option<bool>,
-    held: Vec<Held>,
-    /// (creature id, zinc) → the tick it stops ignoring that metal.
-    immune: BTreeMap<(u32, bool), u64>,
-    /// The last creature the player hit, and when.
+    /// The last creature (never a player) the player hurt, and when.
     struck: Option<(u32, u64)>,
-    /// Allies with courage: id → until.
-    allies: BTreeMap<u32, u64>,
-    /// When each creature was last provoked and soothed (the emotion research's third evidence).
+    /// When each creature was first seen provoked and soothed (the third evidence).
     provoked_at: BTreeMap<u32, u64>,
     soothed_at: BTreeMap<u32, u64>,
-    /// Login, respawn, dimension: every creature goes, then the pass starts again.
-    fresh: bool,
-}
-
-/// What `living_change_target` enforces on a creature: the player entity it must keep (zinc)
-/// or never take (brass).
-#[derive(Clone, Copy)]
-enum Guard {
-    Keep(LivingRef),
-    Refuse(u32),
 }
 
 #[derive(Default)]
 pub(crate) struct ZincBrassPowers {
     players: BTreeMap<u128, Player>,
     by_entity: BTreeMap<u32, u128>,
-    /// Ally id → the player whose courage it carries.
-    allies: BTreeMap<u32, u128>,
-    guards: BTreeMap<u32, Guard>,
+    holds: Vec<Hold>,
+    allies: Vec<Ally>,
+    /// (creature id, zinc) → the tick it stops ignoring that metal, for every player.
+    immune: BTreeMap<(u32, bool), u64>,
+    /// (creature id, zinc) → until when a refusal is not logged again.
+    quiet: BTreeMap<(u32, bool), u64>,
     tick: u64,
     observations: Vec<(u128, EventKind)>,
 }
@@ -149,6 +176,14 @@ fn alive(host: &dyn Host, entity: EntityRef) -> bool {
 
 fn metal_name(zinc: bool) -> &'static str {
     if zinc { "zinc" } else { "brass" }
+}
+
+fn target_id(host: &dyn Host, mob: MobRef) -> Option<u32> {
+    mob.target(host).map(|t| t.entity().id())
+}
+
+fn player_position(host: &dyn Host, uuid: u128) -> Option<[f64; 3]> {
+    host.player(uuid).and_then(|p| p.entity().position(host))
 }
 
 /// The player's own ally: a wolf they tamed, or an iron golem a player built (the game keeps
@@ -202,36 +237,73 @@ fn calm(host: &mut dyn ServerHost, entity: EntityRef) -> bool {
     entity.merge_nbt(host, data)
 }
 
-/// Lets a creature go: a provoked one drops the player as target (and a neutral one its
-/// anger), a retreating one stops.
-fn release(host: &mut dyn ServerHost, held: &Held, player: u32) {
+/// Lets a creature go: a provoked one drops the player it was provoked against (and a neutral
+/// one its anger), a retreating one stops.
+fn release(host: &mut dyn ServerHost, hold: &Hold) {
     let read: &dyn Host = host;
-    let Some(mob) = read.mob(held.entity) else {
+    let Some(mob) = read.mob(hold.entity) else {
         return;
     };
-    if held.zinc {
-        if mob.target(read).is_some_and(|t| t.entity().id() == player) {
+    if hold.zinc {
+        if target_id(read, mob) == Some(hold.player_entity) {
             let _ = mob.set_target(host, None);
         }
         let _ = mob.set_aggressive(host, false);
-        if held.neutral {
-            let _ = calm(host, held.entity);
+        if hold.neutral {
+            let _ = calm(host, hold.entity);
         }
-    } else {
+    } else if hold.retreating {
         let _ = mob.stop(host);
     }
 }
 
+/// What the live holds on one creature want, as the pass and the hook both resolve it: the
+/// oldest provocation's player keeps it; every player soothing it is refused.
+struct Wanted {
+    keep: Option<(u32, Option<LivingRef>)>,
+    refuse: Vec<u32>,
+}
+
+fn after_of(players: &BTreeMap<u128, Player>, hold: &Hold) -> u64 {
+    players
+        .get(&hold.player)
+        .map_or(ZB_AFTER, |p| p.rules.after(hold.zinc))
+}
+
+fn wanted(holds: &[Hold], players: &BTreeMap<u128, Player>, id: u32, tick: u64) -> Wanted {
+    let live: Vec<&Hold> = holds
+        .iter()
+        .filter(|h| h.entity.id() == id && h.live(after_of(players, h), tick))
+        .collect();
+    let keep = live
+        .iter()
+        .filter(|h| h.zinc)
+        .min_by_key(|h| (h.influence.started, h.player))
+        .map(|h| (h.player_entity, h.player_living));
+    let refuse = live
+        .iter()
+        .filter(|h| !h.zinc)
+        .map(|h| h.player_entity)
+        .collect();
+    Wanted { keep, refuse }
+}
+
 impl ZincBrassPowers {
-    /// The server tick, before the levels' passes: players who left are forgotten.
+    /// The server tick, before the levels' passes: players who left end their influence.
     pub(crate) fn begin(&mut self, host: &dyn ServerHost, tick: u64) {
         self.tick = tick;
         let online = host.players().server_players();
-        self.players
-            .retain(|uuid, _| online.iter().any(|p| p.uuid() == *uuid));
-        let players = &self.players;
-        self.by_entity.retain(|_, uuid| players.contains_key(uuid));
-        self.allies.retain(|_, uuid| players.contains_key(uuid));
+        let gone: Vec<u128> = self
+            .players
+            .keys()
+            .copied()
+            .filter(|uuid| !online.iter().any(|p| p.uuid() == *uuid))
+            .collect();
+        for uuid in gone {
+            self.logged_out(uuid);
+        }
+        self.immune.retain(|_, until| *until > tick);
+        self.quiet.retain(|_, until| *until > tick);
     }
 
     /// One level's pass, right after that level's own tick.
@@ -245,94 +317,138 @@ impl ZincBrassPowers {
         if !level.in_place(read) {
             return;
         }
-        let tick = self.tick;
         let mut online = host.players().server_players();
         let read: &dyn Host = host;
         online.retain(|player| player.level(read) == Some(level));
-        for player in online {
-            let uuid = player.uuid();
-            let Some(saved) = session.saved(uuid) else {
+        for &player in &online {
+            self.update_player(host, session, player);
+        }
+        self.end_holds(host, level);
+        for &player in &online {
+            self.acquire(host, level, player);
+        }
+        self.keep_holds(host, level);
+        self.keep_allies(host, level);
+    }
+
+    /// What the player has lit and owns; a metal put out (or selective influence's area left)
+    /// lets its creatures go.
+    fn update_player(&mut self, host: &mut dyn ServerHost, session: &Session, player: PlayerRef) {
+        let tick = self.tick;
+        let uuid = player.uuid();
+        let Some(saved) = session.saved(uuid) else {
+            return;
+        };
+        let state = saved.state();
+        let zinc = lit(state.metals[Metal::Zinc.index()].burn);
+        let brass = lit(state.metals[Metal::Brass.index()].burn);
+        let body = player.entity();
+        let read: &dyn Host = host;
+        let entry = self.players.entry(uuid).or_default();
+        entry.entity = body.id();
+        entry.living = read.living(body);
+        entry.rules = ZincBrass::new(saved.progress(), &CATALOG);
+        self.by_entity.insert(body.id(), uuid);
+        if (entry.zinc.is_some() && zinc.is_none()) || (entry.brass.is_some() && brass.is_none()) {
+            eprintln!(
+                "MISTBRN event=power_cleared reason=off zinc={} brass={}",
+                zinc.is_some(),
+                brass.is_some()
+            );
+        }
+        entry.zinc = zinc;
+        entry.brass = brass;
+        let selective = entry.rules.selective() && zinc.is_some() && brass.is_some();
+        let at = body.position(read);
+        let here = player.level(read);
+        for hold in self.holds.iter_mut().filter(|h| h.player == uuid) {
+            let on = if hold.zinc { zinc } else { brass };
+            let outside = !hold.gazed
+                && (!selective
+                    || here != Some(hold.level)
+                    || hold
+                        .entity
+                        .position(read)
+                        .zip(at)
+                        .is_none_or(|(p, a)| distance(p, a) > SELECTIVE_RADIUS));
+            if on.is_none() || outside {
+                hold.influence.released.get_or_insert(tick);
+            }
+        }
+    }
+
+    /// Ends this level's holds whose time is over (or that a clear ended), before the views.
+    fn end_holds(&mut self, host: &mut dyn ServerHost, level: LevelRef) {
+        let tick = self.tick;
+        let mut kept = Vec::new();
+        for hold in std::mem::take(&mut self.holds) {
+            if hold.level != level {
+                kept.push(hold);
+                continue;
+            }
+            let read: &dyn Host = host;
+            let after = after_of(&self.players, &hold);
+            let gone = !alive(read, hold.entity);
+            let reason = if gone {
+                "gone"
+            } else if let Some(reason) = hold.ending {
+                reason
+            } else if !hold.influence.active(after, tick) {
+                "time"
+            } else {
+                kept.push(hold);
                 continue;
             };
-            let state = saved.state();
-            let zinc = lit(state.metals[Metal::Zinc.index()].burn);
-            let brass = lit(state.metals[Metal::Brass.index()].burn);
-            let rules = ZincBrass::new(saved.progress(), &CATALOG);
-            let body = player.entity();
-            let mut entry = self.players.remove(&uuid).unwrap_or_else(|| Player {
-                fresh: true,
-                ..Player::default()
-            });
-            entry.entity = body.id();
-            let read: &dyn Host = host;
-            entry.living = read.living(body);
-            entry.rules = rules;
-            self.by_entity.insert(entry.entity, uuid);
-            if entry.fresh {
-                for held in std::mem::take(&mut entry.held) {
-                    release(host, &held, entry.entity);
-                }
-                entry.fresh = false;
+            if !gone {
+                release(host, &hold);
             }
-            let (was_zinc, was_brass) = (entry.zinc, entry.brass);
-            entry.zinc = zinc;
-            entry.brass = brass;
-            if (was_zinc.is_some() && zinc.is_none()) || (was_brass.is_some() && brass.is_none()) {
-                eprintln!(
-                    "MISTBRN event=power_cleared reason=off zinc={} brass={}",
-                    zinc.is_some(),
-                    brass.is_some()
-                );
+            if reason == "time"
+                && let Some(until) = hold.influence.immune_until(after)
+            {
+                let key = (hold.entity.id(), hold.zinc);
+                let longest = self.immune.get(&key).copied().unwrap_or(0).max(until);
+                self.immune.insert(key, longest);
             }
-            // A metal put out lets its creatures go: the effect lasts `after` more ticks.
-            for held in &mut entry.held {
-                let on = if held.zinc { zinc } else { brass };
-                if on.is_none() && held.influence.released.is_none() {
-                    held.influence.released = Some(tick);
-                }
-            }
-            self.acquire(host, level, player, &mut entry, uuid);
-            self.keep(host, level, player, &mut entry, uuid);
-            self.players.insert(uuid, entry);
+            eprintln!(
+                "MISTBRN event=zb_end metal={} entity={} reason={reason} tick={tick}",
+                metal_name(hold.zinc),
+                hold.entity.id()
+            );
         }
-        self.rebuild_guards();
+        self.holds = kept;
     }
 
     /// The creature in the view, per lit metal; with selective influence, the ones around.
-    fn acquire(
-        &mut self,
-        host: &mut dyn ServerHost,
-        level: LevelRef,
-        player: PlayerRef,
-        entry: &mut Player,
-        uuid: u128,
-    ) {
+    fn acquire(&mut self, host: &mut dyn ServerHost, level: LevelRef, player: PlayerRef) {
+        let uuid = player.uuid();
+        let Some(entry) = self.players.get(&uuid) else {
+            return;
+        };
+        let (rules, zinc_on, brass_on) = (entry.rules, entry.zinc, entry.brass);
         let body = player.entity();
-        let selective = entry.rules.selective() && entry.zinc.is_some() && entry.brass.is_some();
-        for (zinc, on) in [(true, entry.zinc), (false, entry.brass)] {
+        let selective = rules.selective() && zinc_on.is_some() && brass_on.is_some();
+        for (zinc, on) in [(true, zinc_on), (false, brass_on)] {
             let Some(flared) = on else {
                 continue;
             };
             let read: &dyn Host = host;
-            let Some(target) = gaze(read, level, body, entry.rules.range(zinc, flared)) else {
+            let Some(target) = gaze(read, level, body, rules.range(zinc, flared)) else {
                 continue;
             };
-            let target_kind = kind(read, target);
             if ally_of(host, target, uuid) {
                 if zinc {
-                    self.courage(host, entry, uuid, target);
+                    self.courage(host, level, uuid, target);
                 }
                 continue;
             }
             // With both metals lit, the view belongs to zinc; brass soothes around it.
-            let provoked = entry
-                .held
-                .iter()
-                .any(|h| h.zinc && h.entity == target && h.influence.released.is_none());
+            let provoked = self.holds.iter().any(|h| {
+                h.player == uuid && h.zinc && h.entity == target && h.influence.released.is_none()
+            });
             if !zinc && (selective || provoked) {
                 continue;
             }
-            self.start(host, entry, uuid, target, &target_kind, zinc, true);
+            self.start(host, level, uuid, target, zinc, true);
         }
         if !selective {
             return;
@@ -343,251 +459,288 @@ impl ZincBrassPowers {
         };
         for other in near(read, level, at, SELECTIVE_RADIUS) {
             let read: &dyn Host = host;
-            if other.id() == entry.entity
+            let taken = self
+                .holds
+                .iter()
+                .any(|h| h.player == uuid && h.entity == other && h.influence.released.is_none());
+            if taken
                 || self.by_entity.contains_key(&other.id())
                 || other
                     .position(read)
                     .is_none_or(|p| distance(p, at) > SELECTIVE_RADIUS)
-                || entry
-                    .held
-                    .iter()
-                    .any(|h| h.entity == other && h.influence.released.is_none())
                 || !alive(read, other)
+                || ally_of(host, other, uuid)
             {
                 continue;
             }
-            let other_kind = kind(read, other);
-            if ally_of(host, other, uuid) {
-                continue;
-            }
-            if self.start(host, entry, uuid, other, &other_kind, false, false) {
+            if self.start(host, level, uuid, other, false, false) {
+                let read: &dyn Host = host;
                 eprintln!(
-                    "MISTBRN event=influence entity={} kind={other_kind}",
-                    other.id()
+                    "MISTBRN event=influence entity={} kind={}",
+                    other.id(),
+                    kind(read, other)
                 );
             }
         }
     }
 
-    /// Puts a creature under a metal. False when it cannot be (incompatible, immune, held).
-    #[allow(clippy::too_many_arguments)]
+    /// Puts a creature under a player's metal. False when it is not a new hold (incompatible,
+    /// immune, or this player's own hold taken back).
     fn start(
         &mut self,
         host: &mut dyn ServerHost,
-        entry: &mut Player,
+        level: LevelRef,
         uuid: u128,
         target: EntityRef,
-        target_kind: &str,
         zinc: bool,
         gazed: bool,
     ) -> bool {
         let tick = self.tick;
         let id = target.id();
-        if entry
-            .held
-            .iter()
-            .any(|h| h.zinc == zinc && h.entity == target && h.influence.released.is_none())
-        {
+        // The view moved on: this player's previous creature of that metal keeps its `after`.
+        if gazed {
+            for hold in self
+                .holds
+                .iter_mut()
+                .filter(|h| h.player == uuid && h.zinc == zinc && h.gazed && h.entity != target)
+            {
+                hold.influence.released.get_or_insert(tick);
+            }
+        }
+        // This player's own hold, still running: taken back as it is (its start, its boss cut
+        // and its practice stay).
+        if let Some(hold) = self.holds.iter_mut().find(|h| {
+            h.player == uuid && h.zinc == zinc && h.entity == target && h.ending.is_none()
+        }) {
+            hold.influence.released = None;
+            hold.gazed |= gazed;
             return false;
         }
-        if entry
+        let read: &dyn Host = host;
+        let target_kind = kind(read, target);
+        let refused = if !is_compatible(&target_kind) {
+            Some("zb_incompatible")
+        } else if self
             .immune
             .get(&(id, zinc))
             .is_some_and(|&until| tick < until)
         {
-            return false;
-        }
-        if !is_compatible(target_kind) {
-            eprintln!(
-                "MISTBRN event=zb_incompatible metal={} kind={target_kind}",
-                metal_name(zinc)
-            );
-            entry.immune.insert((id, zinc), tick + INCOMPATIBLE_QUIET);
-            return false;
-        }
-        // A creature still fading under this metal is taken again from the start.
-        entry
-            .held
-            .retain(|h| !(h.zinc == zinc && h.entity == target));
-        // One creature in the view per metal: the previous one keeps its `after`.
-        if gazed {
-            for held in &mut entry.held {
-                if held.zinc == zinc && held.gazed && held.influence.released.is_none() {
-                    held.influence.released = Some(tick);
-                }
+            Some("zb_immune")
+        } else {
+            None
+        };
+        if let Some(event) = refused {
+            if self
+                .quiet
+                .get(&(id, zinc))
+                .is_none_or(|&until| tick >= until)
+            {
+                self.quiet.insert((id, zinc), tick + QUIET_TICKS);
+                eprintln!(
+                    "MISTBRN event={event} metal={} entity={id} kind={target_kind}",
+                    metal_name(zinc)
+                );
             }
+            return false;
         }
-        let read: &dyn Host = host;
-        let player_id = entry.entity;
-        let chaser = read
-            .mob(target)
-            .and_then(|mob| mob.target(read))
-            .is_some_and(|t| t.entity().id() == player_id);
-        let boss = is_boss(target_kind);
-        entry.held.push(Held {
+        let Some(entry) = self.players.get(&uuid) else {
+            return false;
+        };
+        let player_entity = entry.entity;
+        let dist = target
+            .position(read)
+            .zip(player_position(read, uuid))
+            .map_or(f64::MAX, |(p, a)| distance(p, a));
+        // A chase this player's own zinc imposed is not one brass can take credit for.
+        let imposed = self
+            .holds
+            .iter()
+            .any(|h| h.player == uuid && h.zinc && h.entity == target && h.ending.is_none());
+        let chaser = !zinc
+            && !imposed
+            && read
+                .mob(target)
+                .is_some_and(|mob| target_id(read, mob) == Some(player_entity));
+        // The player's own hold of the other metal on it gives way to this one.
+        for hold in self
+            .holds
+            .iter_mut()
+            .filter(|h| h.player == uuid && h.zinc != zinc && h.entity == target)
+        {
+            hold.ending.get_or_insert("switched");
+        }
+        let boss = is_boss(&target_kind);
+        self.holds.push(Hold {
             entity: target,
+            level,
             zinc,
+            player: uuid,
+            player_entity,
+            player_living: entry.living,
             gazed,
-            neutral: is_neutral(target_kind),
+            neutral: is_neutral(&target_kind),
+            hostile: is_hostile(&target_kind),
             influence: Influence {
                 started: tick,
                 released: None,
                 boss,
             },
             chaser,
+            far: dist > PROVOKE_NEAR,
+            verified: false,
             counted: false,
             next_path: tick,
             retreating: false,
             reached: false,
+            ending: None,
         });
         if zinc {
-            eprintln!("MISTBRN event=zinc_provoke entity={id} kind={target_kind} boss={boss}");
-            entry.provoked_at.insert(id, tick);
-            if is_neutral(target_kind) {
-                self.observations
-                    .push((uuid, evidence(EVIDENCE_PROVOKED_NEUTRAL)));
-            }
+            eprintln!(
+                "MISTBRN event=zinc_provoke entity={id} kind={target_kind} boss={boss} tick={tick}"
+            );
         } else {
             eprintln!(
                 "MISTBRN event=brass_soothe entity={id} kind={target_kind} boss={boss} chaser={chaser}"
             );
-            entry.soothed_at.insert(id, tick);
-            if chaser && is_hostile(target_kind) {
-                self.observations
-                    .push((uuid, evidence(EVIDENCE_SOOTHED_CHASER)));
-            }
-            if is_neutral(target_kind) {
+            if is_neutral(&target_kind) {
                 let changed = calm(host, target);
                 eprintln!("MISTBRN event=brass_calm entity={id} changed={changed}");
             }
         }
-        let other = if zinc {
-            &entry.soothed_at
-        } else {
-            &entry.provoked_at
-        };
-        if other
-            .get(&id)
-            .is_some_and(|&at| tick.saturating_sub(at) <= EMOTION_PAIR_TICKS)
-        {
-            self.observations.push((uuid, evidence(EVIDENCE_BOTH)));
-        }
         true
     }
 
-    /// Keeps every held creature as its metal wants, and lets go of the ones whose time ended.
-    fn keep(
-        &mut self,
-        host: &mut dyn ServerHost,
-        level: LevelRef,
-        player: PlayerRef,
-        entry: &mut Player,
-        uuid: u128,
-    ) {
+    /// Keeps this level's live holds as their metal wants, and counts what they achieved.
+    fn keep_holds(&mut self, host: &mut dyn ServerHost, level: LevelRef) {
         let tick = self.tick;
-        let read: &dyn Host = host;
-        let body = player.entity();
-        let (Some(at), Some(me)) = (body.position(read), read.living(body)) else {
-            return;
-        };
-        let mut kept = Vec::new();
-        for mut held in std::mem::take(&mut entry.held) {
-            let read: &dyn Host = host;
-            let after = entry.rules.after(held.zinc);
-            let gone = !alive(read, held.entity);
-            if gone || !held.influence.active(after, tick) {
-                if !gone {
-                    release(host, &held, entry.entity);
-                    if let Some(until) = held.influence.immune_until(after) {
-                        entry.immune.insert((held.entity.id(), held.zinc), until);
-                    }
-                }
-                eprintln!(
-                    "MISTBRN event=zb_end metal={} entity={} gone={gone}",
-                    metal_name(held.zinc),
-                    held.entity.id()
-                );
-                continue;
-            }
-            let Some(mob) = read.mob(held.entity) else {
-                kept.push(held);
+        for index in 0..self.holds.len() {
+            let hold = &self.holds[index];
+            let Some(entry) = self.players.get(&hold.player) else {
                 continue;
             };
-            let targets_me = mob
-                .target(read)
-                .is_some_and(|t| t.entity().id() == entry.entity);
-            let dist = held
-                .entity
-                .position(read)
-                .map_or(f64::MAX, |p| distance(p, at));
-            if held.zinc {
-                if !targets_me {
-                    let _ = mob.set_target(host, Some(me));
+            if hold.level != level || !hold.live(entry.rules.after(hold.zinc), tick) {
+                continue;
+            }
+            let rules = entry.rules;
+            let id = hold.entity.id();
+            let read: &dyn Host = host;
+            let Some(mob) = read.mob(hold.entity) else {
+                continue;
+            };
+            let want = wanted(&self.holds, &self.players, id, tick);
+            match (want.keep, target_id(read, mob)) {
+                (Some((keeper, Some(living))), current) if current != Some(keeper) => {
+                    let _ = mob.set_target(host, Some(living));
                 }
-                let _ = mob.set_aggressive(host, true);
-                if !held.counted && dist <= PROVOKE_NEAR {
-                    held.counted = true;
-                    self.observations.push((uuid, practice(PRACTICE_PROVOKE)));
-                    eprintln!(
-                        "MISTBRN event=provoke_near entity={} distance={dist:.1}",
-                        held.entity.id()
-                    );
-                }
-            } else {
-                if targets_me {
+                (None, Some(current)) if want.refuse.contains(&current) => {
                     let _ = mob.set_target(host, None);
                 }
-                if let Some((blocks, speed)) = entry.rules.retreat() {
-                    if dist < blocks && tick >= held.next_path {
-                        held.next_path = tick + RETREAT_EVERY_TICKS;
-                        held.retreating = true;
-                        retreat(host, mob, at, blocks, speed);
-                    } else if held.retreating && !held.reached && dist >= blocks {
-                        held.reached = true;
-                        eprintln!(
-                            "MISTBRN event=retreat_reached entity={} distance={dist:.1}",
-                            held.entity.id()
-                        );
+                _ => {}
+            }
+            let hold = &self.holds[index];
+            if hold.zinc
+                && want
+                    .keep
+                    .is_some_and(|(keeper, _)| keeper == hold.player_entity)
+            {
+                let _ = mob.set_aggressive(host, true);
+            }
+            let read: &dyn Host = host;
+            let current = target_id(read, mob);
+            let at = player_position(read, hold.player);
+            let dist = hold
+                .entity
+                .position(read)
+                .zip(at)
+                .map_or(f64::MAX, |(p, a)| distance(p, a));
+            let hold = &mut self.holds[index];
+            let mine = current == Some(hold.player_entity);
+            let mut seen = Vec::new();
+            let mut first_seen = false;
+            if hold.zinc {
+                if mine && !hold.verified {
+                    hold.verified = true;
+                    first_seen = true;
+                    eprintln!("MISTBRN event=zinc_verified entity={id} tick={tick}");
+                    if hold.neutral {
+                        seen.push(evidence(EVIDENCE_PROVOKED_NEUTRAL));
                     }
                 }
-                if !held.counted
-                    && held.chaser
-                    && tick.saturating_sub(held.influence.started) >= SOOTHE_PRACTICE
+                if mine && hold.far && !hold.counted && dist <= PROVOKE_NEAR {
+                    hold.counted = true;
+                    seen.push(practice(PRACTICE_PROVOKE));
+                    eprintln!("MISTBRN event=provoke_near entity={id} distance={dist:.1}");
+                }
+            } else {
+                if !mine && !hold.verified {
+                    hold.verified = true;
+                    first_seen = true;
+                    eprintln!("MISTBRN event=brass_verified entity={id} tick={tick}");
+                    if hold.chaser && hold.hostile {
+                        seen.push(evidence(EVIDENCE_SOOTHED_CHASER));
+                    }
+                }
+                if let Some((blocks, speed)) = rules.retreat() {
+                    if dist < blocks && tick >= hold.next_path {
+                        hold.next_path = tick + RETREAT_EVERY_TICKS;
+                        hold.retreating = true;
+                        retreat(host, mob, at, blocks, speed);
+                    } else if hold.retreating && !hold.reached && dist >= blocks {
+                        hold.reached = true;
+                        eprintln!("MISTBRN event=retreat_reached entity={id} distance={dist:.1}");
+                    }
+                }
+                if hold.verified
+                    && hold.chaser
+                    && hold.hostile
+                    && !hold.counted
+                    && tick.saturating_sub(hold.influence.started) >= SOOTHE_PRACTICE
                 {
-                    held.counted = true;
-                    self.observations.push((uuid, practice(PRACTICE_SOOTHE)));
-                    eprintln!("MISTBRN event=soothe_held entity={}", held.entity.id());
+                    hold.counted = true;
+                    seen.push(practice(PRACTICE_SOOTHE));
+                    eprintln!("MISTBRN event=soothe_held entity={id}");
                 }
             }
-            kept.push(held);
+            let (zinc, uuid) = (hold.zinc, hold.player);
+            if let Some(entry) = self.players.get_mut(&uuid) {
+                entry
+                    .provoked_at
+                    .retain(|_, at| tick.saturating_sub(*at) <= EMOTION_PAIR_TICKS);
+                entry
+                    .soothed_at
+                    .retain(|_, at| tick.saturating_sub(*at) <= EMOTION_PAIR_TICKS);
+                // Provoked and soothed, both seen working, close together: the third evidence.
+                if first_seen {
+                    let (mine_at, other_at) = if zinc {
+                        (&mut entry.provoked_at, &entry.soothed_at)
+                    } else {
+                        (&mut entry.soothed_at, &entry.provoked_at)
+                    };
+                    if other_at.contains_key(&id) {
+                        seen.push(evidence(EVIDENCE_BOTH));
+                    }
+                    mine_at.insert(id, tick);
+                }
+            }
+            self.observations
+                .extend(seen.into_iter().map(|kind| (uuid, kind)));
         }
-        entry.held = kept;
-        entry.immune.retain(|_, until| *until > tick);
-        entry
-            .provoked_at
-            .retain(|_, at| tick.saturating_sub(*at) <= EMOTION_PAIR_TICKS);
-        entry
-            .soothed_at
-            .retain(|_, at| tick.saturating_sub(*at) <= EMOTION_PAIR_TICKS);
-        self.lead_allies(host, level, body, entry, uuid);
     }
 
     /// Courage on an ally in zinc's view: strength and speed, once until they run out.
-    fn courage(
-        &mut self,
-        host: &mut dyn ServerHost,
-        entry: &mut Player,
-        uuid: u128,
-        ally: EntityRef,
-    ) {
+    fn courage(&mut self, host: &mut dyn ServerHost, level: LevelRef, uuid: u128, ally: EntityRef) {
         let tick = self.tick;
-        let (Some((level, ticks)), Some(&effects)) = (entry.rules.courage(), EFFECTS.get()) else {
+        let Some(entry) = self.players.get(&uuid) else {
             return;
         };
-        if entry
+        let (Some((amplifier, ticks)), Some(&effects)) = (entry.rules.courage(), EFFECTS.get())
+        else {
+            return;
+        };
+        if self
             .allies
-            .get(&ally.id())
-            .is_some_and(|&until| tick < until)
+            .iter()
+            .any(|a| a.entity == ally && a.player == uuid && !a.ending && tick < a.until())
         {
             return;
         }
@@ -596,7 +749,7 @@ impl ZincBrassPowers {
             return;
         };
         let duration = i32::try_from(ticks).unwrap_or(i32::MAX);
-        let amplifier = i32::from(level);
+        let amplifier = i32::from(amplifier);
         let strength = living.add_effect(
             host,
             &ActiveEffect::new(effects.strength, duration, amplifier, true, false, false),
@@ -605,133 +758,140 @@ impl ZincBrassPowers {
             host,
             &ActiveEffect::new(effects.speed, duration, amplifier, true, false, false),
         );
-        entry.allies.insert(ally.id(), tick + ticks);
-        self.allies.insert(ally.id(), uuid);
+        self.allies
+            .retain(|a| !(a.entity == ally && a.player == uuid));
+        self.allies.push(Ally {
+            entity: ally,
+            level,
+            player: uuid,
+            given: tick,
+            ticks: duration,
+            amplifier,
+            led: None,
+            ending: false,
+        });
         eprintln!(
             "MISTBRN event=courage entity={} level={} ticks={ticks} strength={strength} speed={speed}",
             ally.id(),
-            level + 1
+            amplifier + 1
         );
     }
 
-    /// Allies with courage attack the creature the player last hit.
-    fn lead_allies(
-        &mut self,
-        host: &mut dyn ServerHost,
-        level: LevelRef,
-        body: EntityRef,
-        entry: &mut Player,
-        uuid: u128,
-    ) {
+    /// This level's allies: an ended one loses the courage this module gave it (and the
+    /// creature it was sent at); the others attack what their player last hurt.
+    fn keep_allies(&mut self, host: &mut dyn ServerHost, level: LevelRef) {
         let tick = self.tick;
-        entry.allies.retain(|_, until| *until > tick);
-        let mine = &entry.allies;
-        self.allies
-            .retain(|id, owner| *owner != uuid || mine.contains_key(id));
-        let Some((struck, at)) = entry.struck else {
+        let Some(&effects) = EFFECTS.get() else {
             return;
         };
-        if tick.saturating_sub(at) > STRUCK_TICKS || entry.allies.is_empty() {
-            return;
-        }
-        let read: &dyn Host = host;
-        let Some(center) = body.position(read) else {
-            return;
-        };
-        let around = near(read, level, center, ALLY_SEARCH);
-        let Some(victim) = around
-            .iter()
-            .copied()
-            .find(|e| e.id() == struck)
-            .and_then(|e| read.living(e))
-        else {
-            return;
-        };
-        for ally in around
-            .into_iter()
-            .filter(|e| entry.allies.contains_key(&e.id()) && e.id() != struck)
-        {
+        let mut kept = Vec::new();
+        for mut ally in std::mem::take(&mut self.allies) {
+            if ally.level != level {
+                kept.push(ally);
+                continue;
+            }
             let read: &dyn Host = host;
-            let Some(mob) = read.mob(ally) else {
+            if !alive(read, ally.entity) || tick >= ally.until() {
+                continue;
+            }
+            let Some(mob) = read.mob(ally.entity) else {
                 continue;
             };
-            if mob.target(read).is_none_or(|t| t.entity().id() != struck) {
-                let led = mob.set_target(host, Some(victim));
+            if ally.ending {
+                take_courage(host, &ally, effects, tick);
+                let read: &dyn Host = host;
+                if ally.led.is_some() && target_id(read, mob) == ally.led {
+                    let _ = mob.set_target(host, None);
+                }
+                eprintln!("MISTBRN event=courage_cleared entity={}", ally.entity.id());
+                continue;
+            }
+            let struck = self
+                .players
+                .get(&ally.player)
+                .and_then(|p| p.struck)
+                .filter(|&(victim, at)| {
+                    tick.saturating_sub(at) <= STRUCK_TICKS && victim != ally.entity.id()
+                })
+                .map(|(victim, _)| victim);
+            let victim = struck
+                .filter(|&v| target_id(read, mob) != Some(v))
+                .and_then(|v| {
+                    let center = ally.entity.position(read)?;
+                    near(read, level, center, ALLY_SEARCH)
+                        .into_iter()
+                        .find(|e| e.id() == v && alive(read, *e))
+                        .filter(|e| kind(read, *e) != "minecraft:player")
+                        .and_then(|e| read.living(e))
+                });
+            if let Some(living) = victim {
+                let led = mob.set_target(host, Some(living));
+                ally.led = Some(living.entity().id());
                 eprintln!(
-                    "MISTBRN event=ally_target entity={} victim={struck} ok={led}",
-                    ally.id()
+                    "MISTBRN event=ally_target entity={} victim={} ok={led}",
+                    ally.entity.id(),
+                    living.entity().id()
                 );
             }
+            kept.push(ally);
         }
+        self.allies.extend(kept);
     }
 
-    fn rebuild_guards(&mut self) {
-        self.guards.clear();
-        let tick = self.tick;
-        for entry in self.players.values() {
-            for held in &entry.held {
-                if !held.influence.active(entry.rules.after(held.zinc), tick) {
-                    continue;
-                }
-                let id = held.entity.id();
-                // Provoked by one player and soothed by another: the provocation holds.
-                match (held.zinc, entry.living) {
-                    (true, Some(me)) => {
-                        self.guards.insert(id, Guard::Keep(me));
-                    }
-                    (true, None) => {}
-                    (false, _) => {
-                        self.guards.entry(id).or_insert(Guard::Refuse(entry.entity));
-                    }
-                }
-            }
-        }
-    }
-
-    /// `living_change_target`: a provoked creature keeps its player, a soothed one never takes
-    /// its player. Changes that agree pass.
+    /// `living_change_target`: the same resolution as the pass. The oldest provocation's player
+    /// is kept; a soothing player is never taken.
     pub(crate) fn change_target(&self, mob: MobRef, new_target: &mut Option<LivingRef>) {
-        let Some(&guard) = self.guards.get(&mob.entity().id()) else {
+        let id = mob.entity().id();
+        if !self.holds.iter().any(|h| h.entity.id() == id) {
             return;
-        };
+        }
+        let want = wanted(&self.holds, &self.players, id, self.tick);
         let new = new_target.map(|t| t.entity().id());
-        match guard {
-            Guard::Keep(player) if new != Some(player.entity().id()) => {
-                *new_target = Some(player);
-                eprintln!("MISTBRN event=zinc_hold entity={}", mob.entity().id());
+        match want.keep {
+            Some((keeper, Some(living))) if new != Some(keeper) => {
+                *new_target = Some(living);
+                eprintln!("MISTBRN event=zinc_hold entity={id}");
             }
-            Guard::Refuse(player) if new == Some(player) => {
+            None if new.is_some_and(|n| want.refuse.contains(&n)) => {
                 *new_target = None;
-                eprintln!("MISTBRN event=brass_block entity={}", mob.entity().id());
+                eprintln!("MISTBRN event=brass_block entity={id}");
             }
             _ => {}
         }
     }
 
-    /// A hit about to land: the player's last hit (for allies) and an ally's hit (practice).
-    pub(crate) fn incoming_damage(&mut self, entity: i32, source: &HurtSource<'_>) {
+    /// A hit that took health: the player's last hit (never on a player, for allies) and an
+    /// ally with courage hitting a creature (practice).
+    pub(crate) fn damaged(
+        &mut self,
+        entity: i32,
+        kind: &str,
+        source: &HurtSource<'_>,
+        health: f32,
+    ) {
         let (Ok(victim), Ok(attacker)) = (u32::try_from(entity), u32::try_from(source.causing))
         else {
             return;
         };
+        if health <= 0.0 || kind == "minecraft:player" {
+            return;
+        }
         let tick = self.tick;
         if let Some(entry) = self
             .by_entity
             .get(&attacker)
             .and_then(|uuid| self.players.get_mut(uuid))
+            .filter(|entry| entry.entity == attacker)
         {
             entry.struck = Some((victim, tick));
         }
-        if let Some(&uuid) = self.allies.get(&attacker)
-            && self.players.get(&uuid).is_some_and(|entry| {
-                entry
-                    .allies
-                    .get(&attacker)
-                    .is_some_and(|&until| tick < until)
-                    && entry.entity != victim
-            })
-        {
-            self.observations.push((uuid, practice(PRACTICE_ALLY)));
+        let courage = self
+            .allies
+            .iter()
+            .find(|a| a.entity.id() == attacker && !a.ending && tick < a.until());
+        if let Some(ally) = courage {
+            self.observations
+                .push((ally.player, practice(PRACTICE_ALLY)));
             eprintln!("MISTBRN event=ally_hit entity={attacker} victim={victim}");
         }
     }
@@ -740,42 +900,72 @@ impl ZincBrassPowers {
         std::mem::take(&mut self.observations)
     }
 
-    /// Respawn, dimension change, login: every creature goes on the player's next pass, and
-    /// no guard holds it meanwhile.
-    pub(crate) fn clear(&mut self, uuid: u128, reason: &str) {
-        let Some(entry) = self.players.get_mut(&uuid) else {
-            return;
-        };
-        if entry.zinc.is_some() || entry.brass.is_some() || !entry.held.is_empty() {
+    /// Death, dimension change, login, logout: every hold and courage the player gave ends now
+    /// for the hook and on each creature's next level pass, with the body id it was taken for.
+    pub(crate) fn clear(&mut self, uuid: u128, reason: &'static str) {
+        let mut any = false;
+        for hold in self.holds.iter_mut().filter(|h| h.player == uuid) {
+            hold.ending.get_or_insert(reason);
+            any = true;
+        }
+        for ally in self.allies.iter_mut().filter(|a| a.player == uuid) {
+            ally.ending = true;
+            any = true;
+        }
+        if let Some(entry) = self.players.get_mut(&uuid) {
+            any |= entry.zinc.is_some() || entry.brass.is_some();
+            entry.zinc = None;
+            entry.brass = None;
+            entry.struck = None;
+            entry.provoked_at.clear();
+            entry.soothed_at.clear();
+        }
+        self.by_entity.retain(|_, owner| *owner != uuid);
+        if any {
             eprintln!("MISTBRN event=power_cleared reason={reason} power=zinc_brass");
         }
-        entry.fresh = true;
-        entry.zinc = None;
-        entry.brass = None;
-        let player = entry.entity;
-        self.guards.retain(|_, guard| match *guard {
-            Guard::Keep(me) => me.entity().id() != player,
-            Guard::Refuse(p) => p != player,
-        });
     }
 
-    /// A logout lets every creature go now, while they are still reachable.
-    pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
+    /// A logout: the player is forgotten once their influence is ended.
+    pub(crate) fn logged_out(&mut self, uuid: u128) {
         self.clear(uuid, "logout");
-        if let Some(entry) = self.players.remove(&uuid) {
-            for held in &entry.held {
-                release(host, held, entry.entity);
-            }
-            self.by_entity.remove(&entry.entity);
+        self.players.remove(&uuid);
+    }
+}
+
+/// Takes off the strength and speed this module gave an ally, and only those: the same
+/// level, hidden, counting down from when they were given (another source's stay).
+fn take_courage(host: &mut dyn ServerHost, ally: &Ally, effects: Effects, tick: u64) {
+    let read: &dyn Host = host;
+    let Some(living) = read.living(ally.entity) else {
+        return;
+    };
+    let expected = i64::from(ally.ticks) - tick.saturating_sub(ally.given) as i64;
+    for key in [effects.strength, effects.speed] {
+        let read: &dyn Host = host;
+        let ours = living.effect(read, key).is_some_and(|e| {
+            e.amplifier == ally.amplifier
+                && e.ambient
+                && !e.visible
+                && e.duration > 0
+                && (expected - 2..=expected).contains(&i64::from(e.duration))
+        });
+        if ours {
+            let _ = living.remove_effect(host, key);
         }
-        self.allies.retain(|_, owner| *owner != uuid);
     }
 }
 
 /// Sends a soothed creature `blocks` away from the player, straight out from them.
-fn retreat(host: &mut dyn ServerHost, mob: MobRef, from: [f64; 3], blocks: f64, speed: f64) {
+fn retreat(
+    host: &mut dyn ServerHost,
+    mob: MobRef,
+    from: Option<[f64; 3]>,
+    blocks: f64,
+    speed: f64,
+) {
     let read: &dyn Host = host;
-    let Some(at) = mob.entity().position(read) else {
+    let (Some(at), Some(from)) = (mob.entity().position(read), from) else {
         return;
     };
     let (dx, dz) = (at[0] - from[0], at[2] - from[2]);

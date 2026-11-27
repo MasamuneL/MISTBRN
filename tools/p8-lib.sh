@@ -468,11 +468,11 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=provoke_near entity='
       expect_log 1 'MISTBRN event=practice category=provoke xp=10 count=1'
       expect_log 1 'MISTBRN event=power_cleared reason=off zinc=false brass=false'
-      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* gone=false'
+      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=time'
       expect 2 report state=active burn_zinc=off research=3:e1h0c0 ;;
     zb2)  # Soothe: a husk chasing the player lets go and cannot take them back, stays soothed;
          # once it ends the husk ignores brass a while; an angry zombified piglin calms
-      local anger
+      local anger husk
       p8_zb
       p8_summon husk 518.5 zb
       ctl wait 100 >/dev/null
@@ -503,21 +503,24 @@ p8_scenario() {
       p8_count_re "the soothed husk tried to take the player back" 'MISTBRN event=brass_block ' 1 999
       expect_log 1 'MISTBRN event=soothe_held entity='
       expect_log 1 'MISTBRN event=practice category=soothe xp=10 count=1'
-      expect_log 1 'MISTBRN event=zb_end metal=brass entity=[0-9]* gone=false'
+      expect_log 1 'MISTBRN event=zb_end metal=brass entity=[0-9]* reason=time'
       p8_count_re "the immune husk soothed only once" 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' 1 1
+      husk="$(grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      expect_log 1 "MISTBRN event=zb_immune metal=brass entity=${husk:-none} kind=minecraft:husk"
       expect_log 1 'MISTBRN event=brass_calm entity=[0-9]* changed=true'
       anger="$(grep -ao 'anger_end_time[^,}]*\|[0-9-]*L' "$dir/zb2-anger.json" | head -3 | tr '\n' ' ')"
       if grep -aq 'has the following entity data: 0L\|: 0L\|found no elements\|Found no elements' "$dir/zb2-anger.json"; then
         k_ok "the zombified piglin's anger ended: $anger"
       else k_fail "the zombified piglin still angry: $(head -c 300 "$dir/zb2-anger.json")"; fi
       expect 2 report state=active burn_brass=off research=3:e2h0c0 ;;
-    zb3)  # bosses: zinc holds an elder guardian 40 ticks, then it is immune; a brain-driven
-         # piglin is refused
+    zb3)  # bosses: zinc holds an elder guardian 40 ticks at most while zinc burns, then it is
+         # immune (still in view, zinc still lit); a brain-driven piglin is refused
+      local boss start end
       p8_zb
       p8_summon elder_guardian 520.5 boss 'NoAI:1b'
       ctl look-at 520.5 101 512.5 >/dev/null
       ctl command "mistbrn-test burn zinc" >/dev/null
-      ctl wait 100 >/dev/null
+      ctl wait 200 >/dev/null
       ctl command "mistbrn-test off" >/dev/null
       ctl command "kill @e[tag=boss]" >/dev/null
       p8_summon piglin 520.5 brain 'NoAI:1b'
@@ -528,14 +531,15 @@ p8_scenario() {
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
-      p8_count_re "the boss provoked once in 100 ticks" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 1 1
-      # Cut while zinc still burned: its end comes before the first metal put out.
-      local end off
-      end="$(grep -an 'MISTBRN event=zb_end metal=zinc' "$(log 1)" | head -1 | cut -d: -f1)"
-      off="$(grep -an 'MISTBRN event=power_cleared reason=off' "$(log 1)" | head -1 | cut -d: -f1)"
-      if [[ -n "$end" && -n "$off" ]] && (( end < off )); then k_ok "the boss let go while zinc burned"
-      else k_fail "boss end line ${end:-none} not before zinc out ${off:-none}"; fi
-      expect_log 1 'MISTBRN event=zb_incompatible metal=zinc kind=minecraft:piglin'
+      p8_count_re "the boss provoked once in 200 ticks" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 1 1
+      boss="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      start="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
+      end="$(grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
+      if [[ -n "$start" && -n "$end" ]] && (( end - start >= 38 && end - start <= 42 )); then
+        k_ok "the boss let go after $((end - start)) ticks, zinc still lit"
+      else k_fail "boss hold from tick '${start}' to '${end}', expected 40"; fi
+      expect_log 1 "MISTBRN event=zb_immune metal=zinc entity=${boss:-none} kind=minecraft:elder_guardian"
+      expect_log 1 'MISTBRN event=zb_incompatible metal=zinc entity=[0-9]* kind=minecraft:piglin'
       k_expect_count "the piglin never provoked" 'kind=minecraft:piglin boss=' 0 0
       expect 2 report state=active burn_zinc=off ;;
     zb4)  # Courage on a tamed wolf and a built golem; the allies attack what the player hits
@@ -631,6 +635,9 @@ p8_scenario() {
       book_shot zb6-bought
       k_key esc 10
       p8_knowledge
+      ctl command "mistbrn-test evidence 1 3" >/dev/null
+      ctl command "mistbrn-test inject conclude.3.0" >/dev/null
+      ctl wait 20 >/dev/null
       ctl command "setblock 514 100 512 minecraft:air" >/dev/null
       ctl command "kill @e[tag=zb]" >/dev/null
       p8_buy 72 1
@@ -667,8 +674,12 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=purchase node=outer_reach rank=1 result=ok'
       # Reach 1 (18 blocks) misses the block's face 18.5 away; the bridge's 2 more reach it.
       p8_count_re "only the bridge reached the far block" 'MISTBRN event=target_acquired kind=block id=minecraft:iron_block at=531.500,101.500,512.500' 1 1
+      expect_log 1 'MISTBRN event=conclude research=emotion_principle result=ok'
       expect_log 1 'MISTBRN event=power_cleared reason=death power=zinc_brass'
       expect_log 1 'MISTBRN event=power_cleared reason=dimension power=zinc_brass'
+      # The husk held each time is let go on its own level's pass, for the reason.
+      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=death'
+      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=dimension'
       expect 2 report state=active nodes=1:1,27:1,64:1,72:1 ;;
     *) return 1 ;;
   esac

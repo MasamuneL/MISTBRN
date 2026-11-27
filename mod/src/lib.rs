@@ -141,6 +141,9 @@ impl Hooks for Allomancy {
         let damage = event.container.health_damage();
         self.milestones()
             .damaged(event.entity, event.kind, event.source, damage);
+        if let Ok(mut zinc_brass) = self.zinc_brass.try_lock() {
+            zinc_brass.damaged(event.entity, event.kind, event.source, damage);
+        }
     }
 
     fn living_death(&self, _: &mut dyn ServerHost, event: &mut LivingDeathEvent<'_>) -> Flow {
@@ -449,7 +452,7 @@ impl Hooks for Allomancy {
 
     fn player_logged_out(&self, host: &mut dyn ServerHost, event: &mut PlayerLoggedOutEvent<'_>) {
         self.tin_pewter().logged_out(host, event.player);
-        self.zinc_brass().logged_out(host, event.player);
+        self.zinc_brass().logged_out(event.player);
         self.session().logged_out(host, event.player);
         self.controls().logged_out(event.player);
     }
@@ -566,9 +569,6 @@ impl Hooks for Allomancy {
         _: &mut dyn LevelRandomHost,
         event: &mut LivingIncomingDamageEvent<'_>,
     ) -> Flow {
-        if let Ok(mut zinc_brass) = self.zinc_brass.try_lock() {
-            zinc_brass.incoming_damage(event.entity, event.source);
-        }
         let Ok(mut tin_pewter) = self.tin_pewter.try_lock() else {
             return Flow::Continue;
         };
