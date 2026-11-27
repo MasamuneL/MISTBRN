@@ -381,7 +381,7 @@ Aprobado por el usuario el 2026-11-24.
 
 ### P8 — Mapa único y las tres parejas
 
-Aprobado por el usuario el 2026-11-25. Cuatro ramas, cada una con su batería y su PR: `feat/p8-map` (núcleo común y mapa), `feat/p8-tin-pewter`, `feat/p8-zinc-brass` y `feat/p8-copper-bronze`.
+Aprobado por el usuario el 2026-11-25. Cuatro ramas, cada una con su batería y su PR: `feat/p8-map` (núcleo común y mapa), `feat/p8-tin-pewter`, `feat/p8-zinc-brass` y `feat/p8-copper-bronze`. Desde `feat/p8-tin-pewter` (decisión del usuario, 2026-11-27), la batería final de cada rama corre sus escenarios y los anteriores que prueban código que la rama toca. La regresión completa se corre una vez, al cerrar P8.
 
 **Decisiones del usuario**
 - El árbol es **un mapa radial único**: General en el centro y cuatro sectores colocados como la tabla alomántica (hierro/acero físico externo arriba a la izquierda, estaño/peltre físico interno arriba a la derecha, cobre/bronce mental interno abajo a la derecha, zinc/latón mental externo abajo a la izquierda). En cada sector, rama de tirar y rama de empujar y la combinada al fondo; nodos puente entre sectores vecinos; sectores bloqueados como siluetas hasta su hito. Diseño propio (inspiración de género: árboles radiales).
@@ -393,4 +393,30 @@ Aprobado por el usuario el 2026-11-25. Cuatro ramas, cada una con su batería y 
 - Núcleo: códigos de nodo hasta 127 (op 9 «comprar alto», `arg = (código − 64) << 2 | rango`); `Pool::Bridge(a, b)` cobra el coste a las dos parejas, que deben ser vecinas; esquema 4: las ventanas de práctica de las categorías 3–10 van antes del byte de hitos (`n_extra ≤ 8`, las que faltan se leen sin abrir; una ventana de una categoría que el catálogo no define debe estar sin abrir), migración 3→4. General: `flare_cost` (18, pide `economy` 1; avivado ×3 → ×2,7 / ×2,4) y `dosing` (20, pide `capacity` 1; cada vial +10 / +20 % hasta la capacidad), derivados al usarse, sin guardarse. `simultaneous` (19) y `transition` (21) llegan con estaño/peltre.
 - Libro: la pestaña Árboles es el mapa (`book/map.rs`): abre centrado en la pareja seleccionada al 100 %; arrastre (un clic se resuelve al soltar, umbral de 3 px), rueda = zoom 50–200 % alrededor del puntero, flechas al nodo más cercano en esa dirección, Re Pág/Av Pág por los sectores, `+`/`−` e Inicio. Objetivos con nombre `node.N`, `innate.<metal>`, `locked.<pareja>`. Iconos de `flare_cost` y `dosing` en una fila nueva del atlas (128×80; Codex APROBADO).
 - Escenarios (`tools/p8-lib.sh`): G1 sectores y siluetas, G2 arrastre, clic y zoom, G3 op 9 y avivado eficiente (consumo medido), G4 dosificación, M4 un mundo P3c real (hito reclamado) migra 3→4. L1 y L2 siguen al mapa; M1, M3 y PD1 esperan el esquema 4 y S10 bloquea el 5.
+
+**`feat/p8-tin-pewter`**
+- **Núcleo**:
+  - Estaño y peltre se encienden. El tope de metales encendidos a la vez es 2, o 3/4 con `simultaneous` (19); al pasarlo, `TooManyBurning`. Hierro y acero siguen excluyéndose entre sí.
+  - R con los dos metales encendidos aviva o desaviva los dos (`FlarePair`).
+  - Op 10, esquiva, con la dirección relativa a la mirada.
+  - `spend_reserve` y `powers.rs`: las reglas puras de cada poder y el codec `mistbrn:senses`.
+- **Catálogo**:
+  - General: `simultaneous` (19) y `transition` (21, penalizaciones de fin de avivado −25/−50 %).
+  - Estaño: `tin_range` (40), `tin_clarity` (41), `hearing` (42) con `hearing_range` (43) y `hearing_memory` (44).
+  - Peltre: `pewter_strength` (48), `pewter_endurance` (49), `pewter_jump` (50) con `jump_height` (51) y `jump_cushion` (52).
+  - Combinada: `reflexes` (56), que pide 42, 50 y la investigación 2 «el principio del umbral» (3 evidencias, bastan 2).
+  - Puente `steel_body` (24): `Bridge(IS, TP)`, pide `coin_jump` y `hearing`, y da +15 % al empujón bajo los pies con peltre encendido.
+  - Prácticas 3 `heard_hit`, 4 `pewter_fall` y 5 `pewter_fight`.
+- **Adaptador** (`tin_pewter.rs`): cada tick reconcilia lo encendido con lo puesto.
+  - Visión nocturna oculta. Solo se quita la instancia que dio el estaño, reconocida por su cuenta atrás.
+  - Aturdimiento con luz ≥ 14 avivado.
+  - Modificadores transitorios de peltre.
+  - Cansancio al avivar y arrastre (lentitud y fatiga) tras un avivado de 200 ticks o más.
+  - Claridad: la oscuridad o ceguera nueva se acorta en el tick, porque los hooks de efectos solo ven efectos de mods.
+  - Oído **por movimiento**: el pin solo pide los hooks de sonido en el cliente.
+
+  Hooks: daño entrante (aguante e i-frames de la esquiva), caída, muerte y salto (cliente y servidor).
+- **Cliente** (`senses.rs`): contorno de lo oído, niebla más lejana (ambiental y agua; no con ceguera u oscuridad), salto y tecla C.
+- **Arte**: 14 iconos en una tercera fila del atlas (128×96). Codex dio APROBADO en la ronda 2.
+- **Escenarios**: G5 (combustión simultánea) y TP1–TP6: sentidos, oído, cuerpo y caída, R y arrastre, Reflejos, y práctica con el mapa.
 
