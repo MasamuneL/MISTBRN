@@ -519,13 +519,10 @@ p8_scenario() {
       p8_zb
       p8_summon elder_guardian 520.5 boss 'NoAI:1b'
       ctl look-at 520.5 101 512.5 >/dev/null
+      # Zinc stays lit and on the boss: cut at 40 ticks, refused while immune, taken again
+      # the tick its 600 ticks run out.
       ctl command "mistbrn-test burn zinc" >/dev/null
-      ctl wait 200 >/dev/null
-      ctl command "mistbrn-test off" >/dev/null
-      # 600 ticks after the cut the same boss can be provoked again.
-      ctl wait 480 >/dev/null
-      ctl command "mistbrn-test burn zinc" >/dev/null
-      ctl wait 10 >/dev/null
+      ctl wait 720 >/dev/null
       ctl command "mistbrn-test off" >/dev/null
       ctl command "kill @e[tag=boss]" >/dev/null
       p8_summon piglin 520.5 brain 'NoAI:1b'
@@ -539,15 +536,15 @@ p8_scenario() {
       p8_count_re "the boss provoked twice: before the cut and after its immunity" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 2 2
       boss="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       start="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
-      end="$(grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
+      end="$(grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time cleared=[a-z]* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
       if [[ -n "$start" && -n "$end" ]] && (( end - start >= 38 && end - start <= 42 )); then
         k_ok "the boss let go after $((end - start)) ticks, zinc still lit"
       else k_fail "boss hold from tick '${start}' to '${end}', expected 40"; fi
       expect_log 1 "MISTBRN event=zb_immune metal=zinc entity=${boss:-none} kind=minecraft:elder_guardian"
       again="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | sed -n 2p | sed 's/.*tick=//')"
-      if [[ -n "$again" && -n "$end" ]] && (( again - end >= 600 )); then
+      if [[ -n "$again" && -n "$end" ]] && (( again - end >= 600 && again - end <= 602 )); then
         k_ok "the same boss provoked again $((again - end)) ticks after the cut"
-      else k_fail "second provocation at '${again}', cut at '${end}': expected 600 or more later"; fi
+      else k_fail "second provocation at '${again}', cut at '${end}': expected 600 later"; fi
       expect_log 1 'MISTBRN event=zb_incompatible metal=zinc entity=[0-9]* kind=minecraft:piglin'
       k_expect_count "the piglin never provoked" 'kind=minecraft:piglin boss=' 0 0
       expect 2 report state=active burn_zinc=off ;;
@@ -700,6 +697,8 @@ p8_scenario() {
       p8_count_re "zinc verified on the husk each time" "MISTBRN event=zinc_verified entity=${husk:-x} " 3 3
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=death cleared=true"
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=dimension cleared=true"
+      # One client: closing the game stops the server, so only the clear itself is seen here;
+      # the creature's release on a running server waits for two clients (P9).
       expect_log 1 'MISTBRN event=power_cleared reason=logout power=zinc_brass'
       expect 2 report state=active nodes=1:1,27:1,64:1,72:1 ;;
     *) return 1 ;;

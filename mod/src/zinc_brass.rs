@@ -420,7 +420,8 @@ impl ZincBrassPowers {
             let cleared = !gone && release(host, &hold);
             // An effect that ran its course, or gave way to the other metal, leaves the
             // creature immune to that metal (a boss longer) for every player.
-            if matches!(reason, "time" | "switched") {
+            // A boss is immune however its effect ended (a clear must not restart its 40 ticks).
+            if matches!(reason, "time" | "switched") || (hold.influence.boss && !gone) {
                 let key = (hold.entity.id(), hold.zinc);
                 let immunity = if hold.influence.boss {
                     allomancy_core::BOSS_IMMUNITY
@@ -792,11 +793,12 @@ impl ZincBrassPowers {
         else {
             return;
         };
-        // One leader per ally: whoever gave the courage that is running.
+        // One leader per ally: whoever gave the courage that is running. One being taken back
+        // (`ending`) is cleaned up on its level pass first.
         if self
             .allies
             .iter()
-            .any(|a| a.entity == ally && !a.ending && tick < a.until())
+            .any(|a| a.entity == ally && (a.ending || tick < a.until()))
         {
             return;
         }
