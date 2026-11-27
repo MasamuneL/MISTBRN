@@ -199,7 +199,9 @@ pub(crate) fn dark(host: &dyn Host, living: LivingRef) -> bool {
 pub(crate) fn debug_sound(reason: &str, position: [f64; 3]) {
     use std::sync::atomic::{AtomicU32, Ordering};
     static SEEN: AtomicU32 = AtomicU32::new(0);
-    if crate::scenario::commands_enabled() && SEEN.fetch_add(1, Ordering::Relaxed) < 8 {
+    static CLIENT: AtomicU32 = AtomicU32::new(0);
+    let seen = if reason == "client" { &CLIENT } else { &SEEN };
+    if crate::scenario::commands_enabled() && seen.fetch_add(1, Ordering::Relaxed) < 8 {
         eprintln!(
             "MISTBRN event=sound_debug reason={reason} at={:.1},{:.1},{:.1}",
             position[0], position[1], position[2]
