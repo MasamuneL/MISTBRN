@@ -13,7 +13,7 @@
 
 ## Estaño y peltre
 
-Se desbloquean en el bastión. Selecciona la pareja con V: Z enciende estaño, X peltre y R aviva los dos.
+Se desbloquean en el bastión. Selecciona la pareja con V: Z enciende estaño, X peltre y R aviva lo que arde (los dos si arden los dos).
 
 - **Sentidos (estaño)**: ves de noche y la niebla se aleja ×1,5 (avivado ×2). Avivado con mucha luz te deslumbra un par de segundos.
 - **Cuerpo de peltre**: +20 % de ataque, +10 % de velocidad, menos empuje, −15 % de daño y −30 % de caída. Avivado, el doble, pero da hambre, y un avivado de 10 s o más deja lentitud y fatiga al terminar.
@@ -32,14 +32,14 @@ Se desbloquean en el bastión. Selecciona la pareja con V: Z enciende estaño, X
 - **General** (conocimiento):
   - **Combustión simultánea**: un tercer metal encendido a la vez.
   - **Transición**: el deslumbramiento y la lentitud al dejar de avivar duran menos.
-- **Puente Cuerpo de acero** (entre los dos sectores): con peltre encendido, el empujón de acero hacia abajo da más.
+- **Puente Cuerpo de acero** (entre los dos sectores; pide Salto con moneda y Oído y cuesta 2 puntos de cada pareja): con peltre encendido, el empujón de acero hacia abajo da más.
 
 ## Prueba rápida
 
 1. Con estaño y peltre desbloqueados, enciende estaño de noche y mira lejos; avívalo a mediodía.
 2. Enciende peltre en supervivencia: pega, recibe un golpe y salta desde 12 bloques.
 3. Con Oído comprado, ponte tras un muro junto a una vaca: debe brillar cuando se mueve.
-4. Concluye el principio del umbral, compra Reflejos, enciende los dos metales y pulsa C moviéndote a un lado.
+4. Concluye el principio del umbral, compra Fuerza, Salto de peltre y Reflejos, enciende los dos metales y pulsa C moviéndote a un lado.
 
 ## Qué anotar
 
