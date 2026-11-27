@@ -137,6 +137,9 @@ pub(crate) struct ZincBrassPowers {
     immune: BTreeMap<(u32, bool), u64>,
     /// (creature id, zinc) → until when a refusal is not logged again.
     quiet: BTreeMap<(u32, bool), u64>,
+    /// (boss id, zinc) → the first hold's start: every player's hold of that metal on the boss
+    /// shares it, so all are cut at the same 40th tick.
+    boss_cut: BTreeMap<(u32, bool), u64>,
     tick: u64,
     observations: Vec<(u128, EventKind)>,
 }
@@ -239,10 +242,11 @@ fn calm(host: &mut dyn ServerHost, entity: EntityRef) -> bool {
 
 /// Lets a creature go: a provoked one drops the player it was provoked against (and a neutral
 /// one its anger), a retreating one stops.
-fn release(host: &mut dyn ServerHost, hold: &Hold) {
+/// True when, afterwards, the creature no longer targets the player because of zinc.
+fn release(host: &mut dyn ServerHost, hold: &Hold) -> bool {
     let read: &dyn Host = host;
     let Some(mob) = read.mob(hold.entity) else {
-        return;
+        return false;
     };
     if hold.zinc {
         if target_id(read, mob) == Some(hold.player_entity) {
@@ -252,8 +256,13 @@ fn release(host: &mut dyn ServerHost, hold: &Hold) {
         if hold.neutral {
             let _ = calm(host, hold.entity);
         }
-    } else if hold.retreating {
-        let _ = mob.stop(host);
+        let read: &dyn Host = host;
+        target_id(read, mob) != Some(hold.player_entity)
+    } else {
+        if hold.retreating {
+            let _ = mob.stop(host);
+        }
+        true
     }
 }
 
@@ -363,14 +372,21 @@ impl ZincBrassPowers {
         let here = player.level(read);
         for hold in self.holds.iter_mut().filter(|h| h.player == uuid) {
             let on = if hold.zinc { zinc } else { brass };
-            let outside = !hold.gazed
-                && (!selective
-                    || here != Some(hold.level)
+            // Selective influence's area (and, while it is on, every soothed creature): only
+            // within reach.
+            let away = || {
+                here != Some(hold.level)
                     || hold
                         .entity
                         .position(read)
                         .zip(at)
-                        .is_none_or(|(p, a)| distance(p, a) > SELECTIVE_RADIUS));
+                        .is_none_or(|(p, a)| distance(p, a) > SELECTIVE_RADIUS)
+            };
+            let outside = if selective && !hold.zinc {
+                away()
+            } else {
+                !hold.gazed
+            };
             if on.is_none() || outside {
                 hold.influence.released.get_or_insert(tick);
             }
@@ -399,23 +415,35 @@ impl ZincBrassPowers {
                 kept.push(hold);
                 continue;
             };
-            if !gone {
-                release(host, &hold);
-            }
-            if reason == "time"
-                && let Some(until) = hold.influence.immune_until(after)
-            {
+            let cleared = !gone && release(host, &hold);
+            // An effect that ran its course, or gave way to the other metal, leaves the
+            // creature immune to that metal (a boss longer) for every player.
+            if matches!(reason, "time" | "switched") {
                 let key = (hold.entity.id(), hold.zinc);
-                let longest = self.immune.get(&key).copied().unwrap_or(0).max(until);
+                let immunity = if hold.influence.boss {
+                    allomancy_core::BOSS_IMMUNITY
+                } else {
+                    allomancy_core::ZB_IMMUNITY
+                };
+                let longest = self
+                    .immune
+                    .get(&key)
+                    .copied()
+                    .unwrap_or(0)
+                    .max(tick + immunity);
                 self.immune.insert(key, longest);
             }
             eprintln!(
-                "MISTBRN event=zb_end metal={} entity={} reason={reason} tick={tick}",
+                "MISTBRN event=zb_end metal={} entity={} reason={reason} cleared={cleared} tick={tick}",
                 metal_name(hold.zinc),
                 hold.entity.id()
             );
         }
         self.holds = kept;
+        // A boss's shared start lasts while some hold of that metal is on it.
+        let holds = &self.holds;
+        self.boss_cut
+            .retain(|&(id, zinc), _| holds.iter().any(|h| h.entity.id() == id && h.zinc == zinc));
     }
 
     /// The creature in the view, per lit metal; with selective influence, the ones around.
@@ -518,7 +546,10 @@ impl ZincBrassPowers {
         }
         let read: &dyn Host = host;
         let target_kind = kind(read, target);
-        let refused = if !is_compatible(&target_kind) {
+        // Another player's wolf is nobody's to rouse or calm (its owner gives it courage).
+        let owned = target_kind == "minecraft:wolf"
+            && read.living(target).and_then(|l| l.owner(read)).is_some();
+        let refused = if !is_compatible(&target_kind) || owned {
             Some("zb_incompatible")
         } else if self
             .immune
@@ -570,6 +601,11 @@ impl ZincBrassPowers {
             hold.ending.get_or_insert("switched");
         }
         let boss = is_boss(&target_kind);
+        let started = if boss {
+            *self.boss_cut.entry((id, zinc)).or_insert(tick)
+        } else {
+            tick
+        };
         self.holds.push(Hold {
             entity: target,
             level,
@@ -581,7 +617,7 @@ impl ZincBrassPowers {
             neutral: is_neutral(&target_kind),
             hostile: is_hostile(&target_kind),
             influence: Influence {
-                started: tick,
+                started,
                 released: None,
                 boss,
             },
@@ -737,10 +773,11 @@ impl ZincBrassPowers {
         else {
             return;
         };
+        // One leader per ally: whoever gave the courage that is running.
         if self
             .allies
             .iter()
-            .any(|a| a.entity == ally && a.player == uuid && !a.ending && tick < a.until())
+            .any(|a| a.entity == ally && !a.ending && tick < a.until())
         {
             return;
         }
@@ -758,8 +795,10 @@ impl ZincBrassPowers {
             host,
             &ActiveEffect::new(effects.speed, duration, amplifier, true, false, false),
         );
-        self.allies
-            .retain(|a| !(a.entity == ally && a.player == uuid));
+        if !strength && !speed {
+            return;
+        }
+        self.allies.retain(|a| a.entity != ally);
         self.allies.push(Ally {
             entity: ally,
             level,

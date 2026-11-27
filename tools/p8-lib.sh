@@ -515,12 +515,17 @@ p8_scenario() {
       expect 2 report state=active burn_brass=off research=3:e2h0c0 ;;
     zb3)  # bosses: zinc holds an elder guardian 40 ticks at most while zinc burns, then it is
          # immune (still in view, zinc still lit); a brain-driven piglin is refused
-      local boss start end
+      local boss start end again
       p8_zb
       p8_summon elder_guardian 520.5 boss 'NoAI:1b'
       ctl look-at 520.5 101 512.5 >/dev/null
       ctl command "mistbrn-test burn zinc" >/dev/null
       ctl wait 200 >/dev/null
+      ctl command "mistbrn-test off" >/dev/null
+      # 600 ticks after the cut the same boss can be provoked again.
+      ctl wait 480 >/dev/null
+      ctl command "mistbrn-test burn zinc" >/dev/null
+      ctl wait 10 >/dev/null
       ctl command "mistbrn-test off" >/dev/null
       ctl command "kill @e[tag=boss]" >/dev/null
       p8_summon piglin 520.5 brain 'NoAI:1b'
@@ -531,7 +536,7 @@ p8_scenario() {
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
-      p8_count_re "the boss provoked once in 200 ticks" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 1 1
+      p8_count_re "the boss provoked twice: before the cut and after its immunity" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 2 2
       boss="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       start="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
       end="$(grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
@@ -539,12 +544,16 @@ p8_scenario() {
         k_ok "the boss let go after $((end - start)) ticks, zinc still lit"
       else k_fail "boss hold from tick '${start}' to '${end}', expected 40"; fi
       expect_log 1 "MISTBRN event=zb_immune metal=zinc entity=${boss:-none} kind=minecraft:elder_guardian"
+      again="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | sed -n 2p | sed 's/.*tick=//')"
+      if [[ -n "$again" && -n "$end" ]] && (( again - end >= 600 )); then
+        k_ok "the same boss provoked again $((again - end)) ticks after the cut"
+      else k_fail "second provocation at '${again}', cut at '${end}': expected 600 or more later"; fi
       expect_log 1 'MISTBRN event=zb_incompatible metal=zinc entity=[0-9]* kind=minecraft:piglin'
       k_expect_count "the piglin never provoked" 'kind=minecraft:piglin boss=' 0 0
       expect 2 report state=active burn_zinc=off ;;
     zb4)  # Courage on a tamed wolf and a built golem; the allies attack what the player hits
          # (practice); Retreat sends a soothed husk away
-      local uuid
+      local uuid husk
       p8_zb
       p8_zb_xp 1500
       for node in 64 66 72 74; do p8_buy "$node" 1; done
@@ -582,8 +591,9 @@ p8_scenario() {
       p8_count_re "courage on the wolf and the golem" 'MISTBRN event=courage entity=[0-9]* level=1 ticks=200 strength=true speed=true' 2 2
       expect_log 1 'MISTBRN event=ally_hit entity='
       expect_log 1 'MISTBRN event=practice category=ally xp=10 count=1'
-      expect_log 1 'MISTBRN event=retreat entity=[0-9]* to=.* ok=true'
-      expect_log 1 'MISTBRN event=retreat_reached entity=[0-9]* distance='
+      husk="$(grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      expect_log 1 "MISTBRN event=retreat entity=${husk:-none} distance=[0-9.]* to=.* ok=true"
+      expect_log 1 "MISTBRN event=retreat_reached entity=${husk:-none} distance="
       expect 2 report state=active nodes=64:1,66:1,72:1,74:1 ;;
     zb5)  # Selective influence: concluded the emotion principle, both metals: the husk in view is
          # provoked, the two near the player soothed
@@ -617,7 +627,9 @@ p8_scenario() {
       p8_count_re "brass soothed only those two" 'MISTBRN event=brass_soothe ' 2 2
       expect 2 report state=active nodes=64:1,66:1,72:1,74:1,80:1 research=3:e3h0c1 ;;
     zb6)  # the third evidence, a click on the map buys code 64 (op 9), the general bridge adds
-         # 2 blocks to iron's reach, and death and a dimension change let every creature go
+         # 2 blocks to iron's reach, and death, a dimension change and logging out let every
+         # creature go
+      local husk
       p8_zb
       p8_summon zombified_piglin 520.5 zb 'NoAI:1b'
       ctl look-at 520.5 101.2 512.5 >/dev/null
@@ -665,7 +677,11 @@ p8_scenario() {
       ctl wait 40 >/dev/null
       ctl command "execute in minecraft:overworld run tp @s 512.5 100 512.5" >/dev/null
       ctl wait 20 >/dev/null
-      ctl command "mistbrn-test off" >/dev/null
+      # Zinc held on the husk again, then the game closes with it lit.
+      ctl look-at 518.5 101.2 512.5 >/dev/null
+      ctl command "mistbrn-test credit zinc 30000" >/dev/null
+      ctl command "mistbrn-test burn zinc" >/dev/null
+      ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=evidence research=emotion_principle bit=4 ready='
@@ -678,8 +694,12 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=power_cleared reason=death power=zinc_brass'
       expect_log 1 'MISTBRN event=power_cleared reason=dimension power=zinc_brass'
       # The husk held each time is let go on its own level's pass, for the reason.
-      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=death'
-      expect_log 1 'MISTBRN event=zb_end metal=zinc entity=[0-9]* reason=dimension'
+      husk="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      p8_count_re "the husk provoked anew after each clear" "MISTBRN event=zinc_provoke entity=${husk:-x} kind=minecraft:husk" 3 3
+      p8_count_re "zinc verified on the husk each time" "MISTBRN event=zinc_verified entity=${husk:-x} " 3 3
+      expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=death cleared=true"
+      expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=dimension cleared=true"
+      expect_log 1 'MISTBRN event=power_cleared reason=logout power=zinc_brass'
       expect 2 report state=active nodes=1:1,27:1,64:1,72:1 ;;
     *) return 1 ;;
   esac
