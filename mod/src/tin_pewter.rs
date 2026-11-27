@@ -143,8 +143,10 @@ fn lit(burn: BurnState) -> Option<bool> {
     }
 }
 
-/// Ours: the hidden night vision this module gave at `given`, still counting down from it
-/// (a tick or two of slack). Anything else, even with the same flags, belongs to someone else.
+/// Ours: the hidden night vision this module gave at `given`, still counting down from it.
+/// The game only lets another application replace an active effect when it lasts longer, so a
+/// replaced one is always above the expected count: the slack is below it only (a tick or two
+/// of ordering), never above. Anything else, even with the same flags, is someone else's.
 fn ours(effect: &ActiveEffect, given: Option<u64>, tick: u64) -> bool {
     let Some(given) = given else {
         return false;
@@ -154,7 +156,7 @@ fn ours(effect: &ActiveEffect, given: Option<u64>, tick: u64) -> bool {
         && effect.ambient
         && !effect.visible
         && !effect.show_icon
-        && (i64::from(effect.duration) - expected).abs() <= 2
+        && (expected - 2..=expected).contains(&i64::from(effect.duration))
 }
 
 fn remove_night_vision(
