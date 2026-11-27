@@ -670,9 +670,10 @@ p8_scenario() {
       ctl command "effect give @s minecraft:resistance 9999 4 true" >/dev/null
       ctl wait 10 >/dev/null
       ctl look-at 518.5 101.2 512.5 >/dev/null
+      ctl wait 20 >/dev/null
       ctl command "mistbrn-test credit zinc 30000" >/dev/null
       ctl command "mistbrn-test burn zinc" >/dev/null
-      ctl wait 10 >/dev/null
+      ctl wait 20 >/dev/null
       ctl command "execute in minecraft:the_nether run tp @s 512.5 120 512.5" >/dev/null
       ctl wait 40 >/dev/null
       ctl command "execute in minecraft:overworld run tp @s 512.5 100 512.5" >/dev/null

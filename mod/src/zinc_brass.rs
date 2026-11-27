@@ -122,6 +122,8 @@ struct Player {
     brass: Option<bool>,
     /// The last creature (never a player) the player hurt, and when.
     struck: Option<(u32, u64)>,
+    /// The last tick a lit metal's view found nothing (logged at most every `QUIET_TICKS`).
+    missed: u64,
     /// When each creature was first seen provoked and soothed (the third evidence).
     provoked_at: BTreeMap<u32, u64>,
     soothed_at: BTreeMap<u32, u64>,
@@ -461,6 +463,23 @@ impl ZincBrassPowers {
             };
             let read: &dyn Host = host;
             let Some(target) = gaze(read, level, body, rules.range(zinc, flared)) else {
+                let tick = self.tick;
+                if let Some(entry) = self.players.get_mut(&uuid)
+                    && tick >= entry.missed + QUIET_TICKS
+                {
+                    entry.missed = tick;
+                    let fmt = |v: Option<[f64; 3]>| {
+                        v.map_or("none".into(), |v| {
+                            format!("{:.2},{:.2},{:.2}", v[0], v[1], v[2])
+                        })
+                    };
+                    eprintln!(
+                        "MISTBRN event=zb_view metal={} hit=none eye={} look={}",
+                        metal_name(zinc),
+                        fmt(body.eye_position(read)),
+                        fmt(body.view_vector(read))
+                    );
+                }
                 continue;
             };
             if ally_of(host, target, uuid) {
@@ -1011,9 +1030,10 @@ fn retreat(
     let (dx, dz) = (at[0] - from[0], at[2] - from[2]);
     let length = (dx * dx + dz * dz).sqrt().max(0.01);
     let to = [
-        from[0] + dx / length * (blocks + 1.0),
+        // Navigation stops about a block short of its goal.
+        from[0] + dx / length * (blocks + 2.0),
         at[1],
-        from[2] + dz / length * (blocks + 1.0),
+        from[2] + dz / length * (blocks + 2.0),
     ];
     let started = mob.move_to(host, to, speed);
     eprintln!(
