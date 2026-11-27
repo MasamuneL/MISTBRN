@@ -642,7 +642,7 @@ p8_scenario() {
     zb6)  # the third evidence, a click on the map buys code 64 (op 9), the general bridge adds
          # 2 blocks to iron's reach, and death, a dimension change and logging out let every
          # creature go
-      local husk
+      local husk again
       p8_zb
       p8_summon zombified_piglin 520.5 zb 'NoAI:1b'
       ctl look-at 520.5 101.2 512.5 >/dev/null
@@ -709,13 +709,14 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=power_cleared reason=death power=zinc_brass'
       expect_log 1 'MISTBRN event=power_cleared reason=dimension power=zinc_brass'
       # The husk held each time is let go on its own level's pass, for the reason.
-      husk="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
-      p8_count_re "the husk provoked anew after each clear" "MISTBRN event=zinc_provoke entity=${husk:-x} kind=minecraft:husk" 3 3
-      p8_count_re "zinc verified on the husk each time" "MISTBRN event=zinc_verified entity=${husk:-x} " 3 3
+      # The husk is reloaded with a new id once the player's death unloads its chunk: the
+      # death clear names the first id, the dimension clear the id of the second hold.
+      husk="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; } | sed -n 1p | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      again="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; } | sed -n 2p | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      p8_count_re "the husk provoked anew after each clear" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' 3 3
+      p8_count_re "zinc verified on the husk each time" 'MISTBRN event=zinc_verified entity=' 4 4
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=death cleared=true"
-      expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=dimension cleared=true"
-      # One client: closing the game stops the server, so only the clear itself is seen here;
-      # the creature's release on a running server waits for two clients (P9).
+      expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${again:-x} reason=dimension cleared=true"
       expect_log 1 'MISTBRN event=power_cleared reason=logout power=zinc_brass'
       expect 2 report state=active nodes=1:1,27:1,64:1,72:1 ;;
     *) return 1 ;;
