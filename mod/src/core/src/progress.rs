@@ -93,6 +93,19 @@ pub enum NodeEffect {
     CushionPercent,
     /// Steel's push off an anchor below the feet with pewter lit, in percent (bridge).
     SteelBodyPercent,
+    /// Zinc and brass: extra range in blocks, extra ticks the effect lasts after the metal.
+    ZincRangeBlocks,
+    ZincAfterTicks,
+    BrassRangeBlocks,
+    BrassAfterTicks,
+    /// Courage: extra effect level, extra ticks.
+    CourageLevel,
+    CourageTicks,
+    /// Retreat: extra distance in blocks, extra speed in percent.
+    RetreatBlocks,
+    RetreatPercent,
+    /// Extra range of the four external metals (iron, steel, zinc, brass), in blocks (bridge).
+    OuterReachBlocks,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,6 +207,18 @@ pub const NODE_PEWTER_JUMP: u16 = 50;
 pub const NODE_JUMP_HEIGHT: u16 = 51;
 pub const NODE_JUMP_CUSHION: u16 = 52;
 pub const NODE_REFLEXES: u16 = 56;
+pub const NODE_OUTER_REACH: u16 = 27;
+pub const NODE_ZINC_RANGE: u16 = 64;
+pub const NODE_ZINC_DURATION: u16 = 65;
+pub const NODE_COURAGE: u16 = 66;
+pub const NODE_COURAGE_LEVEL: u16 = 67;
+pub const NODE_COURAGE_DURATION: u16 = 68;
+pub const NODE_BRASS_RANGE: u16 = 72;
+pub const NODE_BRASS_DURATION: u16 = 73;
+pub const NODE_RETREAT: u16 = 74;
+pub const NODE_RETREAT_DISTANCE: u16 = 75;
+pub const NODE_RETREAT_SPEED: u16 = 76;
+pub const NODE_SELECTIVE: u16 = 80;
 pub const RESEARCH_ANCHOR: u16 = 1;
 /// Tin and pewter's research (P8): opens Reflexes.
 pub const RESEARCH_THRESHOLD: u16 = 2;
@@ -203,6 +228,14 @@ pub const EVIDENCE_HEARD_UNSEEN: u8 = 1;
 pub const EVIDENCE_PEWTER_FALL: u8 = 2;
 /// Tin lit with darkness or blindness on.
 pub const EVIDENCE_TIN_DARK: u8 = 4;
+/// Zinc and brass's research (P8): opens Selective influence.
+pub const RESEARCH_EMOTION: u16 = 3;
+/// A neutral creature provoked.
+pub const EVIDENCE_PROVOKED_NEUTRAL: u8 = 1;
+/// A hostile creature that was chasing the player soothed.
+pub const EVIDENCE_SOOTHED_CHASER: u8 = 2;
+/// One creature provoked and soothed within `powers::EMOTION_PAIR_TICKS`.
+pub const EVIDENCE_BOTH: u8 = 4;
 /// Evidence of the anchor principle: a loose metal item pulled into the hand.
 pub const EVIDENCE_ITEM_PULLED: u8 = 1;
 /// A pull towards a block anchor that moved the player.
@@ -226,6 +259,12 @@ pub const PRACTICE_HEARD_HIT: u8 = 3;
 pub const PRACTICE_PEWTER_FALL: u8 = 4;
 /// A hostile creature killed with pewter lit.
 pub const PRACTICE_PEWTER_FIGHT: u8 = 5;
+/// A provoked creature came within 3 blocks of the player.
+pub const PRACTICE_PROVOKE: u8 = 6;
+/// A hostile creature that had the player as target stayed soothed 100 ticks.
+pub const PRACTICE_SOOTHE: u8 = 7;
+/// An ally with courage hit a creature.
+pub const PRACTICE_ALLY: u8 = 8;
 
 const fn rank(cost: u16, value: u16) -> Rank {
     Rank { cost, value }
@@ -461,6 +500,143 @@ pub const CATALOG: Catalog = Catalog {
                 },
             ],
         },
+        NodeDef {
+            code: NODE_ZINC_RANGE,
+            key: "zinc_range",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::ZincRangeBlocks,
+            ranks: &[rank(1, 4), rank(2, 8)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_ZINC_DURATION,
+            key: "zinc_duration",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::ZincAfterTicks,
+            ranks: &[rank(1, 60), rank(2, 120)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_COURAGE,
+            key: "courage",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(2, 1)],
+            requires: &[Requirement::Node {
+                code: NODE_ZINC_RANGE,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_COURAGE_LEVEL,
+            key: "courage_level",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::CourageLevel,
+            ranks: &[rank(2, 1)],
+            requires: &[Requirement::Node {
+                code: NODE_COURAGE,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_COURAGE_DURATION,
+            key: "courage_duration",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::CourageTicks,
+            ranks: &[rank(1, 100), rank(2, 200)],
+            requires: &[Requirement::Node {
+                code: NODE_COURAGE,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_BRASS_RANGE,
+            key: "brass_range",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::BrassRangeBlocks,
+            ranks: &[rank(1, 4), rank(2, 8)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_BRASS_DURATION,
+            key: "brass_duration",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::BrassAfterTicks,
+            ranks: &[rank(1, 60), rank(2, 120)],
+            requires: &[],
+        },
+        NodeDef {
+            code: NODE_RETREAT,
+            key: "retreat",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(2, 1)],
+            requires: &[Requirement::Node {
+                code: NODE_BRASS_RANGE,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_RETREAT_DISTANCE,
+            key: "retreat_distance",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::RetreatBlocks,
+            ranks: &[rank(1, 4), rank(2, 8)],
+            requires: &[Requirement::Node {
+                code: NODE_RETREAT,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_RETREAT_SPEED,
+            key: "retreat_speed",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::RetreatPercent,
+            ranks: &[rank(1, 20), rank(2, 40)],
+            requires: &[Requirement::Node {
+                code: NODE_RETREAT,
+                rank: 1,
+            }],
+        },
+        NodeDef {
+            code: NODE_SELECTIVE,
+            key: "selective_influence",
+            pool: Pool::Pair(Pair::ZincBrass),
+            effect: NodeEffect::Technique,
+            ranks: &[rank(4, 1)],
+            requires: &[
+                Requirement::Node {
+                    code: NODE_COURAGE,
+                    rank: 1,
+                },
+                Requirement::Node {
+                    code: NODE_RETREAT,
+                    rank: 1,
+                },
+                Requirement::Discovery {
+                    code: RESEARCH_EMOTION,
+                },
+            ],
+        },
+        // The general bridge between iron/steel and zinc/brass: a sub-node of the branches
+        // facing it (iron's reach, brass's range).
+        NodeDef {
+            code: NODE_OUTER_REACH,
+            key: "outer_reach",
+            pool: Pool::Knowledge,
+            effect: NodeEffect::OuterReachBlocks,
+            ranks: &[rank(2, 2)],
+            requires: &[
+                Requirement::Node {
+                    code: NODE_REACH,
+                    rank: 1,
+                },
+                Requirement::Node {
+                    code: NODE_BRASS_RANGE,
+                    rank: 1,
+                },
+            ],
+        },
     ],
     research: &[
         ResearchDef {
@@ -478,6 +654,16 @@ pub const CATALOG: Catalog = Catalog {
             key: "threshold_principle",
             pair: Pair::TinPewter,
             evidence: EVIDENCE_HEARD_UNSEEN | EVIDENCE_PEWTER_FALL | EVIDENCE_TIN_DARK,
+            needed: 2,
+            hints: 3,
+            pair_xp: 200,
+            knowledge: 3,
+        },
+        ResearchDef {
+            code: RESEARCH_EMOTION,
+            key: "emotion_principle",
+            pair: Pair::ZincBrass,
+            evidence: EVIDENCE_PROVOKED_NEUTRAL | EVIDENCE_SOOTHED_CHASER | EVIDENCE_BOTH,
             needed: 2,
             hints: 3,
             pair_xp: 200,
@@ -545,6 +731,24 @@ pub const CATALOG: Catalog = Catalog {
             category: PRACTICE_PEWTER_FIGHT,
             key: "pewter_fight",
             pair: Pair::TinPewter,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_PROVOKE,
+            key: "provoke",
+            pair: Pair::ZincBrass,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_SOOTHE,
+            key: "soothe",
+            pair: Pair::ZincBrass,
+            xp: 10,
+        },
+        PracticeDef {
+            category: PRACTICE_ALLY,
+            key: "ally",
+            pair: Pair::ZincBrass,
             xp: 10,
         },
     ],
@@ -833,6 +1037,13 @@ pub fn validate_catalog(catalog: &Catalog) -> Result<(), CatalogError> {
             NodeEffect::JumpPercent => 50,
             NodeEffect::CushionPercent => 30,
             NodeEffect::SteelBodyPercent => 50,
+            NodeEffect::ZincRangeBlocks | NodeEffect::BrassRangeBlocks => 16,
+            NodeEffect::ZincAfterTicks | NodeEffect::BrassAfterTicks => 400,
+            NodeEffect::CourageLevel => 2,
+            NodeEffect::CourageTicks => 400,
+            NodeEffect::RetreatBlocks => 16,
+            NodeEffect::RetreatPercent => 100,
+            NodeEffect::OuterReachBlocks => 4,
         };
         // Flare steps of 100 keep consumption exact for any reduction step of 10.
         let coarse = def.effect == NodeEffect::FlareCostMilli
@@ -1087,7 +1298,10 @@ pub fn validate_progress(
 /// Iron and steel's force rules for a player with `progress`: `base` (burning or flared) with
 /// the reach, acceleration and push-below gain of the nodes owned.
 pub fn tuned_force(base: &ForceRules, progress: &Progress, catalog: &Catalog) -> ForceRules {
-    let reach = f64::from(progress.effect(NodeEffect::ReachBlocks, catalog));
+    let reach = f64::from(
+        progress.effect(NodeEffect::ReachBlocks, catalog)
+            + progress.effect(NodeEffect::OuterReachBlocks, catalog),
+    );
     let accel = f64::from(progress.effect(NodeEffect::AccelPercent, catalog));
     let below = f64::from(progress.effect(NodeEffect::PushBelowPercent, catalog));
     ForceRules {

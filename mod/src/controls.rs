@@ -84,6 +84,7 @@ pub(crate) fn inject(uuid: u128, op: &str) {
         "off" => (ControlRequest::Off, 1),
         "select_tin_pewter" => (ControlRequest::SelectPair(Pair::TinPewter), 1),
         "select_iron_steel" => (ControlRequest::SelectPair(Pair::IronSteel), 1),
+        "select_zinc_brass" => (ControlRequest::SelectPair(Pair::ZincBrass), 1),
         // P8: the dodge, as the client sends it (`dodge.<direction>`).
         "dodge.0" => (ControlRequest::Dodge { direction: 0 }, 1),
         "dodge.1" => (ControlRequest::Dodge { direction: 1 }, 1),

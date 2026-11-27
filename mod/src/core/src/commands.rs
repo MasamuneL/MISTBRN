@@ -249,7 +249,7 @@ pub const BASE_BURN_LIMIT: u8 = 2;
 fn implemented(metal: Metal) -> bool {
     matches!(
         metal,
-        Metal::Iron | Metal::Steel | Metal::Tin | Metal::Pewter
+        Metal::Iron | Metal::Steel | Metal::Tin | Metal::Pewter | Metal::Zinc | Metal::Brass
     )
 }
 

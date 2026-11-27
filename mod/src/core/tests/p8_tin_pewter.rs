@@ -64,9 +64,16 @@ fn metals_lit_at_once_keep_the_limit() {
     )
     .unwrap();
     assert_eq!(lit(&s), [Metal::Steel, Metal::Tin, Metal::Pewter]);
-    // Zinc has no power yet.
+    // Copper has no power yet.
     assert_eq!(
-        apply_command_with(&mut s, Command::Activate { metal: Metal::Zinc }, &ctx(), 4),
+        apply_command_with(
+            &mut s,
+            Command::Activate {
+                metal: Metal::Copper
+            },
+            &ctx(),
+            4
+        ),
         Err(RuleError::NotImplemented(Operation::Activate))
     );
 }

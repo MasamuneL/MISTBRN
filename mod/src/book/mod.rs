@@ -142,21 +142,33 @@ fn shown_places(unlocked: &dyn Fn(Pair) -> bool) -> Vec<(Target, [f32; 2])> {
         .map(|place| {
             let target = match (place.sector, place.target) {
                 (Some(pair), _) if !unlocked(pair) => Target::Locked(pair),
-                // A bridge shows once both of the pairs it joins are unlocked (P8).
+                // A bridge shows once both of the pairs it joins are unlocked (P8): a pair
+                // bridge's pools, a general bridge's required nodes' pools.
                 (None, Target::Node(code)) => match allomancy_core::node_def(code, &CATALOG) {
-                    Some(def) => match def.pool {
-                        allomancy_core::Pool::Bridge(a, b) if !unlocked(a) || !unlocked(b) => {
-                            Target::Hidden
-                        }
-                        _ => place.target,
-                    },
-                    None => place.target,
+                    Some(def) if !bridge_open(def, unlocked) => Target::Hidden,
+                    _ => place.target,
                 },
                 _ => place.target,
             };
             (target, place.at)
         })
         .collect()
+}
+
+fn bridge_open(def: &allomancy_core::NodeDef, unlocked: &dyn Fn(Pair) -> bool) -> bool {
+    use allomancy_core::{Pool, Requirement};
+    let pool_open = |pool: Pool| match pool {
+        Pool::Bridge(a, b) => unlocked(a) && unlocked(b),
+        Pool::Pair(pair) => unlocked(pair),
+        Pool::Knowledge => true,
+    };
+    pool_open(def.pool)
+        && def.requires.iter().all(|requirement| match *requirement {
+            Requirement::Node { code, .. } => {
+                allomancy_core::node_def(code, &CATALOG).is_none_or(|other| pool_open(other.pool))
+            }
+            Requirement::Discovery { .. } => true,
+        })
 }
 
 /// The open book's state.
@@ -627,6 +639,19 @@ mod tests {
         assert_eq!(book.focus, Some(Target::Tab(Tab::Tree)));
         move_focus(&mut book, &progress, false);
         assert_eq!(book.focus, Some(Target::Node(NODE_COIN_JUMP)));
+    }
+
+    // Catches the general bridge to zinc and brass showing (and being bought) while they are
+    // locked, or staying hidden once they are open.
+    #[test]
+    fn the_outer_reach_bridge_waits_for_both_sectors() {
+        let shown = |zinc_brass: bool| {
+            shown_places(&|pair| pair == Pair::IronSteel || (zinc_brass && pair == Pair::ZincBrass))
+                .iter()
+                .any(|(t, _)| *t == Target::Node(allomancy_core::NODE_OUTER_REACH))
+        };
+        assert!(!shown(false));
+        assert!(shown(true));
     }
 
     // Catches a locked sector's places being bought, focused or named as nodes.

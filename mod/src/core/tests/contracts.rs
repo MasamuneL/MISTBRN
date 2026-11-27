@@ -126,18 +126,25 @@ fn clients_cannot_apply_any_command() {
 }
 
 // Catches activation that bypasses lock/reserve checks, and powers leaking past the metals
-// that have them (iron and steel since P4, tin and pewter since P8).
+// that have them (iron and steel since P4, tin, pewter, zinc and brass since P8).
 #[test]
 fn activating_and_flaring_are_validated_and_only_implemented_metals_light() {
     for (command, operation) in [
         (
-            Command::Activate { metal: Metal::Zinc },
+            Command::Activate {
+                metal: Metal::Copper,
+            },
             Operation::Activate,
         ),
-        (Command::Flare { metal: Metal::Zinc }, Operation::Flare),
+        (
+            Command::Flare {
+                metal: Metal::Copper,
+            },
+            Operation::Flare,
+        ),
     ] {
         let mut tin = player();
-        tin.metals[Metal::Zinc.index()] = MetalState {
+        tin.metals[Metal::Copper.index()] = MetalState {
             unlocked: true,
             reserve_milli: 1,
             burn: BurnState::Off,

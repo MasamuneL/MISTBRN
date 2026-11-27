@@ -253,6 +253,196 @@ pub fn decode_senses(bytes: &[u8]) -> Option<Vec<u32>> {
     )
 }
 
+/// Zinc and brass: base range of the look (blocks), how long an effect lasts after the metal is
+/// put out, and the flare's range multiplier.
+pub const ZB_RANGE: f64 = 16.0;
+pub const ZB_AFTER: u64 = 100;
+pub const ZB_FLARE_RANGE: f64 = 1.5;
+/// After an effect ends, the creature ignores the same metal this long (bosses: longer, and the
+/// effect itself is cut short).
+pub const ZB_IMMUNITY: u64 = 200;
+pub const BOSS_EFFECT: u64 = 40;
+pub const BOSS_IMMUNITY: u64 = 600;
+/// Courage's strength and speed, in ticks, before `courage_duration`.
+pub const COURAGE_TICKS: u64 = 200;
+/// Retreat: blocks away from the player and navigation speed, before the nodes.
+pub const RETREAT_BLOCKS: f64 = 8.0;
+pub const RETREAT_SPEED: f64 = 1.0;
+/// Selective influence soothes the compatible creatures this close to the player.
+pub const SELECTIVE_RADIUS: f64 = 8.0;
+/// Practice: a provoked creature this close; a soothed chaser soothed this long.
+pub const PROVOKE_NEAR: f64 = 3.0;
+pub const SOOTHE_PRACTICE: u64 = 100;
+/// The emotion research's third evidence: provoked and soothed within this many ticks.
+pub const EMOTION_PAIR_TICKS: u64 = 600;
+
+/// Hostiles whose target the pin cannot write (brain-backed in 26.3) or that ignore it (the
+/// dragon flies by its phase): zinc and brass leave them alone.
+const NOT_STEERABLE: [&str; 7] = [
+    "breeze",
+    "creaking",
+    "ender_dragon",
+    "hoglin",
+    "piglin_brute",
+    "warden",
+    "zoglin",
+];
+/// Neutral creatures with goal-based targets (zinc's provoked-neutral evidence).
+const NEUTRAL: [&str; 11] = [
+    "bee",
+    "dolphin",
+    "enderman",
+    "fox",
+    "iron_golem",
+    "llama",
+    "panda",
+    "polar_bear",
+    "trader_llama",
+    "wolf",
+    "zombified_piglin",
+];
+
+pub fn is_neutral(kind: &str) -> bool {
+    kind.strip_prefix("minecraft:")
+        .is_some_and(|path| NEUTRAL.contains(&path))
+}
+
+/// Whether zinc and brass act on this entity type. Never a player.
+pub fn is_compatible(kind: &str) -> bool {
+    let steerable = kind
+        .strip_prefix("minecraft:")
+        .is_some_and(|path| !NOT_STEERABLE.contains(&path));
+    steerable && (is_hostile(kind) || is_neutral(kind))
+}
+
+/// Bosses zinc and brass touch only briefly.
+pub fn is_boss(kind: &str) -> bool {
+    matches!(kind, "minecraft:elder_guardian" | "minecraft:wither")
+}
+
+/// What zinc and brass do with a player's nodes.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ZincBrass {
+    zinc_range: u16,
+    zinc_after: u16,
+    brass_range: u16,
+    brass_after: u16,
+    outer: u16,
+    courage: bool,
+    courage_level: u16,
+    courage_ticks: u16,
+    retreat: bool,
+    retreat_blocks: u16,
+    retreat_percent: u16,
+    selective: bool,
+}
+
+impl ZincBrass {
+    pub fn new(progress: &Progress, catalog: &Catalog) -> Self {
+        let effect = |e| progress.effect(e, catalog);
+        let owned = |code| progress.rank(code) > 0;
+        Self {
+            zinc_range: effect(NodeEffect::ZincRangeBlocks),
+            zinc_after: effect(NodeEffect::ZincAfterTicks),
+            brass_range: effect(NodeEffect::BrassRangeBlocks),
+            brass_after: effect(NodeEffect::BrassAfterTicks),
+            outer: effect(NodeEffect::OuterReachBlocks),
+            courage: owned(crate::NODE_COURAGE),
+            courage_level: effect(NodeEffect::CourageLevel),
+            courage_ticks: effect(NodeEffect::CourageTicks),
+            retreat: owned(crate::NODE_RETREAT),
+            retreat_blocks: effect(NodeEffect::RetreatBlocks),
+            retreat_percent: effect(NodeEffect::RetreatPercent),
+            selective: owned(crate::NODE_SELECTIVE),
+        }
+    }
+
+    /// The look's range in blocks, for zinc (`true`) or brass.
+    pub fn range(&self, zinc: bool, flared: bool) -> f64 {
+        let extra = if zinc {
+            self.zinc_range
+        } else {
+            self.brass_range
+        };
+        let range = ZB_RANGE + f64::from(extra) + f64::from(self.outer);
+        if flared {
+            range * ZB_FLARE_RANGE
+        } else {
+            range
+        }
+    }
+
+    /// Ticks an effect lasts once the metal is put out.
+    pub fn after(&self, zinc: bool) -> u64 {
+        ZB_AFTER
+            + u64::from(if zinc {
+                self.zinc_after
+            } else {
+                self.brass_after
+            })
+    }
+
+    /// Courage's effect amplifier (0 = level I) and ticks, when the technique is owned.
+    pub fn courage(&self) -> Option<(u8, u64)> {
+        self.courage.then(|| {
+            (
+                self.courage_level.min(2) as u8,
+                COURAGE_TICKS + u64::from(self.courage_ticks),
+            )
+        })
+    }
+
+    /// Retreat's distance in blocks and navigation speed, when the technique is owned.
+    pub fn retreat(&self) -> Option<(f64, f64)> {
+        self.retreat.then(|| {
+            (
+                RETREAT_BLOCKS + f64::from(self.retreat_blocks),
+                RETREAT_SPEED * (100.0 + f64::from(self.retreat_percent)) / 100.0,
+            )
+        })
+    }
+
+    pub fn selective(&self) -> bool {
+        self.selective
+    }
+}
+
+/// One creature under zinc or brass: since when, and when the metal let go of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Influence {
+    pub started: u64,
+    /// The tick the player put the metal out or looked away to another creature.
+    pub released: Option<u64>,
+    pub boss: bool,
+}
+
+impl Influence {
+    /// The tick the effect ends (None: it lasts while the metal holds it).
+    pub fn ends(&self, after: u64) -> Option<u64> {
+        let held = self.released.map(|at| at + after);
+        if self.boss {
+            let cut = self.started + BOSS_EFFECT;
+            Some(held.map_or(cut, |end| end.min(cut)))
+        } else {
+            held
+        }
+    }
+
+    pub fn active(&self, after: u64, tick: u64) -> bool {
+        self.ends(after).is_none_or(|end| tick < end)
+    }
+
+    /// Until when the creature ignores the same metal, once the effect has ended.
+    pub fn immune_until(&self, after: u64) -> Option<u64> {
+        let immunity = if self.boss {
+            BOSS_IMMUNITY
+        } else {
+            ZB_IMMUNITY
+        };
+        self.ends(after).map(|end| end + immunity)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,5 +538,101 @@ mod tests {
         assert!(close(dodge_velocity(0.0, 2).unwrap(), 0.0, -1.0));
         assert!(close(dodge_velocity(90.0, 3).unwrap(), -1.0, 0.0));
         assert_eq!(dodge_velocity(0.0, 4), None);
+    }
+
+    // Catches zinc/brass reaching players, brain mobs or the dragon, or values ignoring nodes.
+    #[test]
+    fn zinc_brass_values_and_kinds() {
+        let progress = |nodes: &[(u16, u8)]| Progress {
+            nodes: nodes.iter().copied().collect(),
+            ..Progress::default()
+        };
+        let none = ZincBrass::new(&progress(&[]), &CATALOG);
+        assert_eq!(none.range(true, false), 16.0);
+        assert_eq!(none.range(false, true), 24.0);
+        assert_eq!(none.after(true), 100);
+        assert_eq!(
+            (none.courage(), none.retreat(), none.selective()),
+            (None, None, false)
+        );
+        let all = ZincBrass::new(
+            &progress(&[
+                (NODE_ZINC_RANGE, 2),
+                (NODE_ZINC_DURATION, 1),
+                (NODE_BRASS_RANGE, 1),
+                (NODE_COURAGE, 1),
+                (NODE_COURAGE_LEVEL, 1),
+                (NODE_COURAGE_DURATION, 2),
+                (NODE_RETREAT, 1),
+                (NODE_RETREAT_DISTANCE, 1),
+                (NODE_RETREAT_SPEED, 2),
+                (NODE_OUTER_REACH, 1),
+            ]),
+            &CATALOG,
+        );
+        assert_eq!(all.range(true, false), 26.0);
+        assert_eq!(all.range(false, false), 22.0);
+        assert_eq!(all.after(true), 160);
+        assert_eq!(all.after(false), 100);
+        assert_eq!(all.courage(), Some((1, 400)));
+        assert_eq!(all.retreat(), Some((12.0, 1.4)));
+        // The bridge also lengthens iron and steel's reach.
+        let base = crate::physics::ForceRules::BURNING;
+        let reach = |nodes: &[(u16, u8)]| tuned_force(&base, &progress(nodes), &CATALOG).range;
+        assert_eq!(
+            reach(&[(NODE_REACH, 1), (NODE_OUTER_REACH, 1)]),
+            base.range + 4.0
+        );
+        for kind in [
+            "minecraft:zombie",
+            "minecraft:husk",
+            "minecraft:zombified_piglin",
+            "minecraft:wolf",
+        ] {
+            assert!(is_compatible(kind), "{kind}");
+        }
+        for kind in [
+            "minecraft:player",
+            "minecraft:warden",
+            "minecraft:piglin",
+            "minecraft:hoglin",
+            "minecraft:ender_dragon",
+            "minecraft:cow",
+            "minecraft:villager",
+        ] {
+            assert!(!is_compatible(kind), "{kind}");
+        }
+        assert!(is_neutral("minecraft:zombified_piglin") && !is_neutral("minecraft:zombie"));
+        assert!(is_boss("minecraft:wither") && is_compatible("minecraft:elder_guardian"));
+    }
+
+    // Catches an effect that never ends, a boss held past its cut or immunity starting early.
+    #[test]
+    fn influence_ends_and_immunity() {
+        let held = Influence {
+            started: 10,
+            released: None,
+            boss: false,
+        };
+        assert!(held.active(100, 10_000));
+        assert_eq!(held.immune_until(100), None);
+        let let_go = Influence {
+            released: Some(50),
+            ..held
+        };
+        assert!(let_go.active(100, 149) && !let_go.active(100, 150));
+        assert_eq!(let_go.immune_until(100), Some(350));
+        let boss = Influence {
+            started: 10,
+            released: None,
+            boss: true,
+        };
+        assert!(boss.active(100, 49) && !boss.active(100, 50));
+        assert_eq!(boss.immune_until(100), Some(650));
+        let boss_early = Influence {
+            released: Some(20),
+            ..boss
+        };
+        assert_eq!(boss_early.ends(5), Some(25));
     }
 }
