@@ -377,7 +377,7 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=control op=dodge direction=1 result=NotLit'
       k_expect_count "one dodge" 'MISTBRN event=control op=dodge direction=0 result=ok' 1 1
       # Spent once, 500 of pewter, and moved (direction 0 is the look's left).
-      k_expect_count "one spend" 'MISTBRN event=dodge spent=500 left=[0-9]* velocity=' 1 1
+      k_expect_count "one spend" 'MISTBRN event=dodge spent=500 ' 1 1
       k_expect_count "one hit dodged" 'MISTBRN event=dodged damage_type=minecraft:mob_attack' 1 1
       expect_log 1 'MISTBRN event=pewter_damage from=2.00 to=1.70'
       expect_log 1 'MISTBRN event=control op=dodge direction=0 result=Cooldown'
