@@ -89,8 +89,8 @@ struct Player {
     rules: TinPewter,
     tin: Option<bool>,
     pewter: Option<bool>,
-    /// Pewter's modifiers on the player: `Some(flared)`.
-    body: Option<bool>,
+    /// Pewter's modifiers on the player, as applied.
+    body: Option<PewterBody>,
     night_vision: bool,
     flared_since: Option<u64>,
     last_stun: Option<u64>,
@@ -248,10 +248,10 @@ impl TinPewterPowers {
             let Some(living) = read.living(body) else {
                 continue;
             };
+            // Pewter's modifiers carry this mod's own ids: always safe to take off. Night
+            // vision is only taken off once this session gave it (see `tin_tick`).
             if entry.fresh {
-                remove_night_vision(host, living, effects);
                 set_body(host, living, None);
-                entry.night_vision = false;
                 entry.body = None;
                 entry.heard.clear();
                 entry.fresh = false;
@@ -324,6 +324,11 @@ impl TinPewterPowers {
         }
     }
 
+    /// The server tick, before this tick's key requests (the dodge's cooldown counts from it).
+    pub(crate) fn begin(&mut self, tick: u64) {
+        self.tick = tick;
+    }
+
     pub(crate) fn take_observations(&mut self) -> Vec<(u128, EventKind)> {
         std::mem::take(&mut self.observations)
     }
@@ -337,19 +342,27 @@ impl TinPewterPowers {
             }
             entry.fresh = true;
             entry.flared_since = None;
+            entry.iframes_until = 0;
             entry.tin = None;
             entry.pewter = None;
         }
     }
 
-    /// A logout forgets the player; its night vision is removed now (it would be saved).
+    /// A logout forgets the player. Night vision this session gave is removed if the player is
+    /// still reachable; otherwise what is left of it (20 s at most) runs out after the next login.
     pub(crate) fn logged_out(&mut self, host: &mut dyn ServerHost, uuid: u128) {
         self.clear(uuid, "logout");
-        self.players.remove(&uuid);
+        let gave = self
+            .players
+            .remove(&uuid)
+            .is_some_and(|entry| entry.night_vision);
         if let (Some(player), Some(&effects)) = (host.player(uuid), EFFECTS.get()) {
             let read: &dyn Host = host;
             if let Some(living) = read.living(player.entity()) {
-                remove_night_vision(host, living, effects);
+                if gave {
+                    remove_night_vision(host, living, effects);
+                }
+                set_body(host, living, None);
             }
         }
     }
@@ -510,6 +523,13 @@ impl TinPewterPowers {
         (false, Some(taken))
     }
 
+    /// Pewter's jump on the server, from the burn and ranks it holds (the client predicts the
+    /// same from what it was last sent).
+    pub(crate) fn jump(&self, entity: u32) -> Option<f32> {
+        let (_, player) = self.player_of(entity)?;
+        player.pewter.map(|_| player.rules.jump())
+    }
+
     /// A fall about to be handled (server): pewter's damage multiplier, or None.
     pub(crate) fn fall(&mut self, entity: u32, distance: f64) -> Option<f32> {
         let (uuid, player) = self.player_of(entity)?;
@@ -566,6 +586,15 @@ impl TinPewterPowers {
         let read: &dyn Host = host;
         let [yaw, _] = player.entity().rotation(read).ok_or("no_body")?;
         let velocity = dodge_velocity(yaw, direction).ok_or("Direction")?;
+        // Checked before moving, spent after: a dodge that cannot move costs nothing. Both
+        // happen in this one call, under the session and powers locks.
+        let left = state.metals[Metal::Pewter.index()].reserve_milli;
+        if left < DODGE_COST_MILLI {
+            return Err("NotEnough".into());
+        }
+        if !player.set_velocity(host, velocity) {
+            return Err("NoMove".into());
+        }
         session.change(uuid, true, |saved| {
             let rules = saved.rules().clone();
             update_player(saved, |state, accounting| {
@@ -574,7 +603,13 @@ impl TinPewterPowers {
         })?;
         entry.dodge_ready = tick + DODGE_COOLDOWN;
         entry.iframes_until = tick + DODGE_IFRAMES;
-        let _ = player.set_velocity(host, velocity);
+        eprintln!(
+            "MISTBRN event=dodge spent={DODGE_COST_MILLI} left={} velocity={:.2},{:.2},{:.2}",
+            left - DODGE_COST_MILLI,
+            velocity[0],
+            velocity[1],
+            velocity[2]
+        );
         Ok(())
     }
 }
@@ -702,19 +737,18 @@ fn pewter_tick(
     was: Option<bool>,
     tick: u64,
 ) {
-    if entry.body != entry.pewter {
-        set_body(
-            host,
-            living,
-            entry.pewter.map(|flared| entry.rules.body(flared)),
-        );
+    // Lit, flared or not, or a new rank bought while it burns: the modifiers follow.
+    let wanted = entry.pewter.map(|flared| entry.rules.body(flared));
+    if entry.body != wanted {
+        set_body(host, living, wanted);
         let shown = match entry.pewter {
             None => "off",
             Some(false) => "burning",
             Some(true) => "flared",
         };
-        eprintln!("MISTBRN event=power power=pewter_body state={shown}");
-        entry.body = entry.pewter;
+        let attack = wanted.map_or(0.0, |body| body.attack);
+        eprintln!("MISTBRN event=power power=pewter_body state={shown} attack={attack:.2}");
+        entry.body = wanted;
     }
     if entry.pewter == Some(true) {
         let _ = player.add_exhaustion(host, FLARE_EXHAUSTION);

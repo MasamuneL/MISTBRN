@@ -318,8 +318,10 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=pewter_damage from=4.00 to=2.80'
       expect_log 1 'MISTBRN event=power power=pewter_body state=off'
       expect 2 report state=active burn_pewter=off xp_tin_pewter=10 research=2:e2h0c0 ;;
-    tp4)  # R flares both lit metals; a long flare drags when it ends
+    tp4)  # R flares both lit metals; a long flare drags when it ends; a potion's night vision
+         # outlives tin (Codex r1)
       p8_tp
+      ctl command "effect give @s minecraft:night_vision 60" >/dev/null
       ctl command "mistbrn-test burn tin" >/dev/null
       ctl command "mistbrn-test burn pewter" >/dev/null
       ctl wait 5 >/dev/null
@@ -330,6 +332,9 @@ p8_scenario() {
       book_shot tp4-drag
       ctl command "mistbrn-test off" >/dev/null
       ctl wait 5 >/dev/null
+      ctl command "effect clear @s minecraft:night_vision" > "$dir/tp4-night-vision.json"
+      if grep -qi 'removed' "$dir/tp4-night-vision.json"; then k_ok "the potion's night vision stayed"
+      else k_fail "the potion's night vision is gone: $(head -c 300 "$dir/tp4-night-vision.json")"; fi
       ctl save >/dev/null; quit_game
       report; quit_game
       expect_log 1 'MISTBRN event=control op=flare command=flare_pair:tin_pewter:true .*result=ok changed=2'
@@ -358,7 +363,10 @@ p8_scenario() {
       ctl wait 1 >/dev/null
       ctl command "damage @s 2 minecraft:mob_attack" >/dev/null
       ctl command "mistbrn-test inject dodge.0" >/dev/null
-      ctl wait 10 >/dev/null
+      ctl wait 20 >/dev/null
+      # The i-frames are over: the next hit lands (pewter takes 15 % off).
+      ctl command "damage @s 2 minecraft:mob_attack" >/dev/null
+      ctl wait 5 >/dev/null
       ctl command "mistbrn-test off" >/dev/null
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
@@ -368,6 +376,10 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=purchase node=reflexes rank=1 result=ok'
       expect_log 1 'MISTBRN event=control op=dodge direction=1 result=NotLit'
       k_expect_count "one dodge" 'MISTBRN event=control op=dodge direction=0 result=ok' 1 1
+      # Spent once, 500 of pewter, and moved (direction 0 is the look's left).
+      k_expect_count "one spend" 'MISTBRN event=dodge spent=500 left=[0-9]* velocity=' 1 1
+      k_expect_count "one hit dodged" 'MISTBRN event=dodged damage_type=minecraft:mob_attack' 1 1
+      expect_log 1 'MISTBRN event=pewter_damage from=2.00 to=1.70'
       expect_log 1 'MISTBRN event=control op=dodge direction=0 result=Cooldown'
       expect_log 1 'MISTBRN event=dodged damage_type=minecraft:mob_attack'
       expect 2 report state=active nodes=40:1,42:1,48:1,50:1,56:1 research=2:e3h0c1 ;;

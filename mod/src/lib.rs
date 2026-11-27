@@ -190,6 +190,7 @@ impl Hooks for Allomancy {
         let mut powers = self.powers();
         let mut controls = self.controls();
         let mut tin_pewter = self.tin_pewter();
+        tin_pewter.begin(tick);
         // Key requests first, so a metal put out this tick takes no force.
         controls.apply(host, &mut session, &mut powers, &mut tin_pewter, tick);
         powers.apply_prepared(host, &session, tick);
@@ -575,6 +576,11 @@ impl Hooks for Allomancy {
     fn living_jump_power(&self, context: &dyn LoopContext, event: &mut LivingJumpPowerEvent<'_>) {
         if context.side() == LoopSide::Client {
             senses::jump(event.entity, &mut event.power);
+        } else if context.side() == LoopSide::Server
+            && let Ok(tin_pewter) = self.tin_pewter.try_lock()
+            && let Some(factor) = tin_pewter.jump(event.entity)
+        {
+            event.power *= factor;
         }
     }
 
