@@ -505,7 +505,7 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=practice category=soothe xp=10 count=1'
       expect_log 1 'MISTBRN event=zb_end metal=brass entity=[0-9]* reason=time'
       p8_count_re "the immune husk soothed only once" 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' 1 1
-      husk="$(grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      husk="$({ grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       expect_log 1 "MISTBRN event=zb_immune metal=brass entity=${husk:-none} kind=minecraft:husk"
       expect_log 1 'MISTBRN event=brass_calm entity=[0-9]* changed=true'
       anger="$(grep -ao 'anger_end_time[^,}]*\|[0-9-]*L' "$dir/zb2-anger.json" | head -3 | tr '\n' ' ')"
@@ -534,14 +534,14 @@ p8_scenario() {
       ctl save >/dev/null; quit_game
       report; quit_game
       p8_count_re "the boss provoked twice: before the cut and after its immunity" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian boss=true' 2 2
-      boss="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
-      start="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
-      end="$(grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time cleared=[a-z]* tick=[0-9]*" "$(log 1)" | head -1 | sed 's/.*tick=//')"
+      boss="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:elder_guardian' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      start="$({ grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" || true; }| head -1 | sed 's/.*tick=//')"
+      end="$({ grep -ao "MISTBRN event=zb_end metal=zinc entity=${boss:-x} reason=time cleared=[a-z]* tick=[0-9]*" "$(log 1)" || true; }| head -1 | sed 's/.*tick=//')"
       if [[ -n "$start" && -n "$end" ]] && (( end - start >= 38 && end - start <= 42 )); then
         k_ok "the boss let go after $((end - start)) ticks, zinc still lit"
       else k_fail "boss hold from tick '${start}' to '${end}', expected 40"; fi
       expect_log 1 "MISTBRN event=zb_immune metal=zinc entity=${boss:-none} kind=minecraft:elder_guardian"
-      again="$(grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" | sed -n 2p | sed 's/.*tick=//')"
+      again="$({ grep -ao "MISTBRN event=zinc_provoke entity=${boss:-x} .* tick=[0-9]*" "$(log 1)" || true; }| sed -n 2p | sed 's/.*tick=//')"
       if [[ -n "$again" && -n "$end" ]] && (( again - end >= 600 && again - end <= 602 )); then
         k_ok "the same boss provoked again $((again - end)) ticks after the cut"
       else k_fail "second provocation at '${again}', cut at '${end}': expected 600 later"; fi
@@ -588,7 +588,7 @@ p8_scenario() {
       p8_count_re "courage on the wolf and the golem" 'MISTBRN event=courage entity=[0-9]* level=1 ticks=200 strength=true speed=true' 2 2
       expect_log 1 'MISTBRN event=ally_hit entity='
       expect_log 1 'MISTBRN event=practice category=ally xp=10 count=1'
-      husk="$(grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      husk="$({ grep -ao 'MISTBRN event=brass_soothe entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       expect_log 1 "MISTBRN event=retreat entity=${husk:-none} distance=[0-9.]* to=.* ok=true"
       expect_log 1 "MISTBRN event=retreat_reached entity=${husk:-none} distance="
       expect 2 report state=active nodes=64:1,66:1,72:1,74:1 ;;
@@ -656,7 +656,8 @@ p8_scenario() {
       p8_buy 27 1
       p5_trial_reach
       # Zinc held on a creature, then death; again, then the Nether.
-      p8_summon husk 518.5 d 'NoAI:1b'
+      # Persistent: death sends the player to the world spawn, far enough to despawn it.
+      p8_summon husk 518.5 d 'NoAI:1b,PersistenceRequired:1b'
       ctl look-at 518.5 101.2 512.5 >/dev/null
       ctl command "mistbrn-test credit zinc 30000" >/dev/null
       ctl command "mistbrn-test burn zinc" >/dev/null
@@ -692,7 +693,7 @@ p8_scenario() {
       expect_log 1 'MISTBRN event=power_cleared reason=death power=zinc_brass'
       expect_log 1 'MISTBRN event=power_cleared reason=dimension power=zinc_brass'
       # The husk held each time is let go on its own level's pass, for the reason.
-      husk="$(grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" | head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      husk="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; }| head -1 | sed 's/.*entity=\([0-9]*\).*/\1/')"
       p8_count_re "the husk provoked anew after each clear" "MISTBRN event=zinc_provoke entity=${husk:-x} kind=minecraft:husk" 3 3
       p8_count_re "zinc verified on the husk each time" "MISTBRN event=zinc_verified entity=${husk:-x} " 3 3
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=death cleared=true"
