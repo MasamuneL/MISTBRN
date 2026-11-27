@@ -267,8 +267,9 @@ p8_scenario() {
       ctl command "summon minecraft:cow 519.5 100 512.5 {Tags:[heard]}" >/dev/null
       ctl look -90 0 >/dev/null
       ctl command "mistbrn-test burn tin" >/dev/null
-      # The cow's own ambient sound is the server's (hurt sounds are played by clients): wait
-      # for it, up to 800 ticks.
+      # Hearing follows motion (the pinned game asks sound hooks only on the client): a hit
+      # moves the cow at once; its wandering is heard too. Up to 800 ticks.
+      ctl command "damage @e[tag=heard,limit=1] 1 minecraft:generic" >/dev/null
       for _ in $(seq 40); do
         grep -aq 'MISTBRN event=heard ' "$sockdir/l$launch_no.log" 2>/dev/null && break
         ctl wait 20 >/dev/null

@@ -32,6 +32,9 @@ pub(crate) const SENSES_CHANNEL: &str = "mistbrn:senses";
 const SENSES_EVERY_TICKS: u64 = 5;
 /// The stun's blindness is left alone by clarity for this long after it is given.
 const STUN_GRACE: u64 = 45;
+/// Hearing listens this often, for creatures that moved more than `MOVED` blocks since.
+const LISTEN_EVERY_TICKS: u64 = 5;
+const MOVED: f64 = 0.05;
 /// Tin's darkness check (research evidence) runs this often.
 const DARK_EVERY_TICKS: u64 = 20;
 
@@ -119,6 +122,8 @@ pub(crate) struct TinPewterPowers {
     players: BTreeMap<u128, Player>,
     by_entity: BTreeMap<u32, u128>,
     hearers: Vec<Hearer>,
+    /// Where each creature near a tin player was at the last listen.
+    last_positions: BTreeMap<u32, [f64; 3]>,
     tick: u64,
     /// Falls of pewter players, checked the next tick: (player, distance).
     falls: Vec<(u128, f64)>,
@@ -193,20 +198,6 @@ pub(crate) fn dark(host: &dyn Host, living: LivingRef) -> bool {
             .into_iter()
             .any(|key| living.effect(host, key).is_some())
     })
-}
-
-/// Test runs only: the first sounds the hook saw and why each was dropped.
-pub(crate) fn debug_sound(reason: &str, position: [f64; 3]) {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    static SEEN: AtomicU32 = AtomicU32::new(0);
-    static CLIENT: AtomicU32 = AtomicU32::new(0);
-    let seen = if reason == "client" { &CLIENT } else { &SEEN };
-    if crate::scenario::commands_enabled() && seen.fetch_add(1, Ordering::Relaxed) < 8 {
-        eprintln!(
-            "MISTBRN event=sound_debug reason={reason} at={:.1},{:.1},{:.1}",
-            position[0], position[1], position[2]
-        );
-    }
 }
 
 fn evidence(bit: u8) -> EventKind {
@@ -305,6 +296,11 @@ impl TinPewterPowers {
                 });
             }
         }
+        if self.hearers.is_empty() {
+            self.last_positions.clear();
+        } else if tick.is_multiple_of(LISTEN_EVERY_TICKS) {
+            self.listen(host);
+        }
         // Falls survived: the player is still alive the tick after landing.
         for (uuid, distance) in std::mem::take(&mut self.falls) {
             let read: &dyn Host = host;
@@ -363,40 +359,62 @@ impl TinPewterPowers {
         Some((uuid, self.players.get(&uuid)?))
     }
 
-    /// A sound at `position` (the sound hook): tin players in reach hear its creature.
-    pub(crate) fn sound(&mut self, host: &dyn Host, level: LevelRef, position: [f64; 3]) {
-        if self.hearers.is_empty() {
-            return debug_sound("no_hearers", position);
+    /// Hearing, every few ticks: creatures within reach of a tin player that moved since the
+    /// last listen (steps, flight, a hit's knockback) and are not silent. The pinned game asks
+    /// its sound hooks only on the client, so the server listens to motion instead.
+    fn listen(&mut self, host: &dyn Host) {
+        let mut moved: BTreeMap<u32, (LevelRef, EntityRef)> = BTreeMap::new();
+        let mut positions = BTreeMap::new();
+        for hearer in &self.hearers {
+            let reach = hearer
+                .hearing
+                .map_or(HEARING_RANGE, |(range, _)| range.max(HEARING_RANGE));
+            let Some(level) = host
+                .player(hearer.uuid)
+                .and_then(|player| player.level(host))
+            else {
+                continue;
+            };
+            let low = hearer.eye.map(|v| v - reach);
+            let high = hearer.eye.map(|v| v + reach);
+            for entity in level.entities_in(host, low, high).unwrap_or_default() {
+                if !self.creature(host, entity) || entity.is_silent(host) == Some(true) {
+                    continue;
+                }
+                let Some(at) = entity.position(host) else {
+                    continue;
+                };
+                let id = entity.id();
+                if self
+                    .last_positions
+                    .get(&id)
+                    .is_some_and(|before| distance(*before, at) > MOVED)
+                {
+                    moved.insert(id, (level, entity));
+                }
+                positions.insert(id, at);
+            }
         }
-        let Some(dimension) = level.dimension().id(host) else {
-            return debug_sound("no_dimension", position);
-        };
-        let near: Vec<usize> = (0..self.hearers.len())
-            .filter(|&i| {
-                let hearer = &self.hearers[i];
-                let reach = hearer
-                    .hearing
-                    .map_or(HEARING_RANGE, |(range, _)| range.max(HEARING_RANGE));
-                hearer.dimension == dimension && distance(hearer.eye, position) <= reach
-            })
-            .collect();
-        if near.is_empty() {
-            let at = format!("far:{dimension}:{}", self.hearers[0].dimension);
-            return debug_sound(&at, position);
+        self.last_positions = positions;
+        for (level, entity) in moved.into_values() {
+            let (Some(at), Some(dimension)) = (entity.position(host), level.dimension().id(host))
+            else {
+                continue;
+            };
+            let near: Vec<usize> = (0..self.hearers.len())
+                .filter(|&i| {
+                    let hearer = &self.hearers[i];
+                    if hearer.dimension != dimension {
+                        return false;
+                    }
+                    let reach = hearer
+                        .hearing
+                        .map_or(HEARING_RANGE, |(range, _)| range.max(HEARING_RANGE));
+                    distance(hearer.eye, at) <= reach
+                })
+                .collect();
+            self.heard_from(host, level, entity, near);
         }
-        let low = [position[0] - 0.5, position[1] - 0.5, position[2] - 0.5];
-        let high = [position[0] + 0.5, position[1] + 2.0, position[2] + 0.5];
-        let Some(found) = level.entities_in(host, low, high) else {
-            return debug_sound("no_entities", position);
-        };
-        let count = found.len();
-        let Some(source) = found
-            .into_iter()
-            .find(|entity| self.creature(host, *entity))
-        else {
-            return debug_sound(&format!("no_source:{count}"), position);
-        };
-        self.heard_from(host, level, source, near);
     }
 
     /// A living creature that is not a player this module knows.
@@ -406,32 +424,6 @@ impl TinPewterPowers {
                 .living(entity)
                 .and_then(|l| l.alive(host))
                 .unwrap_or(false)
-    }
-
-    /// A sound bound to `entity` (the sound hook at an entity).
-    pub(crate) fn sound_of(&mut self, host: &dyn Host, entity: EntityRef) {
-        if self.hearers.is_empty() || !self.creature(host, entity) {
-            return;
-        }
-        let (Some(level), Some(position), Some(dimension)) = (
-            entity.level(host),
-            entity.position(host),
-            entity.level(host).and_then(|l| l.dimension().id(host)),
-        ) else {
-            return;
-        };
-        let near: Vec<usize> = (0..self.hearers.len())
-            .filter(|&i| {
-                let hearer = &self.hearers[i];
-                let reach = hearer
-                    .hearing
-                    .map_or(HEARING_RANGE, |(range, _)| range.max(HEARING_RANGE));
-                hearer.dimension == dimension && distance(hearer.eye, position) <= reach
-            })
-            .collect();
-        if !near.is_empty() {
-            self.heard_from(host, level, entity, near);
-        }
     }
 
     fn heard_from(

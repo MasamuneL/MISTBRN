@@ -27,13 +27,13 @@ use mod_api::{
     ItemPickedUpPostEvent, LevelHost, LevelRandomHost, LevelTickPostEvent, LivingDamagePostEvent,
     LivingDeathEvent, LivingDeathPostEvent, LivingEntityUseItemFinishEvent, LivingFallEvent,
     LivingIncomingDamageEvent, LivingJumpPowerEvent, LoopContext, LoopSide, MovementInputEvent,
-    PlayLevelSoundAtEntityEvent, PlayLevelSoundAtPositionEvent, PlayerChangedDimensionEvent,
-    PlayerCloneEvent, PlayerContainerCloseEvent, PlayerContainerOpenEvent, PlayerDiedEvent,
-    PlayerLoggedInEvent, PlayerLoggedOutEvent, RegisterCommandsEvent, RegisterGuiLayersEvent,
-    Registrar, RegistrationContext, RenderFogEvent, RightClickItemEvent, RunModCommandEvent,
-    ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent, ScreenMouseButtonPressedPreEvent,
-    ScreenMouseButtonReleasedPreEvent, ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent,
-    ScreenRenderPostEvent, ServerHost, ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
+    PlayerChangedDimensionEvent, PlayerCloneEvent, PlayerContainerCloseEvent,
+    PlayerContainerOpenEvent, PlayerDiedEvent, PlayerLoggedInEvent, PlayerLoggedOutEvent,
+    RegisterCommandsEvent, RegisterGuiLayersEvent, Registrar, RegistrationContext, RenderFogEvent,
+    RightClickItemEvent, RunModCommandEvent, ScreenKeyPressedPreEvent, ScreenKeyReleasedPreEvent,
+    ScreenMouseButtonPressedPreEvent, ScreenMouseButtonReleasedPreEvent,
+    ScreenMouseDraggedPreEvent, ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, ServerHost,
+    ServerStoppedEvent, ServerTickEvent, ServerTickPhase,
 };
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -541,35 +541,7 @@ impl Hooks for Allomancy {
         }
     }
 
-    // P8, tin and pewter. These hooks may fire inside this mod's own tick (an effect it adds):
-    // they skip when the powers' state is busy (see `tin_pewter`).
-    fn play_level_sound_at_position(
-        &self,
-        side: HostSide<'_>,
-        event: &mut PlayLevelSoundAtPositionEvent<'_>,
-    ) -> Flow {
-        match side {
-            HostSide::Server(host) => match self.tin_pewter.try_lock() {
-                Ok(mut tin_pewter) => tin_pewter.sound(host, event.level, event.position),
-                Err(_) => tin_pewter::debug_sound("busy", event.position),
-            },
-            _ => tin_pewter::debug_sound("client", event.position),
-        }
-        Flow::Continue
-    }
-
-    fn play_level_sound_at_entity(
-        &self,
-        side: HostSide<'_>,
-        event: &mut PlayLevelSoundAtEntityEvent<'_>,
-    ) -> Flow {
-        if let HostSide::Server(host) = side
-            && let Ok(mut tin_pewter) = self.tin_pewter.try_lock()
-        {
-            tin_pewter.sound_of(host, event.entity);
-        }
-        Flow::Continue
-    }
+    // P8, tin and pewter: these hooks skip when the powers' state is busy (see `tin_pewter`).
 
     fn living_incoming_damage(
         &self,
