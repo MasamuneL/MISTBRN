@@ -589,7 +589,7 @@ impl Hooks for Allomancy {
         _: &dyn mod_api::Host,
         event: &mut LivingChangeTargetEvent<'_>,
     ) -> Flow {
-        if let Ok(zinc_brass) = self.zinc_brass.try_lock() {
+        if let Ok(mut zinc_brass) = self.zinc_brass.try_lock() {
             zinc_brass.change_target(event.mob, event.new_target);
         }
         Flow::Continue

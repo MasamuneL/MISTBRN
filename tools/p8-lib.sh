@@ -590,11 +590,12 @@ p8_scenario() {
       ctl command "mistbrn-test burn zinc" >/dev/null
       ctl wait 10 >/dev/null
       ctl save >/dev/null; quit_game
+      # `report` waits 40 ticks after the load; 20 more make 60 (a 40-tick pulse is gone).
       report
-      ctl wait 60 >/dev/null
+      ctl wait 20 >/dev/null
       ctl command "data get entity @e[tag=w2,limit=1] active_effects" > "$dir/zb4-courage-reload.json"
       quit_game
-      if grep -aq 'minecraft:strength' "$dir/zb4-courage-reload.json"; then
+      if grep -aq 'minecraft:strength\|minecraft:speed' "$dir/zb4-courage-reload.json"; then
         k_fail "courage outlived the reload: $(head -c 300 "$dir/zb4-courage-reload.json")"
       elif grep -aqi 'found no elements\|entity data' "$dir/zb4-courage-reload.json"; then
         k_ok "courage gone 60 ticks after the reload"
@@ -642,7 +643,7 @@ p8_scenario() {
     zb6)  # the third evidence, a click on the map buys code 64 (op 9), the general bridge adds
          # 2 blocks to iron's reach, and death, a dimension change and logging out let every
          # creature go
-      local husk again
+      local husk again third
       p8_zb
       p8_summon zombified_piglin 520.5 zb 'NoAI:1b'
       ctl look-at 520.5 101.2 512.5 >/dev/null
@@ -714,7 +715,9 @@ p8_scenario() {
       husk="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; } | sed -n 1p | sed 's/.*entity=\([0-9]*\).*/\1/')"
       again="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; } | sed -n 2p | sed 's/.*entity=\([0-9]*\).*/\1/')"
       p8_count_re "the husk provoked anew after each clear" 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' 3 3
-      p8_count_re "zinc verified on the husk each time" 'MISTBRN event=zinc_verified entity=' 4 4
+      third="$({ grep -ao 'MISTBRN event=zinc_provoke entity=[0-9]* kind=minecraft:husk' "$(log 1)" || true; } | sed -n 3p | sed 's/.*entity=\([0-9]*\).*/\1/')"
+      # Each hold was seen working before its clear (ids may repeat: counted per hold).
+      p8_count_re "zinc verified on each husk hold" "MISTBRN event=zinc_verified entity=\\(${husk:-x}\\|${again:-x}\\|${third:-x}\\) " 3 3
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${husk:-x} reason=death cleared=true"
       expect_log 1 "MISTBRN event=zb_end metal=zinc entity=${again:-x} reason=dimension cleared=true"
       expect_log 1 'MISTBRN event=power_cleared reason=logout power=zinc_brass'

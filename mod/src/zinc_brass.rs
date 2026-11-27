@@ -78,6 +78,9 @@ struct Hold {
     hostile: bool,
     /// A wolf: its hold ends the moment anyone tames it.
     wolf: bool,
+    /// Brass: it took the player away from the creature itself (a target cleared by the pass,
+    /// or a choice of the player refused by the hook).
+    worked: bool,
     /// Brass: since when it has been soothed by brass itself (no zinc holding it, not
     /// targeting the player); practice needs `SOOTHE_PRACTICE` of it in a row.
     calm_since: Option<u64>,
@@ -496,16 +499,16 @@ impl ZincBrassPowers {
                 continue;
             };
             if ally_of(host, target, uuid) {
+                // The view left this metal's creature for the ally: it keeps its `after`.
+                let tick = self.tick;
+                for hold in self
+                    .holds
+                    .iter_mut()
+                    .filter(|h| h.player == uuid && h.zinc == zinc && h.gazed)
+                {
+                    hold.influence.released.get_or_insert(tick);
+                }
                 if zinc {
-                    // The view left the provoked creature for the ally: it keeps its `after`.
-                    let tick = self.tick;
-                    for hold in self
-                        .holds
-                        .iter_mut()
-                        .filter(|h| h.player == uuid && h.zinc && h.gazed)
-                    {
-                        hold.influence.released.get_or_insert(tick);
-                    }
                     self.courage(host, level, uuid, target);
                 }
                 continue;
@@ -658,6 +661,7 @@ impl ZincBrassPowers {
             neutral: is_neutral(&target_kind),
             hostile: is_hostile(&target_kind),
             wolf: target_kind == "minecraft:wolf",
+            worked: false,
             calm_since: None,
             influence: Influence {
                 started,
@@ -725,6 +729,10 @@ impl ZincBrassPowers {
                 }
                 (None, Some(current)) if want.refuse.contains(&current) => {
                     let _ = mob.set_target(host, None);
+                    let read: &dyn Host = host;
+                    if target_id(read, mob) != Some(current) {
+                        self.mark_worked(id, current);
+                    }
                 }
                 _ => {}
             }
@@ -764,7 +772,8 @@ impl ZincBrassPowers {
                 }
             } else {
                 // Brass's own work: no provocation holds it and it does not target the player.
-                if mine || want.keep.is_some() {
+                // A chaser counts only once brass itself took the player away from it.
+                if mine || want.keep.is_some() || (hold.chaser && !hold.worked) {
                     hold.calm_since = None;
                 } else {
                     hold.calm_since.get_or_insert(tick);
@@ -948,7 +957,7 @@ impl ZincBrassPowers {
 
     /// `living_change_target`: the same resolution as the pass. The oldest provocation's player
     /// is kept; a soothing player is never taken.
-    pub(crate) fn change_target(&self, mob: MobRef, new_target: &mut Option<LivingRef>) {
+    pub(crate) fn change_target(&mut self, mob: MobRef, new_target: &mut Option<LivingRef>) {
         let id = mob.entity().id();
         if !self.holds.iter().any(|h| h.entity.id() == id) {
             return;
@@ -960,11 +969,23 @@ impl ZincBrassPowers {
                 *new_target = Some(living);
                 eprintln!("MISTBRN event=zinc_hold entity={id}");
             }
-            None if new.is_some_and(|n| want.refuse.contains(&n)) => {
+            None if let Some(player) = new.filter(|n| want.refuse.contains(n)) => {
                 *new_target = None;
+                self.mark_worked(id, player);
                 eprintln!("MISTBRN event=brass_block entity={id}");
             }
             _ => {}
+        }
+    }
+
+    /// Brass on creature `id` kept player body `player` away: that player's brass hold worked.
+    fn mark_worked(&mut self, id: u32, player: u32) {
+        for hold in self
+            .holds
+            .iter_mut()
+            .filter(|h| !h.zinc && h.entity.id() == id && h.player_entity == player)
+        {
+            hold.worked = true;
         }
     }
 
