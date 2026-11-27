@@ -60,12 +60,17 @@ struct Held {
     zinc: bool,
     /// Taken by the view (one per metal); false for selective influence's soothed ones.
     gazed: bool,
+    /// A neutral creature: calmed when soothed, and when zinc lets it go.
+    neutral: bool,
     influence: Influence,
     /// Brass: it had the player as target when soothed (a chaser).
     chaser: bool,
     /// Practice already counted for this hold.
     counted: bool,
     next_path: u64,
+    /// Retreat: sent away at least once, and reached its distance.
+    retreating: bool,
+    reached: bool,
 }
 
 #[derive(Default)]
@@ -189,7 +194,16 @@ fn near(host: &dyn Host, level: LevelRef, at: [f64; 3], radius: f64) -> Vec<Enti
     level.entities_in(host, low, high).unwrap_or_default()
 }
 
-/// Lets a creature go: a provoked one drops the player as target, a retreating one stops.
+/// `NeutralMob` (26.3) keeps `anger_end_time` in game time: one in the past calms it.
+fn calm(host: &mut dyn ServerHost, entity: EntityRef) -> bool {
+    let data = [("anger_end_time".into(), Tag::Long(0))]
+        .into_iter()
+        .collect();
+    entity.merge_nbt(host, data)
+}
+
+/// Lets a creature go: a provoked one drops the player as target (and a neutral one its
+/// anger), a retreating one stops.
 fn release(host: &mut dyn ServerHost, held: &Held, player: u32) {
     let read: &dyn Host = host;
     let Some(mob) = read.mob(held.entity) else {
@@ -200,6 +214,9 @@ fn release(host: &mut dyn ServerHost, held: &Held, player: u32) {
             let _ = mob.set_target(host, None);
         }
         let _ = mob.set_aggressive(host, false);
+        if held.neutral {
+            let _ = calm(host, held.entity);
+        }
     } else {
         let _ = mob.stop(host);
     }
@@ -411,6 +428,7 @@ impl ZincBrassPowers {
             entity: target,
             zinc,
             gazed,
+            neutral: is_neutral(target_kind),
             influence: Influence {
                 started: tick,
                 released: None,
@@ -419,6 +437,8 @@ impl ZincBrassPowers {
             chaser,
             counted: false,
             next_path: tick,
+            retreating: false,
+            reached: false,
         });
         if zinc {
             eprintln!("MISTBRN event=zinc_provoke entity={id} kind={target_kind} boss={boss}");
@@ -437,12 +457,7 @@ impl ZincBrassPowers {
                     .push((uuid, evidence(EVIDENCE_SOOTHED_CHASER)));
             }
             if is_neutral(target_kind) {
-                // `NeutralMob` (26.3) keeps `anger_end_time` in game time: one in the past
-                // calms it.
-                let calm = [("anger_end_time".into(), Tag::Long(0))]
-                    .into_iter()
-                    .collect();
-                let changed = target.merge_nbt(host, calm);
+                let changed = calm(host, target);
                 eprintln!("MISTBRN event=brass_calm entity={id} changed={changed}");
             }
         }
@@ -522,12 +537,18 @@ impl ZincBrassPowers {
                 if targets_me {
                     let _ = mob.set_target(host, None);
                 }
-                if let Some((blocks, speed)) = entry.rules.retreat()
-                    && dist < blocks
-                    && tick >= held.next_path
-                {
-                    held.next_path = tick + RETREAT_EVERY_TICKS;
-                    retreat(host, mob, at, blocks, speed);
+                if let Some((blocks, speed)) = entry.rules.retreat() {
+                    if dist < blocks && tick >= held.next_path {
+                        held.next_path = tick + RETREAT_EVERY_TICKS;
+                        held.retreating = true;
+                        retreat(host, mob, at, blocks, speed);
+                    } else if held.retreating && !held.reached && dist >= blocks {
+                        held.reached = true;
+                        eprintln!(
+                            "MISTBRN event=retreat_reached entity={} distance={dist:.1}",
+                            held.entity.id()
+                        );
+                    }
                 }
                 if !held.counted
                     && held.chaser

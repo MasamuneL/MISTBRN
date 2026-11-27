@@ -305,7 +305,7 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
             let steel = saved.state().metals[Metal::Steel.index()];
             let progress = progress_fields(saved);
             format!(
-                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} reserve_steel={} reserve_tin={} burn_tin={} reserve_pewter={} burn_pewter={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
+                "state=active reserve_iron={} burn_iron={} unlocked_iron={} unlocked_steel={} burn_steel={} reserve_steel={} reserve_tin={} burn_tin={} reserve_pewter={} burn_pewter={} burn_zinc={} burn_brass={} remainder_iron={} revision={} last_transaction={} {progress} {common}",
                 iron.reserve_milli,
                 burn_name(iron.burn),
                 iron.unlocked,
@@ -316,6 +316,8 @@ fn report(host: &mut dyn ServerHost, session: &Session, player: PlayerRef) -> St
                 burn_name(saved.state().metals[Metal::Tin.index()].burn),
                 saved.state().metals[Metal::Pewter.index()].reserve_milli,
                 burn_name(saved.state().metals[Metal::Pewter.index()].burn),
+                burn_name(saved.state().metals[Metal::Zinc.index()].burn),
+                burn_name(saved.state().metals[Metal::Brass.index()].burn),
                 saved.accounting().remainder[Metal::Iron.index()],
                 saved.revision(),
                 saved.last_transaction(),

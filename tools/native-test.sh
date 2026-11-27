@@ -675,7 +675,7 @@ case "$scenario" in
     p7b_scenario ;;
   a[1-6]|av)  # P3c alchemy (tools/p3c-lib.sh)
     p3c_scenario ;;
-  g[1-5]|m4|tp[1-6])  # P8 skill map, general nodes, tin and pewter (tools/p8-lib.sh)
+  g[1-5]|m4|tp[1-6]|zb[1-6])  # P8 skill map, general nodes, tin/pewter, zinc/brass (tools/p8-lib.sh)
     p8_scenario ;;
   *) die "unknown scenario $scenario" ;;
 esac
