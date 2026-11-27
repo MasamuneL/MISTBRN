@@ -259,7 +259,12 @@ p8_scenario() {
       p8_buy 40 1
       p8_buy 42 1
       ctl command "fill 516 100 508 516 104 516 minecraft:stone" >/dev/null
-      ctl command "summon minecraft:cow 519.5 100 512.5 {NoAI:1b,Tags:[heard]}" >/dev/null
+      # A free cow in a pen behind the wall (a still one makes no ambient sound).
+      for wall in "517 100 510 517 100 514" "521 100 510 521 100 514" \
+        "517 100 510 521 100 510" "517 100 514 521 100 514"; do
+        ctl command "fill $wall minecraft:oak_fence" >/dev/null
+      done
+      ctl command "summon minecraft:cow 519.5 100 512.5 {Tags:[heard]}" >/dev/null
       ctl look -90 0 >/dev/null
       ctl command "mistbrn-test burn tin" >/dev/null
       # The cow's own ambient sound is the server's (hurt sounds are played by clients): wait

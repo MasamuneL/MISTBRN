@@ -20,9 +20,9 @@ use allomancy_core::{
     encode_senses, is_hostile, spend_reserve, update_player,
 };
 use mod_api::{
-    ActiveEffect, AttributeModifier, AttributeOperation, EffectKey, Host, HurtSource, Identifier,
-    LevelRef, LightLayer, LivingRef, ModifierLifetime, PayloadBytes, PayloadId, PlayerRef,
-    Registrar, ServerHost,
+    ActiveEffect, AttributeModifier, AttributeOperation, EffectKey, EntityRef, Host, HurtSource,
+    Identifier, LevelRef, LightLayer, LivingRef, ModifierLifetime, PayloadBytes, PayloadId,
+    PlayerRef, Registrar, ServerHost,
 };
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -388,14 +388,59 @@ impl TinPewterPowers {
             return debug_sound("no_entities", position);
         };
         let count = found.len();
-        let Some(source) = found.into_iter().find(|entity| {
-            !self.by_entity.contains_key(&entity.id())
-                && host
-                    .living(*entity)
-                    .and_then(|l| l.alive(host))
-                    .unwrap_or(false)
-        }) else {
+        let Some(source) = found
+            .into_iter()
+            .find(|entity| self.creature(host, *entity))
+        else {
             return debug_sound(&format!("no_source:{count}"), position);
+        };
+        self.heard_from(host, level, source, near);
+    }
+
+    /// A living creature that is not a player this module knows.
+    fn creature(&self, host: &dyn Host, entity: EntityRef) -> bool {
+        !self.by_entity.contains_key(&entity.id())
+            && host
+                .living(entity)
+                .and_then(|l| l.alive(host))
+                .unwrap_or(false)
+    }
+
+    /// A sound bound to `entity` (the sound hook at an entity).
+    pub(crate) fn sound_of(&mut self, host: &dyn Host, entity: EntityRef) {
+        if self.hearers.is_empty() || !self.creature(host, entity) {
+            return;
+        }
+        let (Some(level), Some(position), Some(dimension)) = (
+            entity.level(host),
+            entity.position(host),
+            entity.level(host).and_then(|l| l.dimension().id(host)),
+        ) else {
+            return;
+        };
+        let near: Vec<usize> = (0..self.hearers.len())
+            .filter(|&i| {
+                let hearer = &self.hearers[i];
+                let reach = hearer
+                    .hearing
+                    .map_or(HEARING_RANGE, |(range, _)| range.max(HEARING_RANGE));
+                hearer.dimension == dimension && distance(hearer.eye, position) <= reach
+            })
+            .collect();
+        if !near.is_empty() {
+            self.heard_from(host, level, entity, near);
+        }
+    }
+
+    fn heard_from(
+        &mut self,
+        host: &dyn Host,
+        level: LevelRef,
+        source: EntityRef,
+        near: Vec<usize>,
+    ) {
+        let Some(position) = source.position(host) else {
+            return;
         };
         let middle =
             source
