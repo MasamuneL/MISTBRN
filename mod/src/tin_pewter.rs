@@ -195,6 +195,18 @@ pub(crate) fn dark(host: &dyn Host, living: LivingRef) -> bool {
     })
 }
 
+/// Test runs only: the first sounds the hook saw and why each was dropped.
+pub(crate) fn debug_sound(reason: &str, position: [f64; 3]) {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static SEEN: AtomicU32 = AtomicU32::new(0);
+    if crate::scenario::commands_enabled() && SEEN.fetch_add(1, Ordering::Relaxed) < 8 {
+        eprintln!(
+            "MISTBRN event=sound_debug reason={reason} at={:.1},{:.1},{:.1}",
+            position[0], position[1], position[2]
+        );
+    }
+}
+
 fn evidence(bit: u8) -> EventKind {
     EventKind::ResearchEvidence {
         research: RESEARCH_THRESHOLD,
@@ -352,10 +364,10 @@ impl TinPewterPowers {
     /// A sound at `position` (the sound hook): tin players in reach hear its creature.
     pub(crate) fn sound(&mut self, host: &dyn Host, level: LevelRef, position: [f64; 3]) {
         if self.hearers.is_empty() {
-            return;
+            return debug_sound("no_hearers", position);
         }
         let Some(dimension) = level.dimension().id(host) else {
-            return;
+            return debug_sound("no_dimension", position);
         };
         let near: Vec<usize> = (0..self.hearers.len())
             .filter(|&i| {
@@ -367,13 +379,15 @@ impl TinPewterPowers {
             })
             .collect();
         if near.is_empty() {
-            return;
+            let at = format!("far:{dimension}:{}", self.hearers[0].dimension);
+            return debug_sound(&at, position);
         }
         let low = [position[0] - 0.5, position[1] - 0.5, position[2] - 0.5];
         let high = [position[0] + 0.5, position[1] + 2.0, position[2] + 0.5];
         let Some(found) = level.entities_in(host, low, high) else {
-            return;
+            return debug_sound("no_entities", position);
         };
+        let count = found.len();
         let Some(source) = found.into_iter().find(|entity| {
             !self.by_entity.contains_key(&entity.id())
                 && host
@@ -381,7 +395,7 @@ impl TinPewterPowers {
                     .and_then(|l| l.alive(host))
                     .unwrap_or(false)
         }) else {
-            return;
+            return debug_sound(&format!("no_source:{count}"), position);
         };
         let middle =
             source
