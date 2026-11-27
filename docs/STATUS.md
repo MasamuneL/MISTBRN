@@ -1,8 +1,8 @@
 # Estado — Masamune's MISTBRN
 
-Actualizado el 2026-11-25.
+Actualizado el 2026-11-26.
 
-## Integrado en main (P3c, al integrar la PR #22)
+## Integrado en main (P8 parte 1, al integrar la PR #24)
 
 | Fase | Resultado |
 |---|---|
@@ -17,22 +17,24 @@ Actualizado el 2026-11-25.
 | P6 | Cuatro hitos, cada uno una vez por jugador: bastión (estaño/peltre), guardián anciano (zinc/latón), ciudad antigua (cobre/bronce) y dragona (+3 de conocimiento); la pareja se desbloquea sin seleccionarla; jefes compartidos por quienes los dañaron en 30 s; pestaña Hitos del cuaderno; esquema de guardado 3 con migración 2→3. Verificada en Windows x64. [PR #18](https://github.com/MasamuneL/MISTBRN/pull/18) · [Evidencia](evidence/p6.md) · [Guía](p6-guide.md) |
 | P7b | El libro (tecla J; el ítem cuaderno sin receta): pestañas Árboles (plantilla de las 4 parejas + General con scroll; solo los nodos del catálogo son reales), Diario (lista y detalle; Concluir mirando a una mesa de crafteo o un alambique a ≤ 5 bloques, op 8), Hitos y Reservas; tooltips, foco por teclado y ajustes «Reducir destellos» y tamaño del libro y de las barras. Sin cambio de esquema. Verificada en Windows x64. [PR #20](https://github.com/MasamuneL/MISTBRN/pull/20) · [Evidencia](evidence/p7b.md) · [Guía](p7b-guide.md) |
 | P3c | Alquimia: alambique (3 viales + 1 ingrediente, tandas de 600 ticks, dos etapas: agua + sal → solución salina, solución + viruta → vial), sal de piedra de sal en playas, arena de playa y horno, vial de agua, vial de metales básicos; se quita la receta vial vacío + viruta y Concluir pide el alambique. Verificada en Windows x64. [PR #22](https://github.com/MasamuneL/MISTBRN/pull/22) · [Evidencia](evidence/p3c.md) · [Guía](p3c-guide.md) |
+| P8 (1 de 4) | Mapa radial de habilidades en la pestaña Árboles: General en el centro, cuatro sectores como en la tabla alomántica (tirón, empujón y técnica combinada al fondo), puentes entre vecinos, sectores bloqueados en silueta con su hito; arrastre, rueda y teclado. Nodos generales coste de avivar y dosificación; op 9 para códigos 64..=127; esquema de guardado 4 con migración 1/2/3→4. Límite del árbol a 1,5 MiB. Verificada en Windows x64. [PR #24](https://github.com/MasamuneL/MISTBRN/pull/24) · [Evidencia](evidence/p8.md) · [Guía](p8-guide.md) |
 
-El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P3c) fue `p3c-final` (commit `ae5b9d4`, árbol limpio) en Windows x64, instancia `mistbrn-p3c`: A1–A6, AV, L1–L6 y la regresión de 26, 39/39 PASS. Recibos y corridas fuera del repo, en `%LOCALAPPDATA%\MISTBRN-p3c-dev\` (Windows); los de fases anteriores, en `~/Library/Application Support/MISTBRN-dev/` (macOS). El gate completo de Windows x64 y Linux x64 sigue en P10. [Compatibilidad](compatibility.md)
+El pin vigente es Horizon `nightly-2026-11-20-0a875da` (`0a875da91dbb0fdcb7ba8c42c11341aa229af51a`), juego 26.3 y Rust 1.99.1. El build de la última batería (P8 parte 1) fue `p8-final2` (commit `c06f40b`, árbol limpio) en Windows x64, instancia `mistbrn-p8`: G1–G4, M4 y la regresión, 44/44 PASS. Recibos y corridas fuera del repo, en `%LOCALAPPDATA%\MISTBRN-p8-dev\` y `%LOCALAPPDATA%\MISTBRN-p3c-dev\` (Windows); los de fases anteriores, en `~/Library/Application Support/MISTBRN-dev/` (macOS). El gate completo de Windows x64 y Linux x64 sigue en P10. [Compatibilidad](compatibility.md)
 
 ## Reanudación
 
-- Sin rama activa: P3c integrada (PR #22). Próxima fase: P8, con el árbol de habilidades único (decisiones del usuario apuntadas para su plan).
+- P8 en curso, en cuatro ramas: mapa (integrada, PR #24), `feat/p8-tin-pewter`, `feat/p8-zinc-brass` y `feat/p8-copper-bronze`. Plan aprobado fuera del repo.
 
 ## Siguiente acción exacta
 
-1. P7b: notas de la revisión visual del usuario con `docs/p7b-guide.md`, si las hay, a `evidence/p7b.md`.
-2. Planificar P8 (poderes de estaño/peltre, zinc/latón y cobre/bronce sobre un árbol radial único) y pedir la aprobación del usuario.
-3. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; horno en un nivel aparcado y rotura del alambique a media tanda (P3c).
+1. `feat/p8-tin-pewter`: poderes innatos y segunda técnica de cada rama con sus subnodos, técnica combinada, nodos generales simultáneo y transición, puente 24 e investigación 2.
+2. Después, `feat/p8-zinc-brass` y `feat/p8-copper-bronze` (empieza con una prueba de `entity_part`).
+3. P7b: notas de la revisión visual del usuario con `docs/p7b-guide.md`, si las hay, a `evidence/p7b.md`.
+4. Pendientes abiertos: dos clientes (P9); reglas de reserva y fuerza a datos; márgenes estrechos de N1 y N3; horno en un nivel aparcado y rotura del alambique a media tanda (P3c).
 
 ## Próximos hitos
 
-1. **P8** poderes de las tres parejas que los hitos ya desbloquean, sobre el libro y el esquema 3.
+1. **P8** poderes de las tres parejas que los hitos ya desbloquean, sobre el mapa y el esquema 4.
 2. Las fases posteriores amplían el recorrido con práctica, investigación, árboles de técnicas, hitos y las otras tres parejas. El cooperativo y la publicación tienen sus propias pruebas.
 
 [Diseño](design.md) · [Plan de ejecución](plan.md) · [Historial anterior al re-pin](history.md)
