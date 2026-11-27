@@ -29,6 +29,8 @@ pub enum ReserveError {
     InvalidRemainder(Metal),
     NegativeCredit,
     CapacityExceeded(Metal),
+    /// A spend larger than the reserve (P8: the dodge).
+    NotEnough(Metal),
 }
 
 impl ReserveRules {
@@ -169,6 +171,28 @@ pub fn consume_reserves_with(
     state.metals = next_metals;
     accounting.remainder = next_remainder;
     Ok(exhausted)
+}
+
+/// Takes `amount_milli` from one reserve at once (P8: Reflexes' dodge), all or nothing. A
+/// reserve left at 0 puts the metal out, as consumption does.
+pub fn spend_reserve(
+    state: &mut PlayerState,
+    accounting: &mut ReserveAccounting,
+    rules: &ReserveRules,
+    metal: Metal,
+    amount_milli: u64,
+) -> Result<(), ReserveError> {
+    validate_reserves(state, accounting, rules)?;
+    let entry = &mut state.metals[metal.index()];
+    if amount_milli > entry.reserve_milli {
+        return Err(ReserveError::NotEnough(metal));
+    }
+    entry.reserve_milli -= amount_milli;
+    if entry.reserve_milli == 0 {
+        entry.burn = BurnState::Off;
+        accounting.remainder[metal.index()] = 0;
+    }
+    Ok(())
 }
 
 pub fn clear_reserves_on_death(state: &mut PlayerState, accounting: &mut ReserveAccounting) {

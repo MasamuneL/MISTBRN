@@ -125,15 +125,19 @@ fn clients_cannot_apply_any_command() {
     }
 }
 
-// Catches activation that bypasses lock/reserve checks, and P4 leaking past iron and steel.
+// Catches activation that bypasses lock/reserve checks, and powers leaking past the metals
+// that have them (iron and steel since P4, tin and pewter since P8).
 #[test]
-fn activating_and_flaring_are_validated_and_only_iron_steel_are_implemented() {
+fn activating_and_flaring_are_validated_and_only_implemented_metals_light() {
     for (command, operation) in [
-        (Command::Activate { metal: Metal::Tin }, Operation::Activate),
-        (Command::Flare { metal: Metal::Tin }, Operation::Flare),
+        (
+            Command::Activate { metal: Metal::Zinc },
+            Operation::Activate,
+        ),
+        (Command::Flare { metal: Metal::Zinc }, Operation::Flare),
     ] {
         let mut tin = player();
-        tin.metals[Metal::Tin.index()] = MetalState {
+        tin.metals[Metal::Zinc.index()] = MetalState {
             unlocked: true,
             reserve_milli: 1,
             burn: BurnState::Off,

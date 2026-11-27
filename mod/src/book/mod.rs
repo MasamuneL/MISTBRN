@@ -140,8 +140,18 @@ fn shown_places(unlocked: &dyn Fn(Pair) -> bool) -> Vec<(Target, [f32; 2])> {
         .0
         .into_iter()
         .map(|place| {
-            let target = match place.sector {
-                Some(pair) if !unlocked(pair) => Target::Locked(pair),
+            let target = match (place.sector, place.target) {
+                (Some(pair), _) if !unlocked(pair) => Target::Locked(pair),
+                // A bridge shows once both of the pairs it joins are unlocked (P8).
+                (None, Target::Node(code)) => match allomancy_core::node_def(code, &CATALOG) {
+                    Some(def) => match def.pool {
+                        allomancy_core::Pool::Bridge(a, b) if !unlocked(a) || !unlocked(b) => {
+                            Target::Hidden
+                        }
+                        _ => place.target,
+                    },
+                    None => place.target,
+                },
                 _ => place.target,
             };
             (target, place.at)
@@ -601,8 +611,9 @@ mod tests {
             .iter()
             .filter(|(t, ..)| t.focusable())
             .count();
-        // 4 tabs, the 4 general nodes, reach, accel and coin jump.
-        assert_eq!(focusable, 11);
+        // 4 tabs, the 6 general nodes, reach, accel and coin jump (the bridge to tin and
+        // pewter stays hidden while they are locked).
+        assert_eq!(focusable, 13);
         for _ in 0..focusable {
             move_focus(&mut book, &progress, true);
             let (_, rect, shown) = targets(&book, &progress)

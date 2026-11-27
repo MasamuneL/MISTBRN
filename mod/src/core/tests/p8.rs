@@ -101,7 +101,8 @@ fn schema_4_reads_fewer_newer_windows_as_unopened() {
 #[test]
 fn a_window_of_an_undefined_category_is_refused() {
     let mut bytes = encode_save(&knowing()).unwrap();
-    let first = extra_at(&bytes) + 1;
+    // The last one, category 10: copper and bronze's, not in the catalog yet.
+    let first = extra_at(&bytes) + 1 + (EXTRA - 1) * 9;
     bytes[first..first + 8].copy_from_slice(&5u64.to_le_bytes());
     bytes[first + 8] = 1;
     assert_eq!(

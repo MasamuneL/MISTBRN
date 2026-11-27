@@ -625,7 +625,13 @@ impl Session {
                     "MISTBRN event=conclude research={key} result=ok seq={}",
                     seq.0
                 );
-                tell(host, player, "message.mistbrn.research.discovered");
+                // The anchor principle keeps its P5 line; later research names itself.
+                let line = if code == allomancy_core::RESEARCH_ANCHOR {
+                    "message.mistbrn.research.discovered".to_owned()
+                } else {
+                    format!("message.mistbrn.research.discovered.{key}")
+                };
+                tell(host, player, &line);
                 Ok(())
             }
             Err(error) => {

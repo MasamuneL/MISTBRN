@@ -54,6 +54,9 @@ pub enum ControlRequest {
     /// The book's Conclude button: conclude research `research`, looking at a research table
     /// (P7b). The server checks the table, the distance and readiness.
     Conclude { research: u8 },
+    /// C (P8): Reflexes' dodge, `direction` 0 left, 1 right, 2 back, 3 forward. The server
+    /// checks the technique, both metals lit, the pewter and the cooldown.
+    Dodge { direction: u8 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +100,8 @@ pub fn encode_control(request: ControlRequest) -> [u8; CONTROL_LEN] {
         }
         ControlRequest::RevealHint { research, index } => (7, research << 2 | index),
         ControlRequest::Conclude { research } => (8, research),
+        // Past 3 it goes as 4, which the server refuses.
+        ControlRequest::Dodge { direction } => (10, direction.min(4)),
     };
     [CONTROL_VERSION, op, arg]
 }
@@ -129,7 +134,8 @@ pub fn decode_control(bytes: &[u8]) -> Result<ControlRequest, ControlError> {
             code: 64 + (arg >> 2),
             rank: arg & 3,
         }),
-        (1..=9, _) => Err(ControlError::Arg { op, arg }),
+        (10, 0..=3) => Ok(ControlRequest::Dodge { direction: arg }),
+        (1..=10, _) => Err(ControlError::Arg { op, arg }),
         _ => Err(ControlError::Op(op)),
     }
 }
@@ -186,16 +192,28 @@ pub fn resolve_control(state: &PlayerState, request: ControlRequest) -> Option<C
                 Command::Extinguish { metal: Some(metal) }
             })
         }
-        ControlRequest::ToggleFlare => metals.into_iter().find_map(|metal| match burn(metal) {
-            BurnState::Off => None,
-            BurnState::Burning => Some(Command::Flare { metal }),
-            BurnState::Flared => Some(Command::Activate { metal }),
-        }),
+        ControlRequest::ToggleFlare => {
+            let lit: Vec<Metal> = metals
+                .into_iter()
+                .filter(|&m| burn(m) != BurnState::Off)
+                .collect();
+            match lit.as_slice() {
+                [] => None,
+                &[metal] if burn(metal) == BurnState::Burning => Some(Command::Flare { metal }),
+                &[metal] => Some(Command::Activate { metal }),
+                // Both lit (tin and pewter, P8): flare both unless both are flared already.
+                _ => Some(Command::FlarePair {
+                    pair: state.selected_pair,
+                    flared: lit.iter().any(|&m| burn(m) == BurnState::Burning),
+                }),
+            }
+        }
         ControlRequest::Off => Some(Command::Extinguish { metal: None }),
         ControlRequest::SelectPair(pair) => Some(Command::SelectPair { pair }),
         ControlRequest::Purchase { .. }
         | ControlRequest::RevealHint { .. }
-        | ControlRequest::Conclude { .. } => None,
+        | ControlRequest::Conclude { .. }
+        | ControlRequest::Dodge { .. } => None,
     }
 }
 

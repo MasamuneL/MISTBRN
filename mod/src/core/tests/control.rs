@@ -18,7 +18,7 @@ fn rules() -> ReserveRules {
     }
 }
 
-const REQUESTS: [ControlRequest; 9] = [
+const REQUESTS: [ControlRequest; 13] = [
     ControlRequest::CyclePair,
     ControlRequest::Toggle(Side::First),
     ControlRequest::Toggle(Side::Second),
@@ -28,6 +28,10 @@ const REQUESTS: [ControlRequest; 9] = [
     ControlRequest::SelectPair(Pair::TinPewter),
     ControlRequest::SelectPair(Pair::ZincBrass),
     ControlRequest::SelectPair(Pair::CopperBronze),
+    ControlRequest::Dodge { direction: 0 },
+    ControlRequest::Dodge { direction: 1 },
+    ControlRequest::Dodge { direction: 2 },
+    ControlRequest::Dodge { direction: 3 },
 ];
 
 #[test]
@@ -70,7 +74,7 @@ fn control_rejects_every_unknown_byte() {
                 }
                 let expected = if version != CONTROL_VERSION {
                     ControlError::Version(version)
-                } else if (1..=9).contains(&op) {
+                } else if (1..=10).contains(&op) {
                     ControlError::Arg { op, arg }
                 } else {
                     ControlError::Op(op)
@@ -331,7 +335,16 @@ fn notebook_requests_round_trip_and_reject_code_or_index_zero() {
         decode_control(&[1, 9, 0]),
         Err(ControlError::Arg { op: 9, arg: 0 })
     );
-    assert_eq!(decode_control(&[1, 10, 0]), Err(ControlError::Op(10)));
+    assert_eq!(decode_control(&[1, 11, 0]), Err(ControlError::Op(11)));
+    // The dodge (P8): four directions; anything else is refused, not wrapped.
+    assert_eq!(
+        decode_control(&[1, 10, 4]),
+        Err(ControlError::Arg { op: 10, arg: 4 })
+    );
+    assert_eq!(
+        encode_control(ControlRequest::Dodge { direction: 9 }),
+        [1, 10, 4]
+    );
     // What cannot be packed is sent as a request the server refuses, never as another node.
     for request in [
         ControlRequest::Purchase { code: 128, rank: 1 },
