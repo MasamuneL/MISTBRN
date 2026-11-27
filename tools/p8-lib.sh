@@ -199,7 +199,8 @@ p8_scenario() {
       launch MISTBRN_TEST_SCENARIO=p4
       p6_place
       p8_knowledge
-      # No node has a code above 63 yet: the request still decodes (op 9) and is refused.
+      # Code 64 (zinc range) is bought with op 9: it reaches the server, which refuses it
+      # while zinc and brass are locked.
       p8_buy 64 1
       p8_buy 18 1
       p8_buy 16 1
@@ -213,7 +214,7 @@ p8_scenario() {
       ctl wait 5 >/dev/null
       ctl save >/dev/null; quit_game
       report; quit_game
-      expect_log 1 'MISTBRN event=purchase node=unknown rank=1 result=UnknownNode code=64'
+      expect_log 1 'MISTBRN event=purchase node=zinc_range rank=1 result=PairLocked code=64'
       # Flare cost needs economy first.
       expect_log 1 'MISTBRN event=purchase node=flare_cost rank=1 result=MissingRequirement code=18'
       expect_log 1 'MISTBRN event=purchase node=economy rank=1 result=ok seq=[0-9]* code=16'
